@@ -52,10 +52,10 @@ private enum class Tab{HOME,MEMBERS,RANKING,SETTINGS}
     var tab by remember{mutableStateOf(Tab.HOME)}
     Scaffold(bottomBar={
         NavigationBar{
-            NavigationBarItem(tab==Tab.HOME,{tab=Tab.HOME},{Icon(Icons.Default.Home,null)},{Text("خانه")})
-            NavigationBarItem(tab==Tab.MEMBERS,{tab=Tab.MEMBERS},{Icon(Icons.Default.Groups,null)},{Text("اعضا")})
-            NavigationBarItem(tab==Tab.RANKING,{tab=Tab.RANKING},{Icon(Icons.Default.EmojiEvents,null)},{Text("رتبه")})
-            NavigationBarItem(tab==Tab.SETTINGS,{tab=Tab.SETTINGS},{Icon(Icons.Default.Settings,null)},{Text("تنظیمات")})
+            NavigationBarItem(selected=tab==Tab.HOME,onClick={tab=Tab.HOME},icon={Icon(Icons.Default.Home,null)},label={Text("خانه")})
+            NavigationBarItem(selected=tab==Tab.MEMBERS,onClick={tab=Tab.MEMBERS},icon={Icon(Icons.Default.Groups,null)},label={Text("اعضا")})
+            NavigationBarItem(selected=tab==Tab.RANKING,onClick={tab=Tab.RANKING},icon={Icon(Icons.Default.EmojiEvents,null)},label={Text("رتبه")})
+            NavigationBarItem(selected=tab==Tab.SETTINGS,onClick={tab=Tab.SETTINGS},icon={Icon(Icons.Default.Settings,null)},label={Text("تنظیمات")})
         }
     }){padding->
         when(tab){
