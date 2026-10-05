@@ -67,5 +67,5 @@ class AppRepository(context: Context) {
     }
 
     fun setWheel(config: WheelConfig) { wheel = config }
-    fun persist() = store.save(ring, members, history)
+    fun persist() = store.save(ring, members, history)\n    fun exportBackup(): String = store.exportJson() ?: "{}"\n    fun importBackup(raw: String) {\n        store.importJson(raw)\n        members.clear()\n        history.clear()\n        store.load()?.let {\n            ring = it.ring\n            members += it.members\n            history += it.history\n        }\n    }
 }
