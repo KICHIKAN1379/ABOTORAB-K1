@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.model.*
 
@@ -36,13 +37,16 @@ private fun AK1Theme(content: @Composable () -> Unit) {
 
 @Composable
 private fun AK1App() {
+    val context = LocalContext.current
     val repo = remember {
-        AppRepository(applicationContext).also {
+        AppRepository(context.applicationContext).also {
             if (it.ring == null) it.createRing("حلقه من", "mentor")
-            if (it.members.isEmpty()) { it.addMember("محمدعلی")
-            it.addMember("علی")
-            it.addMember("رضا")
-            it.addMember("محمد")
+            if (it.members.isEmpty()) {
+                it.addMember("محمدعلی")
+                it.addMember("علی")
+                it.addMember("رضا")
+                it.addMember("محمد")
+            }
         }
     }
     var tab by remember { mutableStateOf(Tab.HOME) }
