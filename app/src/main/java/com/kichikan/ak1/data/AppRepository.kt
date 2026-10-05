@@ -4,6 +4,7 @@ import android.content.Context
 import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
+import com.kichikan.ak1.domain.service.MissionService
 
 class AppRepository(context: Context) {
     private var sequence = 0L
@@ -13,6 +14,11 @@ class AppRepository(context: Context) {
     val members = mutableListOf<Member>()
     val history = mutableListOf<HistoryEvent>()
     val shop = mutableListOf<ShopItem>()
+    val missions = mutableListOf<Mission>()
+    val missionCompletions = mutableListOf<MissionCompletion>()
+    val sessions = mutableListOf<Session>()
+    val attendance = mutableListOf<Attendance>()
+    val assets = mutableListOf<CustomAsset>()
     var wheel = WheelConfig()
         private set
 
@@ -67,5 +73,24 @@ class AppRepository(context: Context) {
     }
 
     fun setWheel(config: WheelConfig) { wheel = config }
+
+    fun addMission(mission: Mission) { missions += mission }
+    fun completeMission(mission: Mission, memberIds: List<String>, reason: String? = null): MissionCompletion {
+        check(MissionService.canComplete(mission, System.currentTimeMillis()))
+        val completion = MissionService.completion(mission, memberIds, System.currentTimeMillis(), reason)
+        missionCompletions += completion
+        memberIds.distinct().forEach { memberId ->
+            if (mission.xpReward > 0) recordXp(memberId, mission.xpReward, "ماموریت: ${mission.title}", "mentor")
+            if (mission.pointsReward > 0) recordPoints(memberId, mission.pointsReward, "ماموریت: ${mission.title}", "mentor")
+            if (mission.diamondReward > 0) recordDiamonds(memberId, mission.diamondReward, "ماموریت: ${mission.title}", "mentor")
+            history += HistoryEvent("mission-${completion.id}-$memberId", memberId, HistoryType.MISSION_COMPLETED, null, mission.title, reason, completion.completedAt, "mentor")
+        }
+        persist()
+        return completion
+    }
+
+    fun addSession(session: Session) { sessions += session }
+    fun recordAttendance(item: Attendance) { attendance += item; history += HistoryEvent("attendance-${item.id}", item.memberId, HistoryType.ATTENDANCE, null, "حضور و غیاب", item.note, item.createdAt, "mentor"); persist() }
+    fun addAsset(asset: CustomAsset) { assets += asset; persist() }
     fun persist() = store.save(ring, members, history)\n    fun exportBackup(): String = store.exportJson() ?: "{}"\n    fun importBackup(raw: String) {\n        store.importJson(raw)\n        members.clear()\n        history.clear()\n        store.load()?.let {\n            ring = it.ring\n            members += it.members\n            history += it.history\n        }\n    }
 }
