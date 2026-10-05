@@ -9,7 +9,7 @@ class LocalStore(context: Context) {
     private val prefs = context.getSharedPreferences("ak1_local", Context.MODE_PRIVATE)
 
     fun save(ring: RingAccount?, members: List<Member>, history: List<HistoryEvent>) {
-        val root = JSONObject()
+        val root = JSONObject().put("schemaVersion", 1)
         ring?.let {
             root.put("ringId", it.ringId).put("ringName", it.ringName)
                 .put("ringUsername", it.ringUsername).put("passwordRequired", it.passwordRequired)
@@ -35,7 +35,7 @@ class LocalStore(context: Context) {
 
     fun exportJson(): String? = prefs.getString("backup", null)\n\n    fun importJson(raw: String) { prefs.edit().putString("backup", raw).apply() }\n\n    fun load(): LoadedState? {
         val raw = prefs.getString("backup", null) ?: return null
-        val root = JSONObject(raw)
+        val root = JSONObject(raw)\n        require(root.optInt("schemaVersion", 0) == 1) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
         val ring = if (root.has("ringId")) RingAccount(
             root.getString("ringId"), root.getString("ringName"),
             root.getString("ringUsername"), root.optBoolean("passwordRequired", false)
