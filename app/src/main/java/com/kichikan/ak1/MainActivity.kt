@@ -37,9 +37,9 @@ private fun AK1Theme(content: @Composable () -> Unit) {
 @Composable
 private fun AK1App() {
     val repo = remember {
-        AppRepository().also {
-            it.createRing("حلقه من", "mentor")
-            it.addMember("محمدعلی")
+        AppRepository(applicationContext).also {
+            if (it.ring == null) it.createRing("حلقه من", "mentor")
+            if (it.members.isEmpty()) { it.addMember("محمدعلی")
             it.addMember("علی")
             it.addMember("رضا")
             it.addMember("محمد")
