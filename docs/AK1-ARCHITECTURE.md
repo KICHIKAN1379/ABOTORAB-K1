@@ -76,7 +76,9 @@ Avatars and frames support a "personal creation" area for mentor-uploaded assets
 
 Recommended source size:
 - Avatar PNG: 256×256 px, transparent background preferred.
-- Frame PNG: 256×256 px, transparent center/background preferred.
+- Frame PNG: **288×288 px**, transparent center, designed as an outer ring/stroke around the avatar rather than sitting inside/overlapping the avatar itself.
+- The frame is rendered slightly larger than the avatar so its visual border surrounds the avatar without covering it.
+- Future animated frame: GIF at 288×288 px with the same outer-ring geometry.
 
 Future:
 - Animated GIF frames are planned.
