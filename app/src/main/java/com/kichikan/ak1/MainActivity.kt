@@ -6,165 +6,279 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.kichikan.ak1.data.AppRepository
+import com.kichikan.ak1.domain.model.*
 
-data class Member(val id:Int,val name:String,val level:Int,val positive:Int,val negative:Int) {
-    val total:Int get() = positive - negative
-}
-class AppState {
-    val members = mutableStateListOf(
-        Member(1,"محمدعلی",3,42,2),
-        Member(2,"علی",2,31,1),
-        Member(3,"رضا",2,27,3),
-        Member(4,"محمد",1,18,0)
-    )
-    fun addPoints(id:Int, amount:Int, positive:Boolean) {
-        val i=members.indexOfFirst { it.id==id }
-        if(i<0) return
-        val old=members[i]
-        members[i]=if(positive) old.copy(positive=old.positive+amount)
-        else old.copy(negative=old.negative+amount)
-    }
-}
-private val AK1Colors=darkColorScheme(
-    primary=Color(0xFFFFD700),
-    secondary=Color(0xFF38EF7D),
-    background=Color(0xFF16213E),
-    surface=Color(0xFF101827)
-)
-class MainActivity:ComponentActivity(){
-    override fun onCreate(savedInstanceState:Bundle?){
+private enum class Tab { HOME, MEMBERS, WORKSHOP, SESSIONS, RANKING, STORE, SETTINGS }
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent{MaterialTheme(colorScheme=AK1Colors){AK1App()}}
+        setContent { AK1Theme { AK1App() } }
     }
 }
-private enum class Tab{HOME,MEMBERS,RANKING,SETTINGS}
-@Composable fun AK1App(){
-    val state=remember{AppState()}
-    var tab by remember{mutableStateOf(Tab.HOME)}
-    Scaffold(bottomBar={
-        NavigationBar{
-            NavigationBarItem(selected=tab==Tab.HOME,onClick={tab=Tab.HOME},icon={Icon(Icons.Default.Home,null)},label={Text("خانه")})
-            NavigationBarItem(selected=tab==Tab.MEMBERS,onClick={tab=Tab.MEMBERS},icon={Icon(Icons.Default.Groups,null)},label={Text("اعضا")})
-            NavigationBarItem(selected=tab==Tab.RANKING,onClick={tab=Tab.RANKING},icon={Icon(Icons.Default.EmojiEvents,null)},label={Text("رتبه")})
-            NavigationBarItem(selected=tab==Tab.SETTINGS,onClick={tab=Tab.SETTINGS},icon={Icon(Icons.Default.Settings,null)},label={Text("تنظیمات")})
-        }
-    }){padding->
-        when(tab){
-            Tab.HOME->Dashboard(state,padding)
-            Tab.MEMBERS->Members(state,padding)
-            Tab.RANKING->Ranking(state,padding)
-            Tab.SETTINGS->Settings(padding)
+
+@Composable
+private fun AK1Theme(content: @Composable () -> Unit) {
+    val scheme = darkColorScheme(
+        primary = androidx.compose.ui.graphics.Color(0xFFFFD700),
+        secondary = androidx.compose.ui.graphics.Color(0xFF38EF7D),
+        background = androidx.compose.ui.graphics.Color(0xFF16213E),
+        surface = androidx.compose.ui.graphics.Color(0xFF101827)
+    )
+    MaterialTheme(colorScheme = scheme, content = content)
+}
+
+@Composable
+private fun AK1App() {
+    val repo = remember {
+        AppRepository().also {
+            it.createRing("حلقه من", "mentor")
+            it.addMember("محمدعلی")
+            it.addMember("علی")
+            it.addMember("رضا")
+            it.addMember("محمد")
         }
     }
-}
-@Composable private fun Dashboard(state:AppState,padding:PaddingValues){
-    var dialog by remember{mutableStateOf(false)}
-    Column(Modifier.fillMaxSize().padding(padding).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
-        Text("ابوتراب ۳",style=MaterialTheme.typography.headlineMedium)
-        Text("مربی ابوتراب",color=MaterialTheme.colorScheme.primary)
-        Card(Modifier.fillMaxWidth()){
-            Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                Text("خلاصه امروز",style=MaterialTheme.typography.titleLarge)
-                Text("اعضا: "+state.members.size)
-                Text("امتیاز مثبت: "+state.members.sumOf{it.positive})
-                Text("امتیاز منفی: "+state.members.sumOf{it.negative})
+    var tab by remember { mutableStateOf(Tab.HOME) }
+    var refresh by remember { mutableIntStateOf(0) }
+    fun changed() { refresh++ }
+
+    Scaffold(bottomBar = {
+        NavigationBar {
+            listOf(
+                Tab.HOME to "خانه", Tab.MEMBERS to "اعضا", Tab.WORKSHOP to "تراشکاری",
+                Tab.SESSIONS to "جلسات", Tab.RANKING to "رقابت", Tab.STORE to "فروشگاه", Tab.SETTINGS to "تنظیمات"
+            ).forEach { (t, label) ->
+                NavigationBarItem(
+                    selected = tab == t, onClick = { tab = t },
+                    icon = { Text(label.take(1)) }, label = { Text(label) }
+                )
             }
         }
-        Button({dialog=true},Modifier.fillMaxWidth()){
-            Icon(Icons.Default.Add,null);Spacer(Modifier.width(8.dp));Text("ثبت امتیاز")
-        }
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)){
-            Card(Modifier.weight(1f)){Box(Modifier.padding(18.dp),contentAlignment=Alignment.Center){Text("حضور و غیاب")}}
-            Card(Modifier.weight(1f)){Box(Modifier.padding(18.dp),contentAlignment=Alignment.Center){Text("رتبه‌بندی")}}
+    }) { padding ->
+        key(refresh) {
+            when (tab) {
+                Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() })
+                Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
+                Tab.WORKSHOP -> WorkshopScreen(repo, padding, { changed() })
+                Tab.SESSIONS -> SessionsScreen(padding)
+                Tab.RANKING -> RankingScreen(repo, padding)
+                Tab.STORE -> StoreScreen(repo, padding)
+                Tab.SETTINGS -> SettingsScreen(repo, padding)
+            }
         }
     }
-    if(dialog)PointDialog(state){dialog=false}
 }
-@Composable private fun Members(state:AppState,padding:PaddingValues){
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)){
-        Text("اعضای گروه",style=MaterialTheme.typography.headlineMedium)
+
+@Composable
+private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit) {
+    var action by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
+        Text("پنل مربی", color = MaterialTheme.colorScheme.primary)
+        SummaryCard(repo)
+        Button({ action = true }, Modifier.fillMaxWidth()) { Text("ثبت امتیاز / XP") }
+        OutlinedButton(openMembers, Modifier.fillMaxWidth()) { Text("مدیریت اعضا") }
+        Text("میانبرها", style = MaterialTheme.typography.titleLarge)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton({ action = true }, Modifier.weight(1f)) { Text("ثبت XP") }
+            OutlinedButton({ action = true }, Modifier.weight(1f)) { Text("الماس") }
+        }
+    }
+    if (action) EconomyDialog(repo, changed) { action = false }
+}
+
+@Composable
+private fun SummaryCard(repo: AppRepository) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("خلاصه حلقه", style = MaterialTheme.typography.titleLarge)
+            Text("اعضا: ${repo.members.size}")
+            Text("XP کل: ${repo.members.sumOf { it.economy.xp }}")
+            Text("امتیاز قابل خرج: ${repo.members.sumOf { it.economy.spendablePoints }}")
+            Text("الماس: ${repo.members.sumOf { it.economy.diamonds }}")
+        }
+    }
+}
+
+@Composable
+private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+    var add by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<Member?>(null) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("اعضا", style = MaterialTheme.typography.headlineMedium)
+            Button({ add = true }) { Text("+ عضو") }
+        }
         Spacer(Modifier.height(12.dp))
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){
-            items(state.members,key={it.id}){m->
-                Card(Modifier.fillMaxWidth()){
-                    Row(Modifier.fillMaxWidth().padding(16.dp),horizontalArrangement=Arrangement.SpaceBetween){
-                        Column{Text(m.name,style=MaterialTheme.typography.titleLarge);Text("سطح "+m.level)}
-                        Column(horizontalAlignment=Alignment.End){
-                            Text("+"+m.positive,color=MaterialTheme.colorScheme.primary)
-                            Text("-"+m.negative,color=MaterialTheme.colorScheme.error)
-                            Text("نهایی: "+m.total)
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(repo.members, key = { it.id }) { m ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text(m.name, style = MaterialTheme.typography.titleLarge)
+                            Text("سطح ${m.economy.level}  •  XP ${m.economy.xp}")
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("🪙 ${m.economy.spendablePoints}")
+                            Text("💎 ${m.economy.diamonds}")
+                            TextButton({ selected = m }) { Text("تاریخچه") }
                         }
                     }
                 }
             }
         }
     }
+    if (add) AddMemberDialog(repo, changed) { add = false }
+    selected?.let { HistoryDialog(repo, it) { selected = null } }
 }
-@Composable private fun Ranking(state:AppState,padding:PaddingValues){
-    val ranked=state.members.sortedByDescending{it.total}
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)){
-        Text("رتبه‌بندی",style=MaterialTheme.typography.headlineMedium)
+
+@Composable
+private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+    var economy by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("تراشکاری", style = MaterialTheme.typography.headlineMedium)
+        Text("ابزارهای تربیتی و اقتصادی حلقه")
+        listOf("ثبت امتیاز و XP", "ماموریت‌های فردی", "ماموریت‌های گروهی", "دفترچه تربیتی", "توشه کمال", "نقشه کمال").forEach {
+            OutlinedButton({ economy = true }, Modifier.fillMaxWidth()) { Text(it) }
+        }
+    }
+    if (economy) EconomyDialog(repo, changed) { economy = false }
+}
+
+@Composable
+private fun SessionsScreen(padding: PaddingValues) {
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("جلسات", style = MaterialTheme.typography.headlineMedium)
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("حضور و غیاب") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("جلسه جدید") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("اردو") }
+    }
+}
+
+@Composable
+private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
+    val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+        Text("رقابت", style = MaterialTheme.typography.headlineMedium)
+        Text("رتبه فقط بر اساس XP و سطح است؛ امتیاز قابل خرج دخالتی ندارد.")
         Spacer(Modifier.height(12.dp))
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){
-            itemsIndexed(ranked,key={_,m->m.id}){index,m->
-                Card(Modifier.fillMaxWidth()){
-                    Row(Modifier.fillMaxWidth().padding(18.dp),horizontalArrangement=Arrangement.SpaceBetween){
-                        Text("#"+(index+1)+"  "+m.name)
-                        Text(m.total.toString()+" امتیاز")
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(ranked) { m ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("#${ranked.indexOf(m) + 1}  ${m.name}")
+                        Text("سطح ${m.economy.level} • XP ${m.economy.xp}")
                     }
                 }
             }
         }
     }
 }
-@Composable private fun Settings(padding:PaddingValues){
-    var notifications by remember{mutableStateOf(true)}
-    Column(Modifier.fillMaxSize().padding(padding).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
-        Text("تنظیمات",style=MaterialTheme.typography.headlineMedium)
-        Card(Modifier.fillMaxWidth()){
-            Row(Modifier.fillMaxWidth().padding(18.dp),horizontalArrangement=Arrangement.SpaceBetween){
-                Column{Text("یادآوری‌ها");Text("اعلان‌های تربیتی و رویدادها")}
-                Switch(notifications,{notifications=it})
-            }
-        }
-        Text("مربی ابوتراب — نسخه 1.0")
+
+@Composable
+private fun StoreScreen(repo: AppRepository, padding: PaddingValues) {
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("فروشگاه", style = MaterialTheme.typography.headlineMedium)
+        Text("آواتارها • قاب‌ها • جوایز • گردونه")
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("آواتارها") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("قاب‌ها") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("جوایز") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("گردونه رایگان") }
+        Text("گردونه هزینه ندارد و اقلام آن توسط مربی تعریف می‌شوند.")
     }
 }
-@Composable private fun PointDialog(state:AppState,onDismiss:()->Unit){
-    var selected by remember{mutableStateOf(state.members.firstOrNull()?.id?:0)}
-    var positive by remember{mutableStateOf(true)}
-    var amount by remember{mutableStateOf("1")}
+
+@Composable
+private fun SettingsScreen(repo: AppRepository, padding: PaddingValues) {
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
+        Text("حلقه: ${repo.ring?.ringName ?: "-"}")
+        Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
+        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
+    }
+}
+
+@Composable
+private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    var name by remember { mutableStateOf("") }
     AlertDialog(
-        onDismissRequest=onDismiss,
-        title={Text("ثبت امتیاز")},
-        text={
-            Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
-                state.members.forEach{m->
-                    FilterChip(selected==m.id,{selected=m.id},label={Text(m.name)})
+        onDismissRequest = close, title = { Text("عضو جدید") },
+        text = { OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true) },
+        confirmButton = {
+            TextButton({ if (name.isNotBlank()) { repo.addMember(name); changed() }; close() }) { Text("ثبت") }
+        },
+        dismissButton = { TextButton(close) { Text("انصراف") } }
+    )
+}
+
+@Composable
+private fun EconomyDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    var memberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
+    var type by remember { mutableStateOf("XP") }
+    var amount by remember { mutableStateOf("10") }
+    var reason by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = close, title = { Text("ثبت رویداد") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                repo.members.forEach { m ->
+                    FilterChip(memberId == m.id, { memberId = m.id }, label = { Text(m.name) })
                 }
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                    FilterChip(positive,{positive=true},label={Text("مثبت")})
-                    FilterChip(!positive,{positive=false},label={Text("منفی")})
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(type == "XP", { type = "XP" }, label = { Text("XP") })
+                    FilterChip(type == "POINTS", { type = "POINTS" }, label = { Text("امتیاز") })
+                    FilterChip(type == "DIAMONDS", { type = "DIAMONDS" }, label = { Text("الماس") })
                 }
-                OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text("مقدار")},singleLine=true)
+                OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مقدار") }, singleLine = true)
+                OutlinedTextField(reason, { reason = it }, label = { Text("دلیل (اجباری)") }, singleLine = true)
             }
         },
-        confirmButton={
+        confirmButton = {
             TextButton({
-                val value=amount.toIntOrNull()?:1
-                if(value>0&&selected!=0)state.addPoints(selected,value,positive)
-                onDismiss()
-            }){Text("ثبت")}
+                val n = amount.toIntOrNull() ?: 0
+                if (memberId.isNotBlank() && n > 0 && reason.isNotBlank()) {
+                    when (type) {
+                        "XP" -> repo.recordXp(memberId, n, reason, "mentor")
+                        "POINTS" -> repo.recordPoints(memberId, n, reason, "mentor")
+                        else -> repo.recordDiamonds(memberId, n, reason, "mentor")
+                    }
+                    changed()
+                }
+                close()
+            }) { Text("ثبت") }
         },
-        dismissButton={TextButton(onDismiss){Text("انصراف")}}
+        dismissButton = { TextButton(close) { Text("انصراف") } }
+    )
+}
+
+@Composable
+private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+    val events = repo.history.filter { it.memberId == member.id }.sortedByDescending { it.createdAtEpochMillis }
+    AlertDialog(
+        onDismissRequest = close, title = { Text("تاریخچه ${member.name}") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (events.isEmpty()) item { Text("هنوز رویدادی ثبت نشده است.") }
+                items(events) { e ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text(e.title)
+                            e.amount?.let { Text("مقدار: ${it}") }
+                            e.reason?.let { Text("دلیل: ${it}") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(close) { Text("بستن") } }
     )
 }
