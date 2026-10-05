@@ -1,11 +1,13 @@
 package com.kichikan.ak1.data
 
+import android.content.Context
 import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
 
-class AppRepository {
+class AppRepository(context: Context) {
     private var sequence = 0L
+    private val store = LocalStore(context)
     var ring: RingAccount? = null
         private set
     val members = mutableListOf<Member>()
@@ -14,9 +16,18 @@ class AppRepository {
     var wheel = WheelConfig()
         private set
 
+    init {
+        store.load()?.let {
+            ring = it.ring
+            members += it.members
+            history += it.history
+        }
+    }
+
     fun createRing(name: String, username: String, passwordRequired: Boolean = true): RingAccount {
         val account = RingAccount("ring-" + (++sequence), name.trim(), username.trim(), passwordRequired)
         ring = account
+        persist()
         return account
     }
 
@@ -24,12 +35,14 @@ class AppRepository {
         check(ring != null) { "ابتدا حلقه را ایجاد کنید" }
         val member = Member("member-" + (++sequence), ring!!.ringId, name.trim())
         members += member
+        persist()
         return member
     }
 
     fun updateMember(member: Member) {
         val i = members.indexOfFirst { it.id == member.id }
         if (i >= 0) members[i] = member
+        persist()
     }
 
     fun recordXp(memberId: String, amount: Int, reason: String, actor: String? = null) =
@@ -54,4 +67,5 @@ class AppRepository {
     }
 
     fun setWheel(config: WheelConfig) { wheel = config }
+    fun persist() = store.save(ring, members, history)
 }
