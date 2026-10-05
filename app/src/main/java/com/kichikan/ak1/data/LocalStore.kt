@@ -33,7 +33,7 @@ class LocalStore(context: Context) {
         prefs.edit().putString("backup", root.toString()).apply()
     }
 
-    fun load(): LoadedState? {
+    fun exportJson(): String? = prefs.getString("backup", null)\n\n    fun importJson(raw: String) { prefs.edit().putString("backup", raw).apply() }\n\n    fun load(): LoadedState? {
         val raw = prefs.getString("backup", null) ?: return null
         val root = JSONObject(raw)
         val ring = if (root.has("ringId")) RingAccount(
