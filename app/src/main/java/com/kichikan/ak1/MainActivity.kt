@@ -1,6 +1,9 @@
 package com.kichikan.ak1
 
 import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -201,13 +204,30 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues) {
 
 @Composable
 private fun SettingsScreen(repo: AppRepository, padding: PaddingValues) {
+    val context = LocalContext.current
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(repo.exportBackup().toByteArray()) }
+            Toast.makeText(context, "پشتیبان ذخیره شد", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            if (!raw.isNullOrBlank()) {
+                repo.importBackup(raw)
+                Toast.makeText(context, "پشتیبان بازیابی شد", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
+        OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
+        OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
         OutlinedButton({}, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
+        Text("پشتیبان فعلی شامل حلقه، اعضا و تاریخچه اقتصادی است.")
     }
 }
 
