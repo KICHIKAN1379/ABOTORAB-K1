@@ -41,20 +41,15 @@ private fun AK1Theme(content: @Composable () -> Unit) {
 @Composable
 private fun AK1App() {
     val context = LocalContext.current
-    val repo = remember {
-        AppRepository(context.applicationContext).also {
-            if (it.ring == null) it.createRing("حلقه من", "mentor")
-            if (it.members.isEmpty()) {
-                it.addMember("محمدعلی")
-                it.addMember("علی")
-                it.addMember("رضا")
-                it.addMember("محمد")
-            }
-        }
-    }
+    val repo = remember { AppRepository(context.applicationContext) }
     var tab by remember { mutableStateOf(Tab.HOME) }
     var refresh by remember { mutableIntStateOf(0) }
     fun changed() { refresh++ }
+
+    if (repo.ring == null) {
+        SetupScreen(repo) { refresh++ }
+        return
+    }
 
     Scaffold(bottomBar = {
         NavigationBar {
@@ -79,6 +74,41 @@ private fun AK1App() {
                 Tab.STORE -> StoreScreen(repo, padding)
                 Tab.SETTINGS -> SettingsScreen(repo, padding)
             }
+        }
+    }
+}
+
+@Composable
+private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
+    var ringName by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("ابوتراب K1", style = MaterialTheme.typography.headlineLarge)
+        Spacer(Modifier.height(8.dp))
+        Text("راه‌اندازی آفلاین مربی", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(24.dp))
+        Text("در این مرحله هیچ اتصال آنلاین یا حساب ابری فعال نیست.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true)
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true)
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Spacer(Modifier.height(18.dp))
+        Button({
+            try {
+                repo.createRing(ringName, username)
+                changed()
+            } catch (e: IllegalArgumentException) {
+                error = e.message
+            }
+        }, enabled = ringName.isNotBlank() && username.isNotBlank()) {
+            Text("شروع کار آفلاین")
         }
     }
 }
