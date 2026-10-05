@@ -72,7 +72,7 @@ private fun AK1App() {
                 Tab.SESSIONS -> SessionsScreen(padding)
                 Tab.RANKING -> RankingScreen(repo, padding)
                 Tab.STORE -> StoreScreen(repo, padding)
-                Tab.SETTINGS -> SettingsScreen(repo, padding)
+                Tab.SETTINGS -> SettingsScreen(repo, padding) { changed() }
             }
         }
     }
@@ -233,7 +233,7 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues) {
 }
 
 @Composable
-private fun SettingsScreen(repo: AppRepository, padding: PaddingValues) {
+private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
@@ -245,8 +245,13 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues) {
         if (uri != null) {
             val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
             if (!raw.isNullOrBlank()) {
-                repo.importBackup(raw)
-                Toast.makeText(context, "پشتیبان بازیابی شد", Toast.LENGTH_SHORT).show()
+                try {
+                    repo.importBackup(raw)
+                    changed()
+                    Toast.makeText(context, "پشتیبان بازیابی شد", Toast.LENGTH_SHORT).show()
+                } catch (e: IllegalArgumentException) {
+                    Toast.makeText(context, e.message ?: "پشتیبان نامعتبر است", Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -257,7 +262,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues) {
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
         OutlinedButton({}, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
-        Text("پشتیبان فعلی شامل حلقه، اعضا و تاریخچه اقتصادی است.")
+        Text("این نسخه کاملاً آفلاین است. پشتیبان شامل حلقه، اعضا، اقتصاد، تاریخچه، فروشگاه، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و دارایی‌های ثبت‌شده است.")
     }
 }
 
