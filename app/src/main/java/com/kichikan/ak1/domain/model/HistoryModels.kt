@@ -16,7 +16,8 @@ enum class HistoryType {
     AVATAR_ACQUIRED,
     FRAME_ACQUIRED,
     ATTENDANCE,
-    SESSION_NOTE
+    SESSION_NOTE,
+    BIRTHDAY_REWARD
 }
 
 data class HistoryEvent(
