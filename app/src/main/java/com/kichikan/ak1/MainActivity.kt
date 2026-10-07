@@ -1,6 +1,8 @@
 package com.kichikan.ak1
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.data.AppRepository
+import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.domain.model.*
 
 private enum class Tab { HOME, MEMBERS, WORKSHOP, SESSIONS, RANKING, STORE, SETTINGS }
@@ -23,6 +26,10 @@ private enum class Tab { HOME, MEMBERS, WORKSHOP, SESSIONS, RANKING, STORE, SETT
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        BirthdayReminderScheduler.schedule(this)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 4107)
+        }
         setContent { AK1Theme { AK1App() } }
     }
 }
@@ -400,11 +407,30 @@ private fun AttendanceDialog(
 @Composable
 private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf("") }
+    var birthDate by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = close, title = { Text("عضو جدید") },
-        text = { OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true)
+                OutlinedTextField(birthDate, { birthDate = it }, label = { Text("تاریخ تولد (YYYY-MM-DD)") }, singleLine = true)
+                Text("تاریخ تولد اختیاری است و برای یادآوری و پاداش سالانه استفاده می‌شود.", style = MaterialTheme.typography.bodySmall)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
         confirmButton = {
-            TextButton({ if (name.isNotBlank()) { repo.addMember(name); changed() }; close() }) { Text("ثبت") }
+            TextButton({
+                if (name.isNotBlank()) {
+                    try {
+                        repo.addMember(name, birthDate)
+                        changed()
+                        close()
+                    } catch (e: IllegalArgumentException) {
+                        error = e.message
+                    }
+                }
+            }) { Text("ثبت") }
         },
         dismissButton = { TextButton(close) { Text("انصراف") } }
     )
