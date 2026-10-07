@@ -5,6 +5,9 @@ import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
 import com.kichikan.ak1.domain.service.MissionService
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 class AppRepository(context: Context) {
     private var sequence = 0L
@@ -56,18 +59,58 @@ class AppRepository(context: Context) {
         return account
     }
 
-    fun addMember(name: String): Member {
+    fun addMember(name: String, birthDate: String? = null): Member {
         check(ring != null) { "ابتدا حلقه را ایجاد کنید" }
         require(name.isNotBlank()) { "نام عضو الزامی است" }
+        val normalizedBirthDate = birthDate?.trim()?.takeIf { it.isNotEmpty() }?.also { validateBirthDate(it) }
 
         val member = Member(
             "member-" + (++sequence),
             ring!!.ringId,
-            name.trim()
+            name.trim(),
+            birthDate = normalizedBirthDate
         )
         members += member
         persist()
         return member
+    }
+
+    /** Processes the annual 30-diamond birthday reward exactly once per calendar year. */
+    fun processBirthdayRewards(now: Long = System.currentTimeMillis()): Int {
+        val today = java.time.Instant.ofEpochMilli(now)
+            .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        var granted = 0
+        members.forEach { member ->
+            val birthDate = member.birthDate?.let { parseBirthDate(it) } ?: return@forEach
+            val birthdayDay = if (birthDate.month == java.time.Month.FEBRUARY && birthDate.dayOfMonth == 29 && !java.time.Year.isLeap(today.year.toLong())) 28 else birthDate.dayOfMonth
+            if (birthDate.month != today.month || birthdayDay != today.dayOfMonth) return@forEach
+            val alreadyGranted = history.any {
+                it.memberId == member.id && it.type == HistoryType.BIRTHDAY_REWARD && it.metadata["year"] == today.year.toString()
+            }
+            if (alreadyGranted) return@forEach
+            recordDiamonds(member.id, 30, "پاداش تولد سال ${today.year}", "system")
+            history += HistoryEvent(
+                id = "birthday-${member.id}-${today.year}", memberId = member.id,
+                type = HistoryType.BIRTHDAY_REWARD, amount = 30,
+                title = "پاداش تولد: ۳۰ الماس", reason = "روز تولد عضو",
+                createdAtEpochMillis = now, createdBy = "system",
+                metadata = mapOf("year" to today.year.toString())
+            )
+            granted++
+        }
+        if (granted > 0) persist()
+        return granted
+    }
+
+    private fun validateBirthDate(value: String) {
+        require(value.length == 10 && value[4] == '-' && value[7] == '-') { "تاریخ تولد باید به شکل YYYY-MM-DD باشد" }
+        parseBirthDate(value)
+    }
+
+    private fun parseBirthDate(value: String): LocalDate = try {
+        LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE)
+    } catch (_: DateTimeParseException) {
+        throw IllegalArgumentException("تاریخ تولد نامعتبر است؛ فرمت YYYY-MM-DD")
     }
 
     fun updateMember(member: Member) {
