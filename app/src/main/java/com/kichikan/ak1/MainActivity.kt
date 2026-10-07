@@ -69,7 +69,7 @@ private fun AK1App() {
                 Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() })
                 Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
                 Tab.WORKSHOP -> WorkshopScreen(repo, padding, { changed() })
-                Tab.SESSIONS -> SessionsScreen(padding)
+                Tab.SESSIONS -> SessionsScreen(padding, repo, { changed() })
                 Tab.RANKING -> RankingScreen(repo, padding)
                 Tab.STORE -> StoreScreen(repo, padding)
                 Tab.SETTINGS -> SettingsScreen(repo, padding) { changed() }
@@ -190,12 +190,49 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
 }
 
 @Composable
-private fun SessionsScreen(padding: PaddingValues) {
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("جلسات", style = MaterialTheme.typography.headlineMedium)
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("حضور و غیاب") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("جلسه جدید") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("اردو") }
+private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed: () -> Unit) {
+    var addSession by remember { mutableStateOf(false) }
+    var selectedSession by remember { mutableStateOf<Session?>(null) }
+
+    Column(
+        Modifier.fillMaxSize().padding(padding).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("جلسات", style = MaterialTheme.typography.headlineMedium)
+            Button({ addSession = true }) { Text("+ جلسه") }
+        }
+
+        if (repo.sessions.isEmpty()) {
+            Text("هنوز جلسه‌ای ثبت نشده است.")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(session.title, style = MaterialTheme.typography.titleLarge)
+                            if (session.description.isNotBlank()) Text(session.description)
+                            session.location?.let { Text("محل: " + it) }
+                            Text("زمان: " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(session.startsAt)))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton({ selectedSession = session }) {
+                                    Text("حضور و غیاب")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (addSession) AddSessionDialog(repo, changed) { addSession = false }
+    selectedSession?.let { session ->
+        AttendanceDialog(repo, session, changed) { selectedSession = null }
     }
 }
 
@@ -264,6 +301,100 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         OutlinedButton({}, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
         Text("این نسخه کاملاً آفلاین است. پشتیبان شامل حلقه، اعضا، اقتصاد، تاریخچه، فروشگاه، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و دارایی‌های ثبت‌شده است.")
     }
+}
+
+
+@Composable
+private fun AddSessionDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("جلسه جدید") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("عنوان جلسه") }, singleLine = true)
+                OutlinedTextField(description, { description = it }, label = { Text("توضیحات") })
+                OutlinedTextField(location, { location = it }, label = { Text("محل") }, singleLine = true)
+                Text("زمان جلسه فعلاً زمان ثبت است؛ تقویم دقیق را در مرحله بعد اضافه می‌کنیم.")
+            }
+        },
+        confirmButton = {
+            TextButton({
+                if (title.isNotBlank()) {
+                    repo.addSession(title, System.currentTimeMillis(), description, location)
+                    changed()
+                    close()
+                }
+            }) { Text("ثبت") }
+        },
+        dismissButton = { TextButton(close) { Text("انصراف") } }
+    )
+}
+
+@Composable
+private fun AttendanceDialog(
+    repo: AppRepository,
+    session: Session,
+    changed: () -> Unit,
+    close: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("حضور و غیاب: " + session.title) },
+        text = {
+            LazyColumn(
+                Modifier.heightIn(max = 460.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(repo.members, key = { it.id }) { member ->
+                    val current = repo.attendance.firstOrNull {
+                        it.memberId == member.id && it.sessionId == session.id
+                    }
+                    var status by remember(current?.status) {
+                        mutableStateOf(current?.status ?: AttendanceStatus.PRESENT)
+                    }
+
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text(member.name, style = MaterialTheme.typography.titleMedium)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf(
+                                    AttendanceStatus.PRESENT to "حاضر",
+                                    AttendanceStatus.ABSENT to "غایب",
+                                    AttendanceStatus.LATE to "تاخیر",
+                                    AttendanceStatus.EXCUSED to "موجه"
+                                ).forEach { (candidate, label) ->
+                                    FilterChip(
+                                        selected = status == candidate,
+                                        onClick = { status = candidate },
+                                        label = { Text(label) }
+                                    )
+                                }
+                            }
+                            Button({
+                                repo.recordAttendance(
+                                    Attendance(
+                                        id = "attendance-" + member.id + "-" + session.id,
+                                        memberId = member.id,
+                                        sessionId = session.id,
+                                        status = status,
+                                        createdAt = System.currentTimeMillis()
+                                    )
+                                )
+                                changed()
+                            }) {
+                                Text("ثبت وضعیت")
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(close) { Text("بستن") } }
+    )
 }
 
 @Composable
