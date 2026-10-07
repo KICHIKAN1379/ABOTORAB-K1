@@ -61,6 +61,9 @@ class LocalStore(context: Context) {
         root.put("shop", shopJson)
 
         val wheelJson = JSONObject()
+            .put("mode", wheel.mode.name)
+            .put("spinCostPoints", wheel.spinCostPoints)
+            .put("spinCostDiamonds", wheel.spinCostDiamonds)
             .put("freeSpin", wheel.freeSpin)
             .put("allowRepeatAfterWin", wheel.allowRepeatAfterWin)
         val wheelItems = JSONArray()
@@ -197,7 +200,10 @@ class LocalStore(context: Context) {
             }
         }
         val wheel = WheelConfig(
-            wheelObj?.optBoolean("freeSpin", true) ?: true,
+            mode = runCatching { WheelMode.valueOf(wheelObj?.optString("mode", WheelMode.FREE.name) ?: WheelMode.FREE.name) }.getOrDefault(WheelMode.FREE),
+            spinCostPoints = wheelObj?.optInt("spinCostPoints", 0) ?: 0,
+            spinCostDiamonds = wheelObj?.optInt("spinCostDiamonds", 0) ?: 0,
+            freeSpin = wheelObj?.optBoolean("freeSpin", true) ?: true,
             wheelItems,
             wheelObj?.optBoolean("allowRepeatAfterWin", false) ?: false
         )
