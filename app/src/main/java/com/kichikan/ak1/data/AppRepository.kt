@@ -308,10 +308,10 @@ class AppRepository(context: Context) {
         check(members.any { it.id == memberId }) { "عضو نامعتبر است" }
         when (wheel.mode) {
             WheelMode.FREE -> Unit
-            WheelMode.POINTS -> spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
+            WheelMode.POINTS -> if (wheel.spinCostPoints > 0) spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
             WheelMode.POINTS_AND_DIAMONDS -> {
-                spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
-                recordDiamonds(memberId, -wheel.spinCostDiamonds, "هزینه گردونه", "mentor")
+                if (wheel.spinCostPoints > 0) spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
+                if (wheel.spinCostDiamonds > 0) recordDiamonds(memberId, -wheel.spinCostDiamonds, "هزینه گردونه", "mentor")
             }
         }
         val previousWinnerIds = history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }
