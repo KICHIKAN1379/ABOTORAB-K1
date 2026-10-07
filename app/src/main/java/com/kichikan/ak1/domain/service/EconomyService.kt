@@ -60,7 +60,8 @@ object EconomyService {
             )
             return EconomyChange(
                 xpChange.economy.copy(
-                    spendablePoints = economy.spendablePoints + amount
+                    spendablePoints = economy.spendablePoints + amount,
+                    halfDiamondUnits = economy.halfDiamondUnits + amount
                 ),
                 xpChange.events + pointEvent
             )
