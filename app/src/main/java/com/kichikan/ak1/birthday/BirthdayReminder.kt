@@ -60,6 +60,13 @@ object BirthdayReminderScheduler {
     }
 }
 
+class BirthdayBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        BirthdayReminderScheduler.ensureChannel(context.applicationContext)
+        BirthdayReminderScheduler.schedule(context.applicationContext)
+    }
+}
+
 class BirthdayReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appContext = context.applicationContext
