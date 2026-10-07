@@ -85,12 +85,22 @@ class AppRepository(context: Context) {
 
     fun recordPoints(memberId: String, amount: Int, reason: String, actor: String? = null) =
         mutate(memberId) {
-            EconomyService.addPoints(it, amount, reason, actor, System.currentTimeMillis())
+            EconomyService.adjustPoints(it, amount, reason, actor, System.currentTimeMillis())
         }
 
     fun recordDiamonds(memberId: String, amount: Int, reason: String, actor: String? = null) =
         mutate(memberId) {
-            EconomyService.addDiamonds(it, amount, reason, actor, System.currentTimeMillis())
+            EconomyService.adjustDiamonds(it, amount, reason, actor, System.currentTimeMillis())
+        }
+
+    fun decreaseXp(memberId: String, amount: Int, reason: String, actor: String? = null) =
+        mutate(memberId) {
+            EconomyService.decreaseXp(it, amount, reason, actor, System.currentTimeMillis())
+        }
+
+    fun spendPoints(memberId: String, amount: Int, reason: String, actor: String? = null) =
+        mutate(memberId) {
+            EconomyService.spendPoints(it, amount, reason, actor, System.currentTimeMillis())
         }
 
     fun decreaseLevel(memberId: String, targetLevel: Int, reason: String, actor: String? = null) =
