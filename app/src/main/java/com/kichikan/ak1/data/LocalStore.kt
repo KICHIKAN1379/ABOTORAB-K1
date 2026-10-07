@@ -20,7 +20,7 @@ class LocalStore(context: Context) {
         attendance: List<Attendance>,
         assets: List<CustomAsset>
     ) {
-        val root = JSONObject().put("schemaVersion", 2)
+        val root = JSONObject().put("schemaVersion", 3)
         ring?.let {
             root.put("ringId", it.ringId).put("ringName", it.ringName)
                 .put("ringUsername", it.ringUsername).put("passwordRequired", it.passwordRequired)
@@ -32,7 +32,8 @@ class LocalStore(context: Context) {
                 .put("xp", it.economy.xp).put("points", it.economy.spendablePoints)
                 .put("diamonds", it.economy.diamonds)
                 .put("avatar", it.avatarItemId ?: JSONObject.NULL)
-                .put("frame", it.frameItemId ?: JSONObject.NULL))
+                .put("frame", it.frameItemId ?: JSONObject.NULL)
+                .put("birthDate", it.birthDate ?: JSONObject.NULL))
         }
         root.put("members", ms)
 
@@ -120,7 +121,7 @@ class LocalStore(context: Context) {
     fun importJson(raw: String) {
         val root = JSONObject(raw)
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..2) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..3) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
         prefs.edit().putString("backup", raw).apply()
     }
 
@@ -143,7 +144,8 @@ class LocalStore(context: Context) {
                 o.getString("id"), o.getString("ringId"), o.getString("name"),
                 MemberEconomy(o.optInt("xp"), o.optInt("points"), o.optInt("diamonds")),
                 o.optString("avatar").takeIf { it.isNotEmpty() && it != "null" },
-                o.optString("frame").takeIf { it.isNotEmpty() && it != "null" }
+                o.optString("frame").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" }
             )
         }
 
