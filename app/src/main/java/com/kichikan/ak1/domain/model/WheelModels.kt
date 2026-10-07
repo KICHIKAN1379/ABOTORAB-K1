@@ -1,5 +1,7 @@
 package com.kichikan.ak1.domain.model
 
+enum class WheelMode { FREE, POINTS, POINTS_AND_DIAMONDS }
+
 enum class WheelRewardType {
     POINTS,
     DIAMONDS,
@@ -21,6 +23,9 @@ data class WheelItem(
 )
 
 data class WheelConfig(
+    val mode: WheelMode = WheelMode.FREE,
+    val spinCostPoints: Int = 0,
+    val spinCostDiamonds: Int = 0,
     val freeSpin: Boolean = true,
     val items: List<WheelItem> = emptyList(),
     val allowRepeatAfterWin: Boolean = false
