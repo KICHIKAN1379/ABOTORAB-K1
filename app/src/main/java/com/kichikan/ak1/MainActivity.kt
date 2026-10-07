@@ -78,7 +78,7 @@ private fun AK1App() {
                 Tab.WORKSHOP -> WorkshopScreen(repo, padding, { changed() })
                 Tab.SESSIONS -> SessionsScreen(padding, repo, { changed() })
                 Tab.RANKING -> RankingScreen(repo, padding)
-                Tab.STORE -> StoreScreen(repo, padding)
+                Tab.STORE -> StoreScreen(repo, padding) { changed() }
                 Tab.SETTINGS -> SettingsScreen(repo, padding) { changed() }
             }
         }
@@ -264,15 +264,56 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
 }
 
 @Composable
-private fun StoreScreen(repo: AppRepository, padding: PaddingValues) {
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+    var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
+    var result by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("فروشگاه", style = MaterialTheme.typography.headlineMedium)
-        Text("آواتارها • قاب‌ها • جوایز • گردونه")
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("آواتارها") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("قاب‌ها") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("جوایز") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("گردونه رایگان") }
-        Text("گردونه هزینه ندارد و اقلام آن توسط مربی تعریف می‌شوند.")
+        Text("جوایز، آواتار و قاب")
+        if (repo.members.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repo.members.take(4).forEach { member ->
+                    FilterChip(selected = selectedMemberId == member.id, onClick = { selectedMemberId = member.id }, label = { Text(member.name) })
+                }
+            }
+        }
+        if (repo.shop.isEmpty()) {
+            Text("هنوز آیتمی در فروشگاه تعریف نشده است.")
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
+                items(repo.shop.filter { it.active }, key = { it.id }) { item ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(item.name, style = MaterialTheme.typography.titleMedium)
+                            Text("قیمت: ${item.price} ${item.currency.name}")
+                            item.minimumLevel?.let { Text("حداقل سطح: $it") }
+                            Button(onClick = {
+                                try {
+                                    repo.purchaseShopItem(selectedMemberId, item.id)
+                                    result = "«${item.name}» ثبت شد."
+                                    changed()
+                                } catch (e: IllegalArgumentException) {
+                                    result = e.message
+                                }
+                            }, enabled = selectedMemberId.isNotBlank()) { Text("دریافت") }
+                        }
+                    }
+                }
+            }
+        }
+        Text("گردونه", style = MaterialTheme.typography.titleLarge)
+        Text("اقلام: ${repo.wheel.items.size} • تکرار بعد از برد: ${if (repo.wheel.allowRepeatAfterWin) "فعال" else "غیرفعال"}")
+        Button(onClick = {
+            try {
+                val winner = repo.spinWheel(selectedMemberId)
+                result = winner?.title ?: "گردونه آیتم قابل دریافت ندارد."
+                changed()
+            } catch (e: IllegalArgumentException) { result = e.message }
+        }, enabled = selectedMemberId.isNotBlank() && repo.wheel.items.isNotEmpty()) {
+            Text("چرخاندن گردونه")
+        }
+        result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 }
 
