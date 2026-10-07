@@ -3,7 +3,7 @@ package com.kichikan.ak1.domain.model
 /**
  * AK1 economy:
  * XP = permanent progression and ranking.
- * POINTS = spendable currency for real/mentor-defined rewards.
+ * POINTS = spendable currency for mentor-defined rewards.
  * DIAMONDS = spendable currency for personalization.
  */
 data class MemberEconomy(
@@ -17,6 +17,13 @@ data class MemberEconomy(
 
     val effectiveLevel: Int
         get() = levelOverride ?: calculatedLevel
+
+    /**
+     * Compatibility alias used by domain services.
+     * Level is derived from XP unless a future feature explicitly introduces an override.
+     */
+    val level: Int
+        get() = effectiveLevel
 }
 
 object LevelRules {
@@ -36,7 +43,7 @@ object LevelRules {
         }
 
     /**
-     * Lowering a level removes exactly one 30-XP tier per level,
+     * Lowering a level removes one 30-XP tier per level,
      * except crossing from level 1 to 0 removes the initial 20 XP.
      */
     fun xpAfterLevelDecrease(currentXp: Int, currentLevel: Int, targetLevel: Int): Int {
