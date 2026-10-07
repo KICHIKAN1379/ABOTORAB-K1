@@ -13,5 +13,7 @@ data class Member(
     val name: String,
     val economy: MemberEconomy = MemberEconomy(),
     val avatarItemId: String? = null,
-    val frameItemId: String? = null
+    val frameItemId: String? = null,
+    /** Gregorian birth date in yyyy-MM-dd format; nullable for existing members. */
+    val birthDate: String? = null
 )
