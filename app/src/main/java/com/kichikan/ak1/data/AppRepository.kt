@@ -280,6 +280,50 @@ class AppRepository(context: Context) {
         persist()
     }
 
+
+    fun purchaseShopItem(memberId: String, itemId: String): Boolean {
+        val item = shop.firstOrNull { it.id == itemId && it.active } ?: return false
+        val member = members.firstOrNull { it.id == memberId } ?: return false
+        item.minimumLevel?.let { require(member.economy.level >= it) { "سطح عضو کافی نیست" } }
+        if (item.stock != null) require(item.stock > 0) { "موجودی جایزه تمام شده است" }
+        when (item.currency) {
+            Currency.POINTS -> spendPoints(memberId, item.price, "خرید ${item.name}", "mentor")
+            Currency.DIAMONDS -> recordDiamonds(memberId, -item.price, "خرید ${item.name}", "mentor")
+            Currency.NONE -> Unit
+        }
+        val index = shop.indexOfFirst { it.id == item.id }
+        if (index >= 0 && item.stock != null) shop[index] = item.copy(stock = item.stock - 1)
+        history += HistoryEvent(
+            id = "purchase-${System.currentTimeMillis()}-$memberId", memberId = memberId,
+            type = HistoryType.REWARD_RECEIVED, amount = item.price,
+            title = "دریافت: ${item.name}", reason = "خرید از فروشگاه",
+            createdAtEpochMillis = System.currentTimeMillis(), createdBy = "mentor",
+            metadata = mapOf("itemId" to item.id, "currency" to item.currency.name)
+        )
+        persist()
+        return true
+    }
+
+    fun spinWheel(memberId: String): WheelItem? {
+        check(members.any { it.id == memberId }) { "عضو نامعتبر است" }
+        check(wheel.freeSpin) { "این گردونه رایگان نیست" }
+        val previousWinnerIds = history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }
+            .mapNotNull { it.metadata["itemId"] }.toSet()
+        val item = WheelService.spin(wheel, previousWinnerIds) ?: return null
+        when (item.type) {
+            WheelRewardType.POINTS -> item.amount?.takeIf { it > 0 }?.let { recordPoints(memberId, it, "گردونه: ${item.title}", "mentor") }
+            WheelRewardType.DIAMONDS -> item.amount?.takeIf { it > 0 }?.let { recordDiamonds(memberId, it, "گردونه: ${item.title}", "mentor") }
+            else -> Unit
+        }
+        history += HistoryEvent(
+            id = "wheel-${System.currentTimeMillis()}-$memberId", memberId = memberId,
+            type = HistoryType.WHEEL_REWARD, amount = item.amount, title = item.title,
+            reason = item.customText ?: "پاداش گردونه", createdAtEpochMillis = System.currentTimeMillis(),
+            createdBy = "mentor", metadata = mapOf("itemId" to item.id, "type" to item.type.name)
+        )
+        persist()
+        return item
+    }
     fun addShopItem(item: ShopItem) {
         require(item.price >= 0) { "قیمت نمی‌تواند منفی باشد" }
         shop.removeAll { it.id == item.id }
