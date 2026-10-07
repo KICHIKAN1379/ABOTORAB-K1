@@ -10,6 +10,8 @@ data class MemberEconomy(
     val xp: Int = 0,
     val spendablePoints: Int = 0,
     val diamonds: Int = 0,
+    /** Half-diamond units earned from point awards (1 unit = 0.5 diamond). */
+    val halfDiamondUnits: Int = 0,
     val levelOverride: Int? = null
 ) {
     val calculatedLevel: Int
@@ -24,6 +26,9 @@ data class MemberEconomy(
      */
     val level: Int
         get() = effectiveLevel
+
+    val totalDiamonds: Double
+        get() = diamonds + halfDiamondUnits / 2.0
 }
 
 object LevelRules {
