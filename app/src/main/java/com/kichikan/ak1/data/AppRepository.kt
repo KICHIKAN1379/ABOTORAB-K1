@@ -306,7 +306,14 @@ class AppRepository(context: Context) {
 
     fun spinWheel(memberId: String): WheelItem? {
         check(members.any { it.id == memberId }) { "عضو نامعتبر است" }
-        check(wheel.freeSpin) { "این گردونه رایگان نیست" }
+        when (wheel.mode) {
+            WheelMode.FREE -> Unit
+            WheelMode.POINTS -> spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
+            WheelMode.POINTS_AND_DIAMONDS -> {
+                spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
+                recordDiamonds(memberId, -wheel.spinCostDiamonds, "هزینه گردونه", "mentor")
+            }
+        }
         val previousWinnerIds = history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }
             .mapNotNull { it.metadata["itemId"] }.toSet()
         val item = WheelService.spin(wheel, previousWinnerIds) ?: return null
