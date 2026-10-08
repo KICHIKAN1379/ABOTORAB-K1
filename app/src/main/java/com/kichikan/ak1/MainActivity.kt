@@ -136,12 +136,14 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
 @Composable
 private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit) {
     var action by remember { mutableStateOf<EconomyOp?>(null) }
+    var assistantOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
         Text("پنل مربی", color = MaterialTheme.colorScheme.primary)
         SummaryCard(repo)
         Button({ action = EconomyOp.XP_ADD }, Modifier.fillMaxWidth()) { Text("ثبت امتیاز / XP") }
         OutlinedButton(openMembers, Modifier.fillMaxWidth()) { Text("مدیریت اعضا") }
+        OutlinedButton({ assistantOpen = true }, Modifier.fillMaxWidth()) { Text("دستیار مربی") }
         Text("میانبرها", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton({ action = EconomyOp.XP_ADD }, Modifier.weight(1f)) { Text("ثبت XP") }
@@ -153,6 +155,47 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
         }
     }
     action?.let { op -> EconomyDialog(repo, changed, op) { action = null } }
+    if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
+}
+
+@Composable
+private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
+    val report = remember(repo.members.size, repo.history.size, repo.attendance.size, repo.missionCompletions.size) {
+        com.kichikan.ak1.domain.assistant.MentorAssistantAnalyzer.analyze(
+            members = repo.members.toList(),
+            history = repo.history.toList(),
+            attendance = repo.attendance.toList(),
+            sessions = repo.sessions.toList(),
+            missionCompletions = repo.missionCompletions.toList()
+        )
+    }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("دستیار مربی") },
+        text = {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("تحلیل کاملاً آفلاین و بر اساس داده‌های همین حلقه است.")
+                Text("موارد نیازمند توجه: ${report.insights.size}")
+                Text("اولویت بالا: ${report.highPriorityCount}")
+                if (!report.hasAttentionItems) {
+                    Text("فعلاً نشانه مشخصی برای پیگیری پیدا نشد.")
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(report.insights, key = { it.memberId + "-" + it.type + "-" + it.priority }) { insight ->
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(insight.memberName + " — " + insight.title, style = MaterialTheme.typography.titleMedium)
+                                    Text(insight.explanation)
+                                    Text("پیشنهاد: " + insight.suggestedAction)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(close) { Text("بستن") } }
+    )
 }
 
 @Composable
