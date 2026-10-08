@@ -248,15 +248,114 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
 
 @Composable
 private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
-    var economy by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    var addMission by remember { mutableStateOf(false) }
+    var addWheelItem by remember { mutableStateOf(false) }
+    var completeMission by remember { mutableStateOf<Mission?>(null) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("تراشکاری", style = MaterialTheme.typography.headlineMedium)
         Text("ابزارهای تربیتی و اقتصادی حلقه")
-        listOf("ثبت امتیاز و XP", "ماموریت‌های فردی", "ماموریت‌های گروهی", "دفترچه تربیتی", "توشه کمال", "نقشه کمال").forEach {
-            OutlinedButton({ economy = true }, Modifier.fillMaxWidth()) { Text(it) }
+        OutlinedButton({ addMission = true }, Modifier.fillMaxWidth()) { Text("ساخت مأموریت") }
+        if (repo.missions.isEmpty()) Text("هنوز مأموریتی تعریف نشده است.")
+        else LazyColumn(Modifier.heightIn(max = 220.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(repo.missions.filter { it.active }, key = { it.id }) { mission ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(mission.title, style = MaterialTheme.typography.titleMedium)
+                        Text("پاداش: XP ${mission.xpReward} • امتیاز ${mission.pointsReward} • الماس ${mission.diamondReward}")
+                        Button({ completeMission = mission }, enabled = repo.members.isNotEmpty()) { Text("ثبت انجام مأموریت") }
+                    }
+                }
+            }
         }
+        HorizontalDivider()
+        Text("گردونه", style = MaterialTheme.typography.titleLarge)
+        Text("تعداد آیتم‌ها: ${repo.wheel.items.size}")
+        OutlinedButton({ addWheelItem = true }, Modifier.fillMaxWidth()) { Text("افزودن آیتم به گردونه") }
+        repo.wheel.items.forEach { item -> Text("• " + item.title + " | شانس " + item.weight) }
     }
-    if (economy) EconomyDialog(repo, changed) { economy = false }
+    if (addMission) AddMissionDialog(repo, changed) { addMission = false }
+    if (addWheelItem) AddWheelItemDialog(repo, changed) { addWheelItem = false }
+    completeMission?.let { mission -> CompleteMissionDialog(repo, mission, changed) { completeMission = null } }
+}
+
+@Composable
+private fun AddMissionDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var xp by remember { mutableStateOf("0") }
+    var points by remember { mutableStateOf("0") }
+    var diamonds by remember { mutableStateOf("0") }
+    var group by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("مأموریت جدید") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, singleLine = true)
+            OutlinedTextField(description, { description = it }, label = { Text("توضیحات") })
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(group, { group = it }); Text("مأموریت گروهی") }
+            OutlinedTextField(xp, { xp = it.filter(Char::isDigit) }, label = { Text("XP") }, singleLine = true)
+            OutlinedTextField(points, { points = it.filter(Char::isDigit) }, label = { Text("امتیاز") }, singleLine = true)
+            OutlinedTextField(diamonds, { diamonds = it.filter(Char::isDigit) }, label = { Text("الماس") }, singleLine = true)
+        } },
+        confirmButton = { TextButton({
+            if (title.isNotBlank()) {
+                repo.addMission(Mission("mission-" + System.currentTimeMillis(), title.trim(), description.trim(), if (group) MissionType.GROUP else MissionType.INDIVIDUAL, xp.toIntOrNull() ?: 0, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0))
+                changed(); close()
+            }
+        }) { Text("ثبت") } },
+        dismissButton = { TextButton(close) { Text("لغو") } }
+    )
+}
+
+@Composable
+private fun AddWheelItemDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(WheelRewardType.CUSTOM) }
+    var amount by remember { mutableStateOf("0") }
+    var weight by remember { mutableStateOf("1") }
+    var customText by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("آیتم جدید گردونه") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, singleLine = true)
+            Text("نوع: " + type.name)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                WheelRewardType.values().take(4).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t.name) }) }
+            }
+            OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مقدار") }, singleLine = true)
+            OutlinedTextField(weight, { weight = it.filter(Char::isDigit) }, label = { Text("وزن/شانس") }, singleLine = true)
+            OutlinedTextField(customText, { customText = it }, label = { Text("توضیح") })
+        } },
+        confirmButton = { TextButton({
+            if (title.isNotBlank()) {
+                val item = WheelItem("wheel-" + System.currentTimeMillis(), title.trim(), type, amount.toIntOrNull(), null, customText.trim().takeIf { it.isNotEmpty() }, (weight.toIntOrNull() ?: 1).coerceAtLeast(1), true)
+                repo.setWheel(repo.wheel.copy(items = repo.wheel.items + item)); changed(); close()
+            }
+        }) { Text("ثبت") } },
+        dismissButton = { TextButton(close) { Text("لغو") } }
+    )
+}
+
+@Composable
+private fun CompleteMissionDialog(repo: AppRepository, mission: Mission, changed: () -> Unit, close: () -> Unit) {
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("ثبت مأموریت: " + mission.title) },
+        text = { LazyColumn { items(repo.members, key = { it.id }) { member ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(member.id in selected, { selected = if (it) selected + member.id else selected - member.id })
+                Text(member.name)
+            }
+        } } },
+        confirmButton = { TextButton({
+            if (selected.isNotEmpty()) {
+                try { repo.completeMission(mission, selected.toList()); changed(); close() } catch (_: IllegalArgumentException) { }
+            }
+        }) { Text("ثبت") } },
+        dismissButton = { TextButton(close) { Text("لغو") } }
+    )
 }
 
 @Composable
