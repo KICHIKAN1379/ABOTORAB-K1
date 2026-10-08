@@ -1,6 +1,6 @@
 package com.kichikan.ak1.domain.model
 
-enum class AttendanceStatus { PRESENT, ABSENT, LATE, EXCUSED }
+enum class AttendanceStatus { UNMARKED, PRESENT, ABSENT, LATE, EXCUSED }
 
 data class Attendance(
     val id: String,
@@ -13,8 +13,9 @@ data class Attendance(
 
 data class Session(
     val id: String,
+    val memberId: String,
     val title: String,
-    val description: String = "",
+    val topic: String = "",
     val startsAt: Long,
     val location: String? = null
 )
