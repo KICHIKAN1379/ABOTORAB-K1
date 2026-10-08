@@ -1,11 +1,14 @@
 package com.kichikan.ak1.data
 
 import android.content.Context
+import android.net.Uri
+import android.util.Base64
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 import com.kichikan.ak1.domain.model.*
 
-class LocalStore(context: Context) {
+class LocalStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("ak1_local", Context.MODE_PRIVATE)
 
     fun save(
@@ -110,16 +113,36 @@ class LocalStore(context: Context) {
 
         val assetsJson = JSONArray()
         assets.forEach {
-            assetsJson.put(JSONObject().put("id", it.id).put("name", it.name).put("type", it.type.name)
+            val assetJson = JSONObject().put("id", it.id).put("name", it.name).put("type", it.type.name)
                 .put("path", it.path).put("mimeType", it.mimeType)
                 .put("width", it.width ?: JSONObject.NULL).put("height", it.height ?: JSONObject.NULL)
-                .put("active", it.active))
-        }
-        root.put("assets", assetsJson)
+                .put("active", it.active)
+            readAssetBytes(it.path)?.let { bytes ->
+                if (bytes.size <= 10 * 1024 * 1024) assetJson.put("dataBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+            }
+            assetsJson.put(assetJson)
+        }        root.put("assets", assetsJson)
 
         prefs.edit().putString("backup", root.toString()).apply()
     }
 
+    private fun readAssetBytes(path: String): ByteArray? = runCatching {
+        if (path.startsWith("content://")) context.contentResolver.openInputStream(Uri.parse(path))?.use { it.readBytes() }
+        else File(path).takeIf { it.isFile }?.readBytes()
+    }.getOrNull()
+
+    private fun restoreAssetIfNeeded(base64: String?, id: String, originalPath: String, mimeType: String): String {
+        if (base64.isNullOrBlank()) return originalPath
+        val existing = runCatching { if (originalPath.startsWith("content://")) null else File(originalPath).takeIf { it.isFile }?.absolutePath }.getOrNull()
+        if (existing != null) return existing
+        return runCatching {
+            val dir = File(context.filesDir, "custom_assets").apply { mkdirs() }
+            val extension = when { mimeType.equals("image/jpeg", true) -> ".jpg"; mimeType.equals("image/webp", true) -> ".webp"; mimeType.equals("image/gif", true) -> ".gif"; else -> ".png" }
+            val target = File(dir, id + extension)
+            target.writeBytes(Base64.decode(base64, Base64.DEFAULT))
+            target.absolutePath
+        }.getOrDefault(originalPath)
+    }
     fun exportJson(): String? = prefs.getString("backup", null)
 
     fun importJson(raw: String) {
@@ -263,9 +286,11 @@ class LocalStore(context: Context) {
         val assetsJson = root.optJSONArray("assets") ?: JSONArray()
         for (i in 0 until assetsJson.length()) {
             val o = assetsJson.getJSONObject(i)
+            val originalPath = o.getString("path")
+            val restoredPath = restoreAssetIfNeeded(o.optString("dataBase64").takeIf { it.isNotBlank() }, o.getString("id"), originalPath, o.optString("mimeType", "image/png"))
             assets += CustomAsset(
                 o.getString("id"), o.getString("name"), AssetType.valueOf(o.getString("type")),
-                o.getString("path"), o.optString("mimeType", "image/png"),
+                restoredPath, o.optString("mimeType", "image/png"),
                 if (o.isNull("width")) null else o.getInt("width"),
                 if (o.isNull("height")) null else o.getInt("height"), o.optBoolean("active", true)
             )
