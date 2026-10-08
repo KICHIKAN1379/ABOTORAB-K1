@@ -21,9 +21,10 @@ class LocalStore(private val context: Context) {
         missionCompletions: List<MissionCompletion>,
         sessions: List<Session>,
         attendance: List<Attendance>,
-        assets: List<CustomAsset>
+        assets: List<CustomAsset>,
+        groups: List<Group>
     ) {
-        val root = JSONObject().put("schemaVersion", 3)
+        val root = JSONObject().put("schemaVersion", 4)
         ring?.let {
             root.put("ringId", it.ringId).put("ringName", it.ringName)
                 .put("ringUsername", it.ringUsername).put("passwordRequired", it.passwordRequired)
@@ -37,9 +38,12 @@ class LocalStore(private val context: Context) {
                 .put("halfDiamondUnits", it.economy.halfDiamondUnits)
                 .put("avatar", it.avatarItemId ?: JSONObject.NULL)
                 .put("frame", it.frameItemId ?: JSONObject.NULL)
-                .put("birthDate", it.birthDate ?: JSONObject.NULL))
+                .put("birthDate", it.birthDate ?: JSONObject.NULL).put("groupId", it.groupId ?: JSONObject.NULL).put("privateNotes", it.privateNotes))
         }
         root.put("members", ms)
+        val groupsJson = JSONArray()
+        groups.forEach { groupsJson.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)) }
+        root.put("groups", groupsJson)
 
         val hs = JSONArray()
         history.forEach {
@@ -98,7 +102,7 @@ class LocalStore(private val context: Context) {
         val sessionsJson = JSONArray()
         sessions.forEach {
             sessionsJson.put(JSONObject().put("id", it.id).put("title", it.title)
-                .put("description", it.description).put("startsAt", it.startsAt)
+                .put("topic", it.topic).put("memberId", it.memberId).put("startsAt", it.startsAt)
                 .put("location", it.location ?: JSONObject.NULL))
         }
         root.put("sessions", sessionsJson)
@@ -148,7 +152,7 @@ class LocalStore(private val context: Context) {
     fun importJson(raw: String) {
         val root = JSONObject(raw)
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..3) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..4) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
         prefs.edit().putString("backup", raw).apply()
     }
 
@@ -175,9 +179,15 @@ class LocalStore(private val context: Context) {
                 },
                 o.optString("avatar").takeIf { it.isNotEmpty() && it != "null" },
                 o.optString("frame").takeIf { it.isNotEmpty() && it != "null" },
-                o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" }
+                o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("groupId").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("privateNotes", "")
             )
         }
+
+        val groups = mutableListOf<Group>()
+        val groupsJson = root.optJSONArray("groups") ?: JSONArray()
+        for (i in 0 until groupsJson.length()) { val o = groupsJson.getJSONObject(i); groups += Group(o.getString("id"), o.getString("ringId"), o.getString("name")) }
 
         val history = mutableListOf<HistoryEvent>()
         val hs = root.optJSONArray("history") ?: JSONArray()
@@ -207,7 +217,7 @@ class LocalStore(private val context: Context) {
                 if (o.isNull("minimumLevel")) null else o.getInt("minimumLevel"), methods,
                 if (o.isNull("eventStart")) null else o.getLong("eventStart"),
                 if (o.isNull("eventEnd")) null else o.getLong("eventEnd"),
-                if (o.isNull("stock")) null else o.getInt("stock"), o.optBoolean("active", true)
+                if (o.isNull("stock")) null else o.getInt("stock"), o.optBoolean("active", true), o.optString("description", "")
             )
         }
 
@@ -266,7 +276,7 @@ class LocalStore(private val context: Context) {
         for (i in 0 until sessionsJson.length()) {
             val o = sessionsJson.getJSONObject(i)
             sessions += Session(
-                o.getString("id"), o.getString("title"), o.optString("description"),
+                o.getString("id"), o.optString("memberId", ""), o.getString("title"), o.optString("topic", o.optString("description")),
                 o.getLong("startsAt"), o.optString("location").takeIf { it.isNotEmpty() && it != "null" }
             )
         }
@@ -277,7 +287,7 @@ class LocalStore(private val context: Context) {
             val o = attendanceJson.getJSONObject(i)
             attendance += Attendance(
                 o.getString("id"), o.getString("memberId"), o.getString("sessionId"),
-                AttendanceStatus.valueOf(o.getString("status")),
+                runCatching { AttendanceStatus.valueOf(o.getString("status")) }.getOrDefault(AttendanceStatus.UNMARKED),
                 o.optString("note").takeIf { it.isNotEmpty() && it != "null" }, o.getLong("createdAt")
             )
         }
@@ -296,7 +306,7 @@ class LocalStore(private val context: Context) {
             )
         }
 
-        return LoadedState(ring, members, history, shop, wheel, missions, completions, sessions, attendance, assets)
+        return LoadedState(ring, members, history, shop, wheel, missions, completions, sessions, attendance, assets, groups)
     }
 }
 
@@ -310,5 +320,6 @@ data class LoadedState(
     val missionCompletions: List<MissionCompletion> = emptyList(),
     val sessions: List<Session> = emptyList(),
     val attendance: List<Attendance> = emptyList(),
-    val assets: List<CustomAsset> = emptyList()
+    val assets: List<CustomAsset> = emptyList(),
+    val groups: List<Group> = emptyList()
 )
