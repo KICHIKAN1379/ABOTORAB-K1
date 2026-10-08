@@ -458,54 +458,52 @@ private fun CompleteMissionDialog(repo: AppRepository, mission: Mission, changed
     )
 }
 
-@Composable
-private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed: () -> Unit) {
-    var addSession by remember { mutableStateOf(false) }
-    var selectedSession by remember { mutableStateOf<Session?>(null) }
-
-    Column(
-        Modifier.fillMaxSize().padding(padding).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("جلسات", style = MaterialTheme.typography.headlineMedium)
-            Button({ addSession = true }) { Text("+ جلسه") }
-        }
-
-        if (repo.sessions.isEmpty()) {
-            Text("هنوز جلسه‌ای ثبت نشده است.")
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(session.title, style = MaterialTheme.typography.titleLarge)
-                            if (session.description.isNotBlank()) Text(session.description)
-                            session.location?.let { Text("محل: " + it) }
-                            Text("زمان: " + JalaliCalendar.formatDateTime(session.startsAt))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton({ selectedSession = session }) {
-                                    Text("حضور و غیاب")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+@Composable private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed: () -> Unit) {
+    var add by remember { mutableStateOf(false) }; var editing by remember { mutableStateOf<Session?>(null) }; var attendance by remember { mutableStateOf(false) }; var selected by remember { mutableStateOf<Session?>(null) };
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("جلسات", style = MaterialTheme.typography.headlineMedium); Button({ add = true }) { Text("+ جلسه") } }
+        Text("تاریخ جلسه خودکار از تاریخ و ساعت موبایل ثبت می‌شود.")
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
+            Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.titleSmall); Text(session.title, style = MaterialTheme.typography.titleLarge); if (session.topic.isNotBlank()) Text("موضوع: " + session.topic); Text(JalaliCalendar.formatDateTime(session.startsAt));
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { OutlinedButton({ selected = session; attendance = true }) { Text("حضور و غیاب") }; OutlinedButton({ editing = session }) { Text("ویرایش") }; OutlinedButton({ repo.deleteSession(session.id); changed() }) { Text("حذف") } }
+            } }
+        } }
     }
-
-    if (addSession) AddSessionDialog(repo, changed) { addSession = false }
-    selectedSession?.let { session ->
-        AttendanceDialog(repo, session, changed) { selectedSession = null }
-    }
+    if (add) SessionEditDialog(repo, null, changed) { add = false }; editing?.let { SessionEditDialog(repo, it, changed) { editing = null } }; if (attendance) selected?.let { AttendanceCalendarDialog(repo, it, changed) { attendance = false; selected = null } }
 }
 
-@Composable
+@Composable private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, changed: () -> Unit, close: () -> Unit) {
+    var weekOffset by remember { mutableIntStateOf(0) }; var monthExport by remember { mutableStateOf(false) }; val context = LocalContext.current
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.ms-excel")) { uri -> if (uri != null) { context.contentResolver.openOutputStream(uri)?.use { it.write(buildAttendanceExcel(repo).toByteArray()) }; Toast.makeText(context, "خروجی Excel آماده شد", Toast.LENGTH_SHORT).show() } }
+    val today = java.time.LocalDate.now().plusWeeks(weekOffset.toLong()); val monday = today.minusDays(((today.dayOfWeek.value + 6) % 7).toLong()); val days = (0L..6L).map { monday.plusDays(it) }
+    AlertDialog(onDismissRequest = close, title = { Text("تقویم حضور و غیاب") }, text = {
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { TextButton({ weekOffset-- }) { Text("‹ هفته قبل") }; Text("هفته ${monday}"); TextButton({ weekOffset++ }) { Text("هفته بعد ›") } }
+            Text("م = موجه   غ = غیرموجه   _ = ثبت‌نشده   ت = تأخیر", style = MaterialTheme.typography.bodySmall)
+            LazyColumn(Modifier.heightIn(max = 520.dp)) { items(repo.members, key = { it.id }) { member ->
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(6.dp)) { Text(member.name); Row(Modifier.horizontalScroll(rememberScrollState())) { days.forEach { day ->
+                    val epoch = day.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(); val current = repo.attendance.firstOrNull { it.memberId == member.id && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == day };
+                    val label = when (current?.status) { AttendanceStatus.EXCUSED -> "م"; AttendanceStatus.ABSENT -> "غ"; AttendanceStatus.LATE -> "ت"; else -> "_" };
+                    OutlinedButton({ val next = when (current?.status) { AttendanceStatus.UNMARKED, null -> AttendanceStatus.PRESENT; AttendanceStatus.PRESENT -> AttendanceStatus.EXCUSED; AttendanceStatus.EXCUSED -> AttendanceStatus.ABSENT; AttendanceStatus.ABSENT -> AttendanceStatus.LATE; AttendanceStatus.LATE -> AttendanceStatus.UNMARKED }; repo.recordWeeklyAttendance(member.id, epoch, next); changed() }, Modifier.width(52.dp).height(50.dp)) { Text("${day.dayOfMonth}\n$label") }
+                } } } } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) { Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.xls") }) { Text("خروجی Excel ماه") }; TextButton(close) { Text("بستن") } }
+        }
+    }, confirmButton = {})
+}
+
+private fun buildAttendanceExcel(repo: AppRepository): String {
+    val month = java.time.YearMonth.now(); val start = month.atDay(1); val end = month.atEndOfMonth(); val sb = StringBuilder("<html><meta charset=\"UTF-8\"><table border=\"1\"><tr><th>عضو</th>")
+    var d = start; while (!d.isAfter(end)) { sb.append("<th>").append(d).append("</th>"); d = d.plusDays(1) }; sb.append("</tr>")
+    repo.members.forEach { m -> sb.append("<tr><td>").append(m.name).append("</td>"); var x=start; while(!x.isAfter(end)){ val a=repo.attendance.firstOrNull { it.memberId==m.id && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()==x }; sb.append("<td>").append(when(a?.status){AttendanceStatus.EXCUSED->"م";AttendanceStatus.ABSENT->"غ";AttendanceStatus.LATE->"ت";else->"_" }).append("</td>"); x=x.plusDays(1)}; sb.append("</tr>") }; return sb.append("</table></html>").toString()
+}
+
+@Composable private fun SessionEditDialog(repo: AppRepository, session: Session?, changed: () -> Unit, close: () -> Unit) {
+    var memberId by remember { mutableStateOf(session?.memberId ?: repo.members.firstOrNull()?.id ?: "") }; var title by remember { mutableStateOf(session?.title ?: "") }; var topic by remember { mutableStateOf(session?.topic ?: "") }
+    AlertDialog(onDismissRequest = close, title = { Text(if(session==null)"جلسه جدید" else "ویرایش جلسه") }, text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("عضو"); Row(Modifier.horizontalScroll(rememberScrollState())) { repo.members.forEach { m -> FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)}) } }; OutlinedTextField(title,{title=it},label={Text("عنوان")},singleLine=true); OutlinedTextField(topic,{topic=it},label={Text("موضوع")},singleLine=true); Text("تاریخ و ساعت: ${session?.let { JalaliCalendar.formatDateTime(it.startsAt) } ?: "اکنون در موبایل"}") } },
+    confirmButton={TextButton({if(title.isNotBlank()&&memberId.isNotBlank()){if(session==null) repo.addSession(memberId,title,topic) else repo.updateSession(session.copy(memberId=memberId,title=title.trim(),topic=topic.trim()));changed();close()}}){Text("ذخیره")}},
+    dismissButton={Row{if(session!=null)TextButton({repo.deleteSession(session.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
+}@Composable
 private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
