@@ -19,5 +19,14 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.4.1"
-      - name: Assemble debug APK
-        run: gradle assembleDebug
+      - name: Assemble debug APK and run unit tests
+        run: |
+          set +e
+          gradle assembleDebug testDebugUnitTest --continue --console=plain 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            # Surface the real errors as an annotation so they are visible without downloading logs.
+            msg=$( { grep -E '^e: ' build.log; grep -A15 'What went wrong' build.log; grep -E ' FAILED$' build.log; } | head -80 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"}{print}')
+            echo "::error title=Gradle build failed::$msg"
+          fi
+          exit $status
