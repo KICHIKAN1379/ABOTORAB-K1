@@ -2,14 +2,7 @@ package com.kichikan.ak1.domain.model
 
 enum class ShopItemType { AVATAR, FRAME, REWARD }
 
-enum class AcquisitionMethod {
-    DIRECT_PURCHASE,
-    LEVEL_UNLOCK,
-    WHEEL_ONLY,
-    MANUAL,
-    EVENT,
-    MISSION
-}
+enum class AcquisitionMethod { DIRECT_PURCHASE, LEVEL_UNLOCK, WHEEL_ONLY, MANUAL, EVENT, MISSION }
 
 enum class Currency { POINTS, DIAMONDS, NONE }
 
@@ -25,7 +18,8 @@ data class ShopItem(
     val eventStartEpochMillis: Long? = null,
     val eventEndEpochMillis: Long? = null,
     val stock: Int? = null,
-    val active: Boolean = true
+    val active: Boolean = true,
+    val description: String = ""
 )
 
 data class CatalogEntry(
