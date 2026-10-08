@@ -282,70 +282,35 @@ private fun buildMemberCard(repo: AppRepository, member: Member): android.graphi
 @Composable
 private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
-    var addMission by remember { mutableStateOf(false) }
-    var addWheelItem by remember { mutableStateOf(false) }
-    var addShopItem by remember { mutableStateOf(false) }
-    var completeMission by remember { mutableStateOf<Mission?>(null) }
-    var assetKind by remember { mutableStateOf<String?>(null) }
-    var assetMessage by remember { mutableStateOf<String?>(null) }
-    val importAsset = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            try {
-                val mime = context.contentResolver.getType(uri) ?: "image/png"
-                require(mime.startsWith("image/")) { "فقط فایل تصویری قابل ثبت است" }
-                val options = BitmapFactory.Options().also { it.inJustDecodeBounds = true }
-                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: error("فایل خوانده نشد")
-                val isFrame = assetKind == "FRAME"
-                val required = if (isFrame) 288 else 256
-                require(options.outWidth == required && options.outHeight == required) { "ابعاد ${if (isFrame) "قاب" else "آواتار"} باید دقیقاً ${required}×${required} پیکسل باشد" }
-                val id = "asset-" + System.currentTimeMillis()
-                val ext = when { mime.equals("image/jpeg", true) -> ".jpg"; mime.equals("image/webp", true) -> ".webp"; mime.equals("image/gif", true) -> ".gif"; else -> ".png" }
-                val target = java.io.File(context.filesDir, "custom_assets/${id}${ext}")
-                target.parentFile?.mkdirs()
-                context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
-                repo.addAsset(CustomAsset(id, if (isFrame) "قاب سفارشی" else "آواتار سفارشی", if (isFrame) AssetType.FRAME else AssetType.AVATAR, target.absolutePath, mime, required, required))
-                assetMessage = "ثبت شد: ${target.name}"
-                changed()
-            } catch (e: Exception) { assetMessage = e.message ?: "ثبت فایل انجام نشد" }
-        }
+    var addMission by remember { mutableStateOf(false) }; var editMission by remember { mutableStateOf<Mission?>(null) }; var addWheel by remember { mutableStateOf(false) }; var editWheel by remember { mutableStateOf<WheelItem?>(null) }; var addShop by remember { mutableStateOf(false) }; var editShop by remember { mutableStateOf<ShopItem?>(null) }
+    var assetKind by remember { mutableStateOf<String?>(null) }; var assetMessage by remember { mutableStateOf<String?>(null) }
+    val importAsset = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) try { val mime=context.contentResolver.getType(uri)?:"image/png"; require(mime.startsWith("image/")){"فقط فایل تصویری قابل ثبت است"}; val o=BitmapFactory.Options().also{it.inJustDecodeBounds=true}; context.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it,null,o)}; val frame=assetKind=="FRAME"; val size=if(frame)288 else 256; require(o.outWidth==size&&o.outHeight==size){"ابعاد ${if(frame)"قاب" else "آواتار"} باید ${size}×${size} باشد"}; val id="asset-"+System.currentTimeMillis(); val ext=when{mime.equals("image/jpeg",true)->".jpg";mime.equals("image/webp",true)->".webp";mime.equals("image/gif",true)->".gif";else->".png"}; val target=java.io.File(context.filesDir,"custom_assets/$id$ext");target.parentFile?.mkdirs();context.contentResolver.openInputStream(uri)?.use{input->target.outputStream().use{out->input.copyTo(out)}};repo.addAsset(CustomAsset(id,if(frame)"قاب سفارشی" else "آواتار سفارشی",if(frame)AssetType.FRAME else AssetType.AVATAR,target.absolutePath,mime,size,size));assetMessage="ثبت شد";changed()}catch(ex:Exception){assetMessage=ex.message} }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Text("تراشکاری",style=MaterialTheme.typography.headlineMedium)
+        Text("ساخت و مدیریت مأموریت، جوایز، گردونه و شخصی‌سازی")
+        OutlinedButton({addMission=true},Modifier.fillMaxWidth()){Text("+ مأموریت")}
+        repo.missions.forEach{m->Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(m.title);Text("XP ${m.xpReward} • امتیاز ${m.pointsReward} • 💎 ${m.diamondReward}")};Row{TextButton({editMission=m}){Text("ویرایش")};TextButton({repo.deleteMission(m.id);changed()}){Text("حذف")}}}}}
+        HorizontalDivider(); Text("جوایز / فروشگاه",style=MaterialTheme.typography.titleLarge)
+        OutlinedButton({addShop=true},Modifier.fillMaxWidth()){Text("+ ساخت جایزه / آواتار / قاب")}
+        repo.shop.forEach{item->Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(item.name);Text("${item.type.name} • ${item.price} ${item.currency.name}")};Row{TextButton({editShop=item}){Text("ویرایش")};TextButton({repo.deleteShopItem(item.id);changed()}){Text("حذف")}}}}}
+        HorizontalDivider();Text("ساخت شخصی قاب و آواتار",style=MaterialTheme.typography.titleLarge);Text("آواتار 256×256 و قاب 288×288 — PNG/JPEG/WebP/GIF")
+        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedButton({assetKind="AVATAR";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ آواتار")};OutlinedButton({assetKind="FRAME";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ قاب")}}
+        assetMessage?.let{Text(it)}
+        HorizontalDivider();Text("گردونه",style=MaterialTheme.typography.titleLarge);OutlinedButton({addWheel=true},Modifier.fillMaxWidth()){Text("+ آیتم گردونه")};repo.wheel.items.forEach{item->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("${item.title} • وزن ${item.weight}");Row{TextButton({editWheel=item}){Text("ویرایش")};TextButton({repo.deleteWheelItem(item.id);changed()}){Text("حذف")}}}}
     }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("تراشکاری", style = MaterialTheme.typography.headlineMedium)
-        Text("مأموریت، گردونه و ساخت آیتم‌های فروشگاه")
-        OutlinedButton({ addMission = true }, Modifier.fillMaxWidth()) { Text("ساخت مأموریت") }
-        if (repo.missions.isEmpty()) Text("هنوز مأموریتی تعریف نشده است.") else LazyColumn(Modifier.heightIn(max = 220.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(repo.missions.filter { it.active }, key = { it.id }) { mission ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(mission.title, style = MaterialTheme.typography.titleMedium)
-                        Text("پاداش: XP ${mission.xpReward} • امتیاز ${mission.pointsReward} • الماس ${mission.diamondReward}")
-                        Button({ completeMission = mission }, enabled = repo.members.isNotEmpty()) { Text("ثبت انجام مأموریت") }
-                    }
-                }
-            }
-        }
-        HorizontalDivider()
-        Text("فروشگاه و شخصی‌سازی", style = MaterialTheme.typography.titleLarge)
-        Text("آواتار: 256×256 • قاب: 288×288 • PNG/JPEG/WebP/GIF")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton({ assetKind = "AVATAR"; importAsset.launch(arrayOf("image/png", "image/jpeg", "image/webp", "image/gif")) }) { Text("افزودن آواتار") }
-            OutlinedButton({ assetKind = "FRAME"; importAsset.launch(arrayOf("image/png", "image/jpeg", "image/webp", "image/gif")) }) { Text("افزودن قاب") }
-        }
-        OutlinedButton({ addShopItem = true }, Modifier.fillMaxWidth()) { Text("ساخت آیتم فروشگاه") }
-        repo.shop.takeLast(6).forEach { item -> Text("• ${item.name} | ${item.type.name} | ${item.currency.name} ${item.price}") }
-        assetMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-        HorizontalDivider()
-        Text("گردونه", style = MaterialTheme.typography.titleLarge)
-        Text("تعداد آیتم‌ها: ${repo.wheel.items.size}")
-        OutlinedButton({ addWheelItem = true }, Modifier.fillMaxWidth()) { Text("افزودن آیتم به گردونه") }
-        repo.wheel.items.forEach { item -> Text("• " + item.title + " | شانس " + item.weight) }
-    }
-    if (addMission) AddMissionDialog(repo, changed) { addMission = false }
-    if (addWheelItem) AddWheelItemDialog(repo, changed) { addWheelItem = false }
-    if (addShopItem) AddShopItemDialog(repo, changed) { addShopItem = false }
-    completeMission?.let { mission -> CompleteMissionDialog(repo, mission, changed) { completeMission = null } }
+    if(addMission) MissionEditDialog(repo,null,changed){addMission=false};editMission?.let{MissionEditDialog(repo,it,changed){editMission=null}};if(addWheel)WheelEditDialog(repo,null,changed){addWheel=false};editWheel?.let{WheelEditDialog(repo,it,changed){editWheel=null}};if(addShop)AddShopItemDialog(repo,changed){addShop=false};editShop?.let{ShopItemEditDialog(repo,it,changed){editShop=null}}
+}@Composable private fun MissionEditDialog(repo: AppRepository, item: Mission?, changed: () -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf(item?.title ?: "") }; var desc by remember { mutableStateOf(item?.description ?: "") }; var xp by remember { mutableStateOf((item?.xpReward ?: 0).toString()) }; var pts by remember { mutableStateOf((item?.pointsReward ?: 0).toString()) }; var dia by remember { mutableStateOf((item?.diamondReward ?: 0).toString()) }; var group by remember { mutableStateOf(item?.type == MissionType.GROUP) }
+    AlertDialog(onDismissRequest=close,title={Text(if(item==null)"ساخت مأموریت" else "ویرایش مأموریت")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(title,{title=it},label={Text("عنوان")});OutlinedTextField(desc,{desc=it},label={Text("توضیحات")});Row{Checkbox(group,{group=it});Text("گروهی")};OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("XP")});OutlinedTextField(pts,{pts=it.filter(Char::isDigit)},label={Text("امتیاز")});OutlinedTextField(dia,{dia=it.filter(Char::isDigit)},label={Text("الماس")})}},confirmButton={TextButton({if(title.isNotBlank()){val m=Mission(item?.id?:"mission-"+System.currentTimeMillis(),title.trim(),desc.trim(),if(group)MissionType.GROUP else MissionType.INDIVIDUAL,xp.toIntOrNull()?:0,pts.toIntOrNull()?:0,dia.toIntOrNull()?:0,item?.active?:true,item?.startAt,item?.endAt);if(item==null)repo.addMission(m)else repo.updateMission(m);changed();close()}}){Text("ذخیره")}},dismissButton={Row{if(item!=null)TextButton({repo.deleteMission(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
 }
-
+@Composable private fun WheelEditDialog(repo: AppRepository, item: WheelItem?, changed: () -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf(item?.title ?: "") };var amount by remember { mutableStateOf((item?.amount?:0).toString()) };var weight by remember { mutableStateOf((item?.weight?:1).toString()) };var type by remember { mutableStateOf(item?.type?:WheelRewardType.REWARD) };var text by remember { mutableStateOf(item?.customText?:"") }
+    AlertDialog(onDismissRequest=close,title={Text(if(item==null)"آیتم گردونه" else "ویرایش آیتم گردونه")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(title,{title=it},label={Text("عنوان")});Row(Modifier.horizontalScroll(rememberScrollState())){WheelRewardType.values().forEach{t->FilterChip(type==t,{type=t},label={Text(t.name)})}};OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text("مقدار")});OutlinedTextField(weight,{weight=it.filter(Char::isDigit)},label={Text("وزن")});OutlinedTextField(text,{text=it},label={Text("توضیح")})}},confirmButton={TextButton({if(title.isNotBlank()){val w=WheelItem(item?.id?:"wheel-"+System.currentTimeMillis(),title.trim(),type,amount.toIntOrNull(),item?.shopItemId,text.takeIf{it.isNotBlank()},(weight.toIntOrNull()?:1).coerceAtLeast(1),item?.active?:true);if(item==null)repo.setWheel(repo.wheel.copy(items=repo.wheel.items+w))else repo.updateWheelItem(w);changed();close()}}){Text("ذخیره")}},dismissButton={Row{if(item!=null)TextButton({repo.deleteWheelItem(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
+}
+@Composable private fun ShopItemEditDialog(repo: AppRepository, item: ShopItem, changed: () -> Unit, close: () -> Unit) {
+    var name by remember { mutableStateOf(item.name) };var price by remember { mutableStateOf(item.price.toString()) };var description by remember { mutableStateOf(item.description) };var level by remember { mutableStateOf(item.minimumLevel?.toString()?:"") };var currency by remember { mutableStateOf(item.currency) }
+    AlertDialog(onDismissRequest=close,title={Text("ویرایش ${item.name}")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(name,{name=it},label={Text("نام")});OutlinedTextField(description,{description=it},label={Text("توضیحات جایزه")});OutlinedTextField(price,{price=it.filter(Char::isDigit)},label={Text("قیمت")});OutlinedTextField(level,{level=it.filter(Char::isDigit)},label={Text("حداقل سطح")});Row{Currency.values().forEach{cur->FilterChip(currency==cur,{currency=cur},label={Text(cur.name)})}}}},confirmButton={TextButton({if(name.isNotBlank()){repo.updateShopItem(item.copy(name=name.trim(),price=price.toIntOrNull()?:0,description=description.trim(),minimumLevel=level.toIntOrNull(),currency=currency));changed();close()}}){Text("ذخیره")}},dismissButton={Row{TextButton({repo.deleteShopItem(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
+}
 @Composable
 private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf("") }
