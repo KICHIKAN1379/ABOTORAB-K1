@@ -286,9 +286,10 @@ class LocalStore(private val context: Context) {
         for (i in 0 until attendanceJson.length()) {
             val o = attendanceJson.getJSONObject(i)
             attendance += Attendance(
-                o.getString("id"), o.getString("memberId"), o.getString("sessionId"),
+                o.getString("id"), o.getString("memberId"), o.optLong("date", o.optLong("createdAt")), 
                 runCatching { AttendanceStatus.valueOf(o.getString("status")) }.getOrDefault(AttendanceStatus.UNMARKED),
-                o.optString("note").takeIf { it.isNotEmpty() && it != "null" }, o.getLong("createdAt")
+                o.optString("sessionId").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("note").takeIf { it.isNotEmpty() && it != "null" }, o.optLong("createdAt")
             )
         }
 
