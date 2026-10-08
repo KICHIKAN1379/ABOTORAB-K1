@@ -63,7 +63,7 @@ class LocalStore(private val context: Context) {
                 .put("methods", JSONArray(it.methods.map { method -> method.name }))
                 .put("eventStart", it.eventStartEpochMillis ?: JSONObject.NULL)
                 .put("eventEnd", it.eventEndEpochMillis ?: JSONObject.NULL)
-                .put("stock", it.stock ?: JSONObject.NULL).put("active", it.active))
+                .put("stock", it.stock ?: JSONObject.NULL).put("active", it.active).put("description", it.description))
         }
         root.put("shop", shopJson)
 
@@ -110,7 +110,7 @@ class LocalStore(private val context: Context) {
         val attendanceJson = JSONArray()
         attendance.forEach {
             attendanceJson.put(JSONObject().put("id", it.id).put("memberId", it.memberId)
-                .put("sessionId", it.sessionId).put("status", it.status.name)
+                .put("date", it.dateEpochMillis).put("sessionId", it.sessionId ?: JSONObject.NULL).put("status", it.status.name)
                 .put("note", it.note ?: JSONObject.NULL).put("createdAt", it.createdAt))
         }
         root.put("attendance", attendanceJson)
