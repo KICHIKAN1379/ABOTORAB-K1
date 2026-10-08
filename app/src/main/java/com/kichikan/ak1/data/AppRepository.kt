@@ -263,29 +263,16 @@ class AppRepository(context: Context) {
 
     fun recordAttendance(item: Attendance) {
         check(members.any { it.id == item.memberId }) { "عضو نامعتبر است" }
-        check(sessions.any { it.id == item.sessionId }) { "جلسه نامعتبر است" }
-
-        attendance.removeAll {
-            it.memberId == item.memberId && it.sessionId == item.sessionId
-        }
+        attendance.removeAll { it.memberId == item.memberId && it.dateEpochMillis == item.dateEpochMillis }
         attendance += item
-
-        history += HistoryEvent(
-            "attendance-" + item.id,
-            item.memberId,
-            HistoryType.ATTENDANCE,
-            null,
-            "حضور و غیاب",
-            item.note,
-            item.createdAt,
-            "mentor",
-            mapOf(
-                "status" to item.status.name,
-                "sessionId" to item.sessionId
-            )
-        )
-
+        history += HistoryEvent("attendance-" + item.id, item.memberId, HistoryType.ATTENDANCE, null,
+            "حضور و غیاب", item.note, item.createdAt, "mentor",
+            mapOf("status" to item.status.name, "date" to item.dateEpochMillis.toString()))
         persist()
+    }
+
+    fun recordWeeklyAttendance(memberId: String, dateEpochMillis: Long, status: AttendanceStatus, note: String? = null) {
+        recordAttendance(Attendance("attendance-$memberId-$dateEpochMillis", memberId, dateEpochMillis, status, null, note, System.currentTimeMillis()))
     }
 
 
