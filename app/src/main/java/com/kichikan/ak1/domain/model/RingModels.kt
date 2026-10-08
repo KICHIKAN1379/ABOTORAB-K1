@@ -7,6 +7,12 @@ data class RingAccount(
     val passwordRequired: Boolean = false
 )
 
+data class Group(
+    val id: String,
+    val ringId: String,
+    val name: String
+)
+
 data class Member(
     val id: String,
     val ringId: String,
@@ -14,6 +20,7 @@ data class Member(
     val economy: MemberEconomy = MemberEconomy(),
     val avatarItemId: String? = null,
     val frameItemId: String? = null,
-    /** Jalali (Shamsi) birth date as "YYYY/MM/DD". Older saves may hold Gregorian "yyyy-MM-dd"; both are read. */
-    val birthDate: String? = null
+    val birthDate: String? = null,
+    val groupId: String? = null,
+    val privateNotes: String = ""
 )
