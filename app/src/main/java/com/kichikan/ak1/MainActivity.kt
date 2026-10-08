@@ -136,30 +136,14 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
 
 @Composable
 private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit) {
-    var action by remember { mutableStateOf<EconomyOp?>(null) }
-    var assistantOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
-        Text("پنل مربی", color = MaterialTheme.colorScheme.primary)
-        SummaryCard(repo)
-        Button({ action = EconomyOp.XP_ADD }, Modifier.fillMaxWidth()) { Text("ثبت امتیاز / XP") }
-        OutlinedButton(openMembers, Modifier.fillMaxWidth()) { Text("مدیریت اعضا") }
-        OutlinedButton({ assistantOpen = true }, Modifier.fillMaxWidth()) { Text("دستیار مربی") }
-        Text("میانبرها", style = MaterialTheme.typography.titleLarge)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton({ action = EconomyOp.XP_ADD }, Modifier.weight(1f)) { Text("ثبت XP") }
-            OutlinedButton({ action = EconomyOp.DIAMONDS_ADD }, Modifier.weight(1f)) { Text("الماس") }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton({ action = EconomyOp.XP_SUB }, Modifier.weight(1f)) { Text("کاهش XP") }
-            OutlinedButton({ action = EconomyOp.LEVEL_DOWN }, Modifier.weight(1f)) { Text("کاهش سطح") }
-        }
+    var action by remember { mutableStateOf(false) }; var assistantOpen by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement=Arrangement.spacedBy(14.dp)){
+        Text(repo.ring?.ringName ?: "حلقه",style=MaterialTheme.typography.headlineMedium);Text("پنل مربی",color=MaterialTheme.colorScheme.primary);SummaryCard(repo)
+        Button({action=true},Modifier.fillMaxWidth()){Text("شناسنامه")}
+        OutlinedButton(openMembers,Modifier.fillMaxWidth()){Text("مدیریت اعضا")};OutlinedButton({assistantOpen=true},Modifier.fillMaxWidth()){Text("دستیار مربی")}
     }
-    action?.let { op -> EconomyDialog(repo, changed, op) { action = null } }
-    if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
-}
-
-@Composable
+    if(action) EconomyDialog(repo,changed){action=false};if(assistantOpen)MentorAssistantDialog(repo){assistantOpen=false}
+}@Composable
 private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
     val report = remember(repo.members.size, repo.history.size, repo.attendance.size, repo.missionCompletions.size) {
         com.kichikan.ak1.domain.assistant.MentorAssistantAnalyzer.analyze(
@@ -746,126 +730,13 @@ private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = fal
     LEVEL_DOWN("کاهش سطح", isLevelTarget = true)
 }
 
-@Composable
-private fun EconomyDialog(
-    repo: AppRepository,
-    changed: () -> Unit,
-    initialOp: EconomyOp = EconomyOp.XP_ADD,
-    close: () -> Unit
-) {
-    var memberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
-    var op by remember { mutableStateOf(initialOp) }
-    var amount by remember { mutableStateOf("") }
-    var reason by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    val member = repo.members.firstOrNull { it.id == memberId }
-
-    fun submit() {
-        val m = member
-        val n = amount.toIntOrNull()
-        if (m == null) { error = "ابتدا یک عضو انتخاب کنید"; return }
-        if (n == null) { error = if (op.isLevelTarget) "سطح مقصد را وارد کنید" else "مقدار را وارد کنید"; return }
-        if (!op.isLevelTarget && n <= 0) { error = "مقدار باید بزرگ‌تر از صفر باشد"; return }
-        if (op.isLevelTarget && n >= m.economy.level) {
-            error = "سطح مقصد باید کمتر از سطح فعلی (${m.economy.level}) باشد"; return
-        }
-        if (reason.isBlank()) { error = "نوشتن دلیل اجباری است"; return }
-        val why = reason.trim()
-        try {
-            when (op) {
-                EconomyOp.XP_ADD -> repo.recordXp(m.id, n, why, "mentor")
-                EconomyOp.XP_SUB -> repo.decreaseXp(m.id, n, why, "mentor")
-                EconomyOp.POINTS_ADD -> repo.recordPoints(m.id, n, why, "mentor")
-                EconomyOp.POINTS_SUB -> repo.recordPoints(m.id, -n, why, "mentor")
-                EconomyOp.DIAMONDS_ADD -> repo.recordDiamonds(m.id, n, why, "mentor")
-                EconomyOp.DIAMONDS_SUB -> repo.recordDiamonds(m.id, -n, why, "mentor")
-                EconomyOp.LEVEL_DOWN -> repo.decreaseLevel(m.id, n, why, "mentor")
-            }
-            changed()
-            close()
-        } catch (e: IllegalArgumentException) {
-            error = e.message ?: "عملیات انجام نشد"
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = close, title = { Text("ثبت رویداد") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (repo.members.isEmpty()) Text("ابتدا یک عضو اضافه کنید.")
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repo.members.forEach { m ->
-                        FilterChip(memberId == m.id, { memberId = m.id; error = null }, label = { Text(m.name) })
-                    }
-                }
-                member?.let { m ->
-                    Text(
-                        "سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • الماس ${m.economy.diamonds}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    EconomyOp.entries.forEach { o ->
-                        FilterChip(op == o, { op = o; error = null }, label = { Text(o.label) })
-                    }
-                }
-                OutlinedTextField(
-                    amount, { amount = it.filter(Char::isDigit) },
-                    label = { Text(if (op.isLevelTarget) "سطح مقصد" else "مقدار") }, singleLine = true
-                )
-                OutlinedTextField(reason, { reason = it }, label = { Text("دلیل (اجباری)") }, singleLine = true)
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = { TextButton({ submit() }) { Text("ثبت") } },
-        dismissButton = { TextButton(close) { Text("انصراف") } }
-    )
-}
-
-@Composable
-private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
-    var category by remember { mutableStateOf<HistoryCategory?>(null) }
-    val all = repo.history.filter { it.memberId == member.id }
-    val years = HistoryService.group(HistoryService.filter(all, category))
-    AlertDialog(
-        onDismissRequest = close, title = { Text("تاریخچه ${member.name}") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(category == null, { category = null }, label = { Text("همه") })
-                    HistoryCategory.entries.forEach { c ->
-                        FilterChip(category == c, { category = c }, label = { Text(c.label) })
-                    }
-                }
-                LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (years.isEmpty()) {
-                        item { Text(if (all.isEmpty()) "هنوز رویدادی ثبت نشده است." else "رویدادی با این فیلتر وجود ندارد.") }
-                    }
-                    years.forEach { y ->
-                        item { Text("${y.year}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) }
-                        y.months.forEach { mo ->
-                            item {
-                                Text(
-                                    "${JalaliCalendar.MONTH_NAMES[mo.month - 1]} ${y.year} • ${mo.events.size} رویداد",
-                                    style = MaterialTheme.typography.titleSmall
-                                )
-                            }
-                            // No stable key: event ids can repeat when two events share the same millisecond.
-                            items(mo.events) { e ->
-                                Card(Modifier.fillMaxWidth()) {
-                                    Column(Modifier.padding(10.dp)) {
-                                        Text(e.title)
-                                        Text(JalaliCalendar.formatDateTime(e.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
-                                        e.amount?.let { Text("مقدار: $it") }
-                                        e.reason?.let { Text("دلیل: $it") }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(close) { Text("بستن") } }
+@Composable private fun EconomyDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    var step by remember { mutableIntStateOf(0) }; var op by remember { mutableStateOf<EconomyOp?>(null) }; var memberId by remember { mutableStateOf(repo.members.firstOrNull()?.id?:"") }; var amount by remember { mutableStateOf("") }; var reason by remember { mutableStateOf("") }; var error by remember { mutableStateOf<String?>(null) }; val member=repo.members.firstOrNull{it.id==memberId}
+    fun submit(){val m=member?:run{error="عضو انتخاب نشده";return};val n=amount.toIntOrNull()?:run{error="مقدار را وارد کنید";return};if(n<=0){error="مقدار باید بیشتر از صفر باشد";return};if(op==EconomyOp.LEVEL_DOWN&&n>=m.economy.level){error="سطح مقصد باید کمتر از سطح فعلی باشد";return};if(reason.isBlank()){error="دلیل اجباری است";return};try{when(op){EconomyOp.XP_ADD->repo.recordXp(m.id,n,reason,"mentor");EconomyOp.XP_SUB->repo.decreaseXp(m.id,n,reason,"mentor");EconomyOp.POINTS_ADD->repo.recordPoints(m.id,n,reason,"mentor");EconomyOp.POINTS_SUB->repo.recordPoints(m.id,-n,reason,"mentor");EconomyOp.DIAMONDS_ADD->repo.recordDiamonds(m.id,n,reason,"mentor");EconomyOp.DIAMONDS_SUB->repo.recordDiamonds(m.id,-n,reason,"mentor");EconomyOp.LEVEL_DOWN->repo.decreaseLevel(m.id,n,reason,"mentor");null->Unit};changed();close()}catch(ex:IllegalArgumentException){error=ex.message}}
+    AlertDialog(onDismissRequest=close,title={Text(if(step==0)"شناسنامه" else "ثبت ${op?.label}")},text={
+        Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+            if(step==0){Text("ابتدا نوع تغییر را انتخاب کنید");listOf(EconomyOp.POINTS_ADD to "امتیاز",EconomyOp.DIAMONDS_ADD to "الماس",EconomyOp.XP_ADD to "XP",EconomyOp.LEVEL_DOWN to "سطح").forEach{pair->Button({op=pair.first;step=1},Modifier.fillMaxWidth()){Text(pair.second)}}}
+            else { Text("عضو");Row(Modifier.horizontalScroll(rememberScrollState())){repo.members.forEach{m->FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)})}};Text("نوع عملیات");Row(Modifier.horizontalScroll(rememberScrollState())){op?.let{base->val options=when(base){EconomyOp.POINTS_ADD->listOf(EconomyOp.POINTS_ADD,EconomyOp.POINTS_SUB);EconomyOp.DIAMONDS_ADD->listOf(EconomyOp.DIAMONDS_ADD,EconomyOp.DIAMONDS_SUB);EconomyOp.XP_ADD->listOf(EconomyOp.XP_ADD,EconomyOp.XP_SUB);else->listOf(EconomyOp.LEVEL_DOWN)};options.forEach{o->FilterChip(op==o,{op=o},label={Text(o.label)})}}};OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text(if(op==EconomyOp.LEVEL_DOWN)"سطح مقصد" else "مقدار")},singleLine=true);OutlinedTextField(reason,{reason=it},label={Text("دلیل (اجباری)")},singleLine=true);error?.let{Text(it,color=MaterialTheme.colorScheme.error)}}
+        } },confirmButton={if(step==0)TextButton(close){Text("انصراف")}else Row{TextButton({step=0;error=null}){Text("مرحله قبل")};TextButton({submit()}){Text("تأیید")}}},dismissButton={if(step==1)TextButton(close){Text("لغو")}})
     )
 }
