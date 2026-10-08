@@ -374,6 +374,9 @@ class AppRepository(context: Context) {
     fun updateShopItem(item: ShopItem) { val i = shop.indexOfFirst { it.id == item.id }; if (i >= 0) { shop[i] = item; persist() } }
     fun deleteShopItem(itemId: String) { shop.removeAll { it.id == itemId }; persist() }
 
+    fun updateShopItem(item: ShopItem) { val i = shop.indexOfFirst { it.id == item.id }; if (i >= 0) { shop[i] = item; persist() } }
+    fun deleteShopItem(itemId: String) { shop.removeAll { it.id == itemId }; persist() }
+
     fun addShopItem(item: ShopItem) {
         require(item.price >= 0) { "قیمت نمی‌تواند منفی باشد" }
         shop.removeAll { it.id == item.id }
@@ -398,7 +401,8 @@ class AppRepository(context: Context) {
             missionCompletions,
             sessions,
             attendance,
-            assets
+            assets,
+            groups
         )
     }
 
@@ -420,6 +424,7 @@ class AppRepository(context: Context) {
         sessions.clear()
         attendance.clear()
         assets.clear()
+        groups.clear()
         wheel = WheelConfig()
 
         store.load()?.let { state ->
@@ -433,6 +438,7 @@ class AppRepository(context: Context) {
             sessions += state.sessions
             attendance += state.attendance
             assets += state.assets
+            groups += state.groups
         }
     }
 }
