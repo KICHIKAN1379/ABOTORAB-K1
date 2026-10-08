@@ -58,12 +58,26 @@ object EconomyService {
                 "points-$now", "", HistoryType.POINTS_EARNED, amount,
                 "افزایش امتیاز", reason, now, actor
             )
+            // Every positive point is worth 0.5 diamond. Two half-diamond units are
+            // carried into a whole (spendable) diamond; at most one unit stays pending.
+            val units = economy.halfDiamondUnits + amount
+            val wholeDiamonds = units / 2
+            val events = mutableListOf<HistoryEvent>()
+            events += xpChange.events
+            events += pointEvent
+            if (wholeDiamonds > 0) {
+                events += HistoryEvent(
+                    "diamond-points-$now", "", HistoryType.DIAMONDS_EARNED, wholeDiamonds,
+                    "الماس از امتیاز", "هر امتیاز مثبت نیم الماس", now, actor
+                )
+            }
             return EconomyChange(
                 xpChange.economy.copy(
                     spendablePoints = economy.spendablePoints + amount,
-                    halfDiamondUnits = economy.halfDiamondUnits + amount
+                    diamonds = xpChange.economy.diamonds + wholeDiamonds,
+                    halfDiamondUnits = units % 2
                 ),
-                xpChange.events + pointEvent
+                events
             )
         }
 

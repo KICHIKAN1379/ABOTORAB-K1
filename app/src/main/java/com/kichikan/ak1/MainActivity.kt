@@ -8,7 +8,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -20,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.domain.model.*
+import com.kichikan.ak1.domain.service.HistoryCategory
+import com.kichikan.ak1.domain.service.HistoryService
 
 private enum class Tab { HOME, MEMBERS, WORKSHOP, SESSIONS, RANKING, STORE, SETTINGS }
 
@@ -122,20 +126,24 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
 
 @Composable
 private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit) {
-    var action by remember { mutableStateOf(false) }
+    var action by remember { mutableStateOf<EconomyOp?>(null) }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
         Text("پنل مربی", color = MaterialTheme.colorScheme.primary)
         SummaryCard(repo)
-        Button({ action = true }, Modifier.fillMaxWidth()) { Text("ثبت امتیاز / XP") }
+        Button({ action = EconomyOp.XP_ADD }, Modifier.fillMaxWidth()) { Text("ثبت امتیاز / XP") }
         OutlinedButton(openMembers, Modifier.fillMaxWidth()) { Text("مدیریت اعضا") }
         Text("میانبرها", style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton({ action = true }, Modifier.weight(1f)) { Text("ثبت XP") }
-            OutlinedButton({ action = true }, Modifier.weight(1f)) { Text("الماس") }
+            OutlinedButton({ action = EconomyOp.XP_ADD }, Modifier.weight(1f)) { Text("ثبت XP") }
+            OutlinedButton({ action = EconomyOp.DIAMONDS_ADD }, Modifier.weight(1f)) { Text("الماس") }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton({ action = EconomyOp.XP_SUB }, Modifier.weight(1f)) { Text("کاهش XP") }
+            OutlinedButton({ action = EconomyOp.LEVEL_DOWN }, Modifier.weight(1f)) { Text("کاهش سطح") }
         }
     }
-    if (action) EconomyDialog(repo, changed) { action = false }
+    action?.let { op -> EconomyDialog(repo, changed, op) { action = null } }
 }
 
 @Composable
@@ -477,60 +485,128 @@ private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () 
     )
 }
 
+/** Manual mentor adjustments. Every operation requires a reason and is written to the member history. */
+private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = false) {
+    XP_ADD("XP +"),
+    XP_SUB("XP −"),
+    POINTS_ADD("امتیاز +"),
+    POINTS_SUB("امتیاز −"),
+    DIAMONDS_ADD("الماس +"),
+    DIAMONDS_SUB("الماس −"),
+    LEVEL_DOWN("کاهش سطح", isLevelTarget = true)
+}
+
 @Composable
-private fun EconomyDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+private fun EconomyDialog(
+    repo: AppRepository,
+    changed: () -> Unit,
+    initialOp: EconomyOp = EconomyOp.XP_ADD,
+    close: () -> Unit
+) {
     var memberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
-    var type by remember { mutableStateOf("XP") }
-    var amount by remember { mutableStateOf("10") }
+    var op by remember { mutableStateOf(initialOp) }
+    var amount by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val member = repo.members.firstOrNull { it.id == memberId }
+
+    fun submit() {
+        val m = member
+        val n = amount.toIntOrNull()
+        if (m == null) { error = "ابتدا یک عضو انتخاب کنید"; return }
+        if (n == null) { error = if (op.isLevelTarget) "سطح مقصد را وارد کنید" else "مقدار را وارد کنید"; return }
+        if (!op.isLevelTarget && n <= 0) { error = "مقدار باید بزرگ‌تر از صفر باشد"; return }
+        if (op.isLevelTarget && n >= m.economy.level) {
+            error = "سطح مقصد باید کمتر از سطح فعلی (${m.economy.level}) باشد"; return
+        }
+        if (reason.isBlank()) { error = "نوشتن دلیل اجباری است"; return }
+        val why = reason.trim()
+        try {
+            when (op) {
+                EconomyOp.XP_ADD -> repo.recordXp(m.id, n, why, "mentor")
+                EconomyOp.XP_SUB -> repo.decreaseXp(m.id, n, why, "mentor")
+                EconomyOp.POINTS_ADD -> repo.recordPoints(m.id, n, why, "mentor")
+                EconomyOp.POINTS_SUB -> repo.recordPoints(m.id, -n, why, "mentor")
+                EconomyOp.DIAMONDS_ADD -> repo.recordDiamonds(m.id, n, why, "mentor")
+                EconomyOp.DIAMONDS_SUB -> repo.recordDiamonds(m.id, -n, why, "mentor")
+                EconomyOp.LEVEL_DOWN -> repo.decreaseLevel(m.id, n, why, "mentor")
+            }
+            changed()
+            close()
+        } catch (e: IllegalArgumentException) {
+            error = e.message ?: "عملیات انجام نشد"
+        }
+    }
+
     AlertDialog(
         onDismissRequest = close, title = { Text("ثبت رویداد") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                repo.members.forEach { m ->
-                    FilterChip(memberId == m.id, { memberId = m.id }, label = { Text(m.name) })
+                if (repo.members.isEmpty()) Text("ابتدا یک عضو اضافه کنید.")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    repo.members.forEach { m ->
+                        FilterChip(memberId == m.id, { memberId = m.id; error = null }, label = { Text(m.name) })
+                    }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(type == "XP", { type = "XP" }, label = { Text("XP") })
-                    FilterChip(type == "POINTS", { type = "POINTS" }, label = { Text("امتیاز") })
-                    FilterChip(type == "DIAMONDS", { type = "DIAMONDS" }, label = { Text("الماس") })
+                member?.let { m ->
+                    Text(
+                        "سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • الماس ${m.economy.diamonds}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
-                OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مقدار") }, singleLine = true)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    EconomyOp.entries.forEach { o ->
+                        FilterChip(op == o, { op = o; error = null }, label = { Text(o.label) })
+                    }
+                }
+                OutlinedTextField(
+                    amount, { amount = it.filter(Char::isDigit) },
+                    label = { Text(if (op.isLevelTarget) "سطح مقصد" else "مقدار") }, singleLine = true
+                )
                 OutlinedTextField(reason, { reason = it }, label = { Text("دلیل (اجباری)") }, singleLine = true)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = {
-            TextButton({
-                val n = amount.toIntOrNull() ?: 0
-                if (memberId.isNotBlank() && n > 0 && reason.isNotBlank()) {
-                    when (type) {
-                        "XP" -> repo.recordXp(memberId, n, reason, "mentor")
-                        "POINTS" -> repo.recordPoints(memberId, n, reason, "mentor")
-                        else -> repo.recordDiamonds(memberId, n, reason, "mentor")
-                    }
-                    changed()
-                }
-                close()
-            }) { Text("ثبت") }
-        },
+        confirmButton = { TextButton({ submit() }) { Text("ثبت") } },
         dismissButton = { TextButton(close) { Text("انصراف") } }
     )
 }
 
 @Composable
 private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
-    val events = repo.history.filter { it.memberId == member.id }.sortedByDescending { it.createdAtEpochMillis }
+    var category by remember { mutableStateOf<HistoryCategory?>(null) }
+    val all = repo.history.filter { it.memberId == member.id }
+    val years = HistoryService.group(HistoryService.filter(all, category))
+    val timeFormat = remember { java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault()) }
     AlertDialog(
         onDismissRequest = close, title = { Text("تاریخچه ${member.name}") },
         text = {
-            LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (events.isEmpty()) item { Text("هنوز رویدادی ثبت نشده است.") }
-                items(events) { e ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(10.dp)) {
-                            Text(e.title)
-                            e.amount?.let { Text("مقدار: ${it}") }
-                            e.reason?.let { Text("دلیل: ${it}") }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(category == null, { category = null }, label = { Text("همه") })
+                    HistoryCategory.entries.forEach { c ->
+                        FilterChip(category == c, { category = c }, label = { Text(c.label) })
+                    }
+                }
+                LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (years.isEmpty()) {
+                        item { Text(if (all.isEmpty()) "هنوز رویدادی ثبت نشده است." else "رویدادی با این فیلتر وجود ندارد.") }
+                    }
+                    years.forEach { y ->
+                        item { Text("${y.year}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) }
+                        y.months.forEach { mo ->
+                            item { Text("ماه ${mo.month} • ${mo.events.size} رویداد", style = MaterialTheme.typography.titleSmall) }
+                            // No stable key: event ids can repeat when two events share the same millisecond.
+                            items(mo.events) { e ->
+                                Card(Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(10.dp)) {
+                                        Text(e.title)
+                                        Text(timeFormat.format(java.util.Date(e.createdAtEpochMillis)), style = MaterialTheme.typography.bodySmall)
+                                        e.amount?.let { Text("مقدار: $it") }
+                                        e.reason?.let { Text("دلیل: $it") }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

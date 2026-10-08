@@ -146,7 +146,10 @@ class LocalStore(context: Context) {
             val o = ms.getJSONObject(i)
             members += Member(
                 o.getString("id"), o.getString("ringId"), o.getString("name"),
-                MemberEconomy(o.optInt("xp"), o.optInt("points"), o.optInt("diamonds"), o.optInt("halfDiamondUnits", 0)),
+                // Older saves kept every half-diamond unit pending; carry pairs into whole diamonds.
+                o.optInt("halfDiamondUnits", 0).let { units ->
+                    MemberEconomy(o.optInt("xp"), o.optInt("points"), o.optInt("diamonds") + units / 2, units % 2)
+                },
                 o.optString("avatar").takeIf { it.isNotEmpty() && it != "null" },
                 o.optString("frame").takeIf { it.isNotEmpty() && it != "null" },
                 o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" }
