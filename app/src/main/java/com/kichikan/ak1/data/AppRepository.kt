@@ -1,14 +1,15 @@
 package com.kichikan.ak1.data
 
 import android.content.Context
+import com.kichikan.ak1.domain.calendar.BirthdayRules
+import com.kichikan.ak1.domain.calendar.JalaliCalendar
 import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
 import com.kichikan.ak1.domain.service.MissionService
 import com.kichikan.ak1.domain.service.WheelService
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
+import java.time.Instant
+import java.time.ZoneId
 
 class AppRepository(context: Context) {
     private var sequence = 0L
@@ -63,7 +64,8 @@ class AppRepository(context: Context) {
     fun addMember(name: String, birthDate: String? = null): Member {
         check(ring != null) { "ابتدا حلقه را ایجاد کنید" }
         require(name.isNotBlank()) { "نام عضو الزامی است" }
-        val normalizedBirthDate = birthDate?.trim()?.takeIf { it.isNotEmpty() }?.also { validateBirthDate(it) }
+        val normalizedBirthDate = birthDate?.trim()?.takeIf { it.isNotEmpty() }
+            ?.let { BirthdayRules.normalize(it, java.time.LocalDate.now()) }
 
         val member = Member(
             "member-" + (++sequence),
@@ -76,42 +78,36 @@ class AppRepository(context: Context) {
         return member
     }
 
-    /** Processes the annual 30-diamond birthday reward exactly once per calendar year. */
+    /**
+     * Processes the annual 30-diamond birthday reward exactly once per Jalali year.
+     * Birthdays are Jalali dates (see [BirthdayRules]).
+     */
     fun processBirthdayRewards(now: Long = System.currentTimeMillis()): Int {
-        val today = java.time.Instant.ofEpochMilli(now)
-            .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+        val zone = ZoneId.systemDefault()
+        val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val jalaliYear = JalaliCalendar.fromGregorian(today).year
         var granted = 0
         members.forEach { member ->
-            val birthDate = member.birthDate?.let { parseBirthDate(it) } ?: return@forEach
-            val birthdayDay = if (birthDate.month == java.time.Month.FEBRUARY && birthDate.dayOfMonth == 29 && !java.time.Year.isLeap(today.year.toLong())) 28 else birthDate.dayOfMonth
-            if (birthDate.month != today.month || birthdayDay != today.dayOfMonth) return@forEach
+            val birth = BirthdayRules.parseStored(member.birthDate) ?: return@forEach
+            if (!BirthdayRules.isBirthday(birth, today)) return@forEach
+            // Judged by the event date, so rewards recorded by older versions still count.
             val alreadyGranted = history.any {
-                it.memberId == member.id && it.type == HistoryType.BIRTHDAY_REWARD && it.metadata["year"] == today.year.toString()
+                it.memberId == member.id && it.type == HistoryType.BIRTHDAY_REWARD &&
+                    JalaliCalendar.fromEpochMillis(it.createdAtEpochMillis, zone).year == jalaliYear
             }
             if (alreadyGranted) return@forEach
-            recordDiamonds(member.id, 30, "پاداش تولد سال ${today.year}", "system")
+            recordDiamonds(member.id, 30, "پاداش تولد سال $jalaliYear", "system")
             history += HistoryEvent(
-                id = "birthday-${member.id}-${today.year}", memberId = member.id,
+                id = "birthday-${member.id}-$jalaliYear", memberId = member.id,
                 type = HistoryType.BIRTHDAY_REWARD, amount = 30,
                 title = "پاداش تولد: ۳۰ الماس", reason = "روز تولد عضو",
                 createdAtEpochMillis = now, createdBy = "system",
-                metadata = mapOf("year" to today.year.toString())
+                metadata = mapOf("year" to jalaliYear.toString(), "calendar" to "jalali")
             )
             granted++
         }
         if (granted > 0) persist()
         return granted
-    }
-
-    private fun validateBirthDate(value: String) {
-        require(value.length == 10 && value[4] == '-' && value[7] == '-') { "تاریخ تولد باید به شکل YYYY-MM-DD باشد" }
-        parseBirthDate(value)
-    }
-
-    private fun parseBirthDate(value: String): LocalDate = try {
-        LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE)
-    } catch (_: DateTimeParseException) {
-        throw IllegalArgumentException("تاریخ تولد نامعتبر است؛ فرمت YYYY-MM-DD")
     }
 
     fun updateMember(member: Member) {

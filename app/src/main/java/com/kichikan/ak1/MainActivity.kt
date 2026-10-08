@@ -13,14 +13,23 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
+import com.kichikan.ak1.domain.calendar.BirthdayRules
+import com.kichikan.ak1.domain.calendar.JalaliCalendar
 import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.HistoryCategory
 import com.kichikan.ak1.domain.service.HistoryService
@@ -176,6 +185,9 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                         Column {
                             Text(m.name, style = MaterialTheme.typography.titleLarge)
                             Text("سطح ${m.economy.level}  •  XP ${m.economy.xp}")
+                            BirthdayRules.parseStored(m.birthDate)?.let {
+                                Text("تولد: ${JalaliCalendar.format(it)}", style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("🪙 ${m.economy.spendablePoints}")
@@ -232,7 +244,7 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
                             Text(session.title, style = MaterialTheme.typography.titleLarge)
                             if (session.description.isNotBlank()) Text(session.description)
                             session.location?.let { Text("محل: " + it) }
-                            Text("زمان: " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(session.startsAt)))
+                            Text("زمان: " + JalaliCalendar.formatDateTime(session.startsAt))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton({ selectedSession = session }) {
                                     Text("حضور و غیاب")
@@ -453,18 +465,74 @@ private fun AttendanceDialog(
     )
 }
 
+/**
+ * Shows the typed digits as YYYY/MM/DD. The slashes exist only on screen: the text the user
+ * edits (and the state) holds digits only, so nobody has to type "/" or "-".
+ */
+private object JalaliDateTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val shown = StringBuilder()
+        digits.forEachIndexed { index, c ->
+            if (index == 4 || index == 6) shown.append('/')
+            shown.append(c)
+        }
+        val offsets = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = when {
+                offset <= 4 -> offset
+                offset <= 6 -> offset + 1
+                else -> offset + 2
+            }
+
+            override fun transformedToOriginal(offset: Int): Int = when {
+                offset <= 4 -> offset
+                offset <= 7 -> offset - 1
+                else -> offset - 2
+            }.coerceIn(0, digits.length)
+        }
+        return TransformedText(AnnotatedString(shown.toString()), offsets)
+    }
+}
+
 @Composable
 private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf("") }
-    var birthDate by remember { mutableStateOf("") }
+    var birthDigits by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    val parsedBirth = if (birthDigits.length == 8) JalaliCalendar.parse(birthDigits, allowGregorian = false) else null
     AlertDialog(
         onDismissRequest = close, title = { Text("عضو جدید") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true)
-                OutlinedTextField(birthDate, { birthDate = it }, label = { Text("تاریخ تولد (YYYY-MM-DD)") }, singleLine = true)
-                Text("تاریخ تولد اختیاری است و برای یادآوری و پاداش سالانه استفاده می‌شود.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = birthDigits,
+                    onValueChange = { raw ->
+                        // Persian, Arabic and Latin digits all work; everything else is dropped.
+                        birthDigits = raw.mapNotNull { it.digitToIntOrNull() }.joinToString("").take(8)
+                        error = null
+                    },
+                    label = { Text("تاریخ تولد شمسی (اختیاری)") },
+                    placeholder = { Text("1385/07/15") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = JalaliDateTransformation,
+                    textStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Ltr)
+                )
+                Text(
+                    "فقط عدد بنویسید (مثلاً 13850715)؛ علامت / خودکار اضافه می‌شود. برای یادآوری و پاداش سالانهٔ تولد استفاده می‌شود.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (birthDigits.length == 8) {
+                    if (parsedBirth != null) {
+                        Text(
+                            "✓ ${parsedBirth.day} ${JalaliCalendar.MONTH_NAMES[parsedBirth.month - 1]} ${parsedBirth.year}",
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text("این تاریخ شمسی وجود ندارد.", color = MaterialTheme.colorScheme.error)
+                    }
+                }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
@@ -472,7 +540,7 @@ private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () 
             TextButton({
                 if (name.isNotBlank()) {
                     try {
-                        repo.addMember(name, birthDate)
+                        repo.addMember(name, birthDigits)
                         changed()
                         close()
                     } catch (e: IllegalArgumentException) {
@@ -577,7 +645,6 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
     var category by remember { mutableStateOf<HistoryCategory?>(null) }
     val all = repo.history.filter { it.memberId == member.id }
     val years = HistoryService.group(HistoryService.filter(all, category))
-    val timeFormat = remember { java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault()) }
     AlertDialog(
         onDismissRequest = close, title = { Text("تاریخچه ${member.name}") },
         text = {
@@ -595,13 +662,18 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                     years.forEach { y ->
                         item { Text("${y.year}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) }
                         y.months.forEach { mo ->
-                            item { Text("ماه ${mo.month} • ${mo.events.size} رویداد", style = MaterialTheme.typography.titleSmall) }
+                            item {
+                                Text(
+                                    "${JalaliCalendar.MONTH_NAMES[mo.month - 1]} ${y.year} • ${mo.events.size} رویداد",
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            }
                             // No stable key: event ids can repeat when two events share the same millisecond.
                             items(mo.events) { e ->
                                 Card(Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(10.dp)) {
                                         Text(e.title)
-                                        Text(timeFormat.format(java.util.Date(e.createdAtEpochMillis)), style = MaterialTheme.typography.bodySmall)
+                                        Text(JalaliCalendar.formatDateTime(e.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
                                         e.amount?.let { Text("مقدار: $it") }
                                         e.reason?.let { Text("دلیل: $it") }
                                     }

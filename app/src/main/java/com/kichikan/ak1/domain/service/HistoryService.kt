@@ -1,8 +1,9 @@
 package com.kichikan.ak1.domain.service
 
+import com.kichikan.ak1.domain.calendar.JalaliCalendar
 import com.kichikan.ak1.domain.model.HistoryEvent
 import com.kichikan.ak1.domain.model.HistoryType
-import java.util.Calendar
+import java.time.ZoneId
 
 data class HistoryYear(val year: Int, val months: List<HistoryMonth>)
 data class HistoryMonth(val month: Int, val events: List<HistoryEvent>)
@@ -36,19 +37,19 @@ object HistoryService {
     fun filter(events: List<HistoryEvent>, category: HistoryCategory?): List<HistoryEvent> =
         if (category == null) events else events.filter { it.type in category.types }
 
-    /** Groups events as Year > Month > Events, newest first. */
-    fun group(events: List<HistoryEvent>): List<HistoryYear> {
-        val cal = Calendar.getInstance()
-        return events.groupBy { event ->
-            cal.timeInMillis = event.createdAtEpochMillis
-            cal.get(Calendar.YEAR)
-        }.map { (year, yearEvents) ->
-            HistoryYear(year, yearEvents.groupBy { event ->
-                cal.timeInMillis = event.createdAtEpochMillis
-                cal.get(Calendar.MONTH) + 1
-            }.map { (month, monthEvents) ->
-                HistoryMonth(month, monthEvents.sortedByDescending { it.createdAtEpochMillis })
-            }.sortedByDescending { it.month })
+    /**
+     * Groups events as Jalali Year > Month > Events, newest first.
+     * [HistoryYear.year] is the Jalali year and [HistoryMonth.month] is 1..12 (1 = Farvardin).
+     */
+    fun group(events: List<HistoryEvent>, zone: ZoneId = ZoneId.systemDefault()): List<HistoryYear> {
+        val dated = events.map { it to JalaliCalendar.fromEpochMillis(it.createdAtEpochMillis, zone) }
+        return dated.groupBy { it.second.year }.map { (year, inYear) ->
+            HistoryYear(
+                year,
+                inYear.groupBy { it.second.month }.map { (month, inMonth) ->
+                    HistoryMonth(month, inMonth.map { it.first }.sortedByDescending { it.createdAtEpochMillis })
+                }.sortedByDescending { it.month }
+            )
         }.sortedByDescending { it.year }
     }
 }

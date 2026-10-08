@@ -37,6 +37,7 @@ Currency for personalization.
 - Used for avatars and frames.
 - Not deducted from XP or spendable points.
 - Default rewards:
+  - 0.5 diamond for every positive point awarded (two half-diamonds become one whole, spendable diamond; at most one half stays pending).
   - 10 diamonds for every newly reached level.
   - 30 diamonds for birthday.
   - configurable diamonds for individual/group missions.
@@ -97,7 +98,10 @@ Acquisition methods include direct purchase, level unlock, wheel-only, manual, e
 
 ## 5. Wheel
 
-The wheel is free to spin.
+The wheel is free to spin by default. The mentor can switch its mode:
+- `FREE` — no cost.
+- `POINTS` — each spin costs spendable points.
+- `POINTS_AND_DIAMONDS` — each spin costs spendable points and diamonds.
 
 The mentor defines its contents manually, for example:
 - +10 points
@@ -110,7 +114,7 @@ The mentor defines its contents manually, for example:
 
 Wheel outcomes are recorded in member history.
 
-The wheel does not require points or diamonds to spin.
+In `FREE` mode the wheel does not require points or diamonds to spin.
 
 ## 6. Catalog
 
@@ -135,7 +139,16 @@ It must support filtering by event type (XP, points, diamonds, wheel, missions, 
 
 Each event stores date/time, amount when applicable, reason when applicable, source, mentor, and metadata.
 
-## 8. Main navigation
+## 8. Calendar
+
+All user-facing dates use the **Jalali (Shamsi) calendar**.
+- Birth dates are entered as digits only (`13850715`); the form shows `1385/07/15` by itself. Persian, Arabic and Latin digits are accepted.
+- Birth dates are stored as `YYYY/MM/DD` (Jalali). Older Gregorian `yyyy-MM-dd` values are still read and converted.
+- A birthday falls on the same Jalali month/day every year (reminders 3 days before and on the day; 30 diamonds once per Jalali year). Esfand 30 becomes Esfand 29 in non-leap years.
+- History is grouped by Jalali year and month name.
+- Conversion is pure Kotlin (`domain/calendar/JalaliCalendar.kt`) and was cross-checked against ICU's Persian calendar for every day from 1299/12/24 to 1501/01/10.
+
+## 9. Main navigation
 
 - Home
 - Members
@@ -147,7 +160,7 @@ Each event stores date/time, amount when applicable, reason when applicable, sou
 
 Home contains mentor-selectable shortcuts.
 
-## 9. Offline / online
+## 10. Offline / online
 
 Offline:
 - no password required after local setup
