@@ -497,56 +497,38 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
 private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
-
+    val member = repo.members.firstOrNull { it.id == selectedMemberId }
+    val now = System.currentTimeMillis()
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("فروشگاه", style = MaterialTheme.typography.headlineMedium)
         Text("جوایز، آواتار و قاب")
-        if (repo.members.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repo.members.take(4).forEach { member ->
-                    FilterChip(selected = selectedMemberId == member.id, onClick = { selectedMemberId = member.id }, label = { Text(member.name) })
-                }
-            }
+        member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            repo.members.forEach { m -> FilterChip(selectedMemberId == m.id, { selectedMemberId = m.id; result = null }, label = { Text(m.name) }) }
         }
-        if (repo.shop.isEmpty()) {
-            Text("هنوز آیتمی در فروشگاه تعریف نشده است.")
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
-                items(repo.shop.filter { it.active }, key = { it.id }) { item ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(item.name, style = MaterialTheme.typography.titleMedium)
-                            Text("قیمت: ${item.price} ${item.currency.name}")
-                            item.minimumLevel?.let { Text("حداقل سطح: $it") }
-                            Button(onClick = {
-                                try {
-                                    repo.purchaseShopItem(selectedMemberId, item.id)
-                                    result = "«${item.name}» ثبت شد."
-                                    changed()
-                                } catch (e: IllegalArgumentException) {
-                                    result = e.message
-                                }
-                            }, enabled = selectedMemberId.isNotBlank()) { Text("دریافت") }
-                        }
-                    }
-                }
+        if (repo.shop.isEmpty()) Text("هنوز آیتمی در فروشگاه تعریف نشده است.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
+            items(repo.shop.filter { it.active }, key = { it.id }) { item ->
+                val reason = member?.let { com.kichikan.ak1.domain.service.ShopService.canAcquire(item, it, now) }
+                val owned = member?.let { m -> historyOwned(repo, m.id, item.id) } == true
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(item.name, style = MaterialTheme.typography.titleMedium)
+                    Text(when (item.type) { ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" })
+                    item.minimumLevel?.let { Text("حداقل سطح: $it") }
+                    Text(if (item.methods.isEmpty()) "دریافت مستقیم" else item.methods.joinToString(" • ") { it.name })
+                    Text(if (owned) "قبلاً دریافت شده" else if (item.currency == Currency.NONE || item.price == 0) "رایگان" else "قیمت: ${item.price} ${item.currency.name}")
+                    Button(onClick = { try { repo.purchaseShopItem(selectedMemberId, item.id); result = "«${item.name}» دریافت و برای عضو فعال شد."; changed() } catch (ex: IllegalArgumentException) { result = ex.message } }, enabled = member != null && reason == null) { Text(if (owned) "استفاده" else "دریافت") }
+                    reason?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                } }
             }
         }
         Text("گردونه", style = MaterialTheme.typography.titleLarge)
         Text("اقلام: ${repo.wheel.items.size} • تکرار بعد از برد: ${if (repo.wheel.allowRepeatAfterWin) "فعال" else "غیرفعال"}")
-        Button(onClick = {
-            try {
-                val winner = repo.spinWheel(selectedMemberId)
-                result = winner?.title ?: "گردونه آیتم قابل دریافت ندارد."
-                changed()
-            } catch (e: IllegalArgumentException) { result = e.message }
-        }, enabled = selectedMemberId.isNotBlank() && repo.wheel.items.isNotEmpty()) {
-            Text("چرخاندن گردونه")
-        }
+        Button(onClick = { try { val winner = repo.spinWheel(selectedMemberId); result = winner?.title ?: "گردونه آیتم قابل دریافت ندارد."; changed() } catch (ex: IllegalArgumentException) { result = ex.message } }, enabled = member != null && repo.wheel.items.isNotEmpty()) { Text("چرخاندن گردونه") }
         result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 }
 
+private fun historyOwned(repo: AppRepository, memberId: String, itemId: String): Boolean = repo.history.any { it.memberId == memberId && it.type == HistoryType.REWARD_RECEIVED && it.metadata["itemId"] == itemId }
 @Composable
 private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
