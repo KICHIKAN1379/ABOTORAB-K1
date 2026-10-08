@@ -5,10 +5,11 @@ enum class AttendanceStatus { UNMARKED, PRESENT, ABSENT, LATE, EXCUSED }
 data class Attendance(
     val id: String,
     val memberId: String,
-    val sessionId: String,
+    val dateEpochMillis: Long,
     val status: AttendanceStatus,
+    val sessionId: String? = null,
     val note: String? = null,
-    val createdAt: Long
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 data class Session(
