@@ -7,6 +7,7 @@ import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
 import com.kichikan.ak1.domain.service.MissionService
+import com.kichikan.ak1.domain.service.ShopService
 import com.kichikan.ak1.domain.service.WheelService
 import java.time.Instant
 import java.time.ZoneId
@@ -279,28 +280,55 @@ class AppRepository(context: Context) {
 
 
     fun purchaseShopItem(memberId: String, itemId: String): Boolean {
-        val item = shop.firstOrNull { it.id == itemId && it.active } ?: return false
+        val item = shop.firstOrNull { it.id == itemId } ?: return false
         val member = members.firstOrNull { it.id == memberId } ?: return false
-        item.minimumLevel?.let { require(member.economy.level >= it) { "سطح عضو کافی نیست" } }
+        val now = System.currentTimeMillis()
+        val acquisitionError = ShopService.canAcquire(item, member, now)
+        require(acquisitionError == null) { acquisitionError ?: "این آیتم قابل دریافت نیست" }
         if (item.stock != null) require(item.stock > 0) { "موجودی جایزه تمام شده است" }
-        when (item.currency) {
-            Currency.POINTS -> spendPoints(memberId, item.price, "خرید ${item.name}", "mentor")
-            Currency.DIAMONDS -> recordDiamonds(memberId, -item.price, "خرید ${item.name}", "mentor")
-            Currency.NONE -> Unit
+        val freeLevelUnlock = ShopService.isFreeLevelUnlock(item)
+        if (!freeLevelUnlock && ShopService.hasDirectPurchase(item)) {
+            when (item.currency) {
+                Currency.POINTS -> if (item.price > 0) spendPoints(memberId, item.price, "خرید ${item.name}", "mentor")
+                Currency.DIAMONDS -> if (item.price > 0) recordDiamonds(memberId, -item.price, "خرید ${item.name}", "mentor")
+                Currency.NONE -> Unit
+            }
         }
+        val current = members.first { it.id == memberId }
+        val equipped = when (item.type) {
+            ShopItemType.AVATAR -> current.copy(avatarItemId = item.id)
+            ShopItemType.FRAME -> current.copy(frameItemId = item.id)
+            ShopItemType.REWARD -> current
+        }
+        members[members.indexOfFirst { it.id == memberId }] = equipped
         val index = shop.indexOfFirst { it.id == item.id }
         if (index >= 0 && item.stock != null) shop[index] = item.copy(stock = item.stock - 1)
         history += HistoryEvent(
-            id = "purchase-${System.currentTimeMillis()}-$memberId", memberId = memberId,
-            type = HistoryType.REWARD_RECEIVED, amount = item.price,
-            title = "دریافت: ${item.name}", reason = "خرید از فروشگاه",
-            createdAtEpochMillis = System.currentTimeMillis(), createdBy = "mentor",
-            metadata = mapOf("itemId" to item.id, "currency" to item.currency.name)
+            "purchase-${now}-${memberId}", memberId, HistoryType.REWARD_RECEIVED, item.price,
+            "دریافت: ${item.name}", if (freeLevelUnlock) "بازشدن با سطح" else "دریافت از فروشگاه",
+            now, "mentor", mapOf("itemId" to item.id, "currency" to item.currency.name,
+                "acquisition" to if (freeLevelUnlock) "LEVEL_UNLOCK" else "PURCHASE")
         )
         persist()
         return true
     }
 
+    fun equipShopItem(memberId: String, itemId: String) {
+        val member = members.firstOrNull { it.id == memberId } ?: error("عضو نامعتبر است")
+        val item = shop.firstOrNull { it.id == itemId && it.active } ?: error("آیتم پیدا نشد")
+        require(item.type == ShopItemType.AVATAR || item.type == ShopItemType.FRAME) { "این آیتم قابل استفاده نیست" }
+        require(ShopService.canAcquire(item, member, System.currentTimeMillis()) == null) { "این آیتم هنوز قابل استفاده نیست" }
+        val updated = when (item.type) {
+            ShopItemType.AVATAR -> member.copy(avatarItemId = item.id)
+            ShopItemType.FRAME -> member.copy(frameItemId = item.id)
+            ShopItemType.REWARD -> member
+        }
+        members[members.indexOfFirst { it.id == memberId }] = updated
+        history += HistoryEvent("equip-${System.currentTimeMillis()}-${memberId}-${item.id}", memberId,
+            HistoryType.REWARD_RECEIVED, null, "استفاده از ${item.name}", "انتخاب آواتار/قاب",
+            System.currentTimeMillis(), "mentor", mapOf("itemId" to item.id, "type" to item.type.name))
+        persist()
+    }
     fun spinWheel(memberId: String): WheelItem? {
         check(members.any { it.id == memberId }) { "عضو نامعتبر است" }
         when (wheel.mode) {
