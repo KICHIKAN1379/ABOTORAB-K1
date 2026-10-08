@@ -505,25 +505,20 @@ private fun buildAttendanceExcel(repo: AppRepository): String {
     dismissButton={Row{if(session!=null)TextButton({repo.deleteSession(session.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
 }@Composable
 private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
-    val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
+    var mode by remember { mutableStateOf(0) }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         Text("رقابت", style = MaterialTheme.typography.headlineMedium)
-        Text("رتبه فقط بر اساس XP و سطح است؛ امتیاز قابل خرج دخالتی ندارد.")
-        Spacer(Modifier.height(12.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(ranked) { m ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("#${ranked.indexOf(m) + 1}  ${m.name}")
-                        Text("سطح ${m.economy.level} • XP ${m.economy.xp}")
-                    }
-                }
-            }
+        Text("سطح‌بندی و رتبه‌بندی فقط بر اساس XP است؛ خرج‌کردن امتیاز سطح را کم نمی‌کند.")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(mode == 0, { mode = 0 }, label = { Text("اعضا") }); FilterChip(mode == 1, { mode = 1 }, label = { Text("گروه‌ها") }) }
+        if (mode == 0) {
+            val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • XP ${m.economy.xp}") } } } }
+        } else {
+            val rankedGroups = repo.groups.map { g -> g to repo.members.filter { it.groupId == g.id }.sumOf { it.economy.xp } }.sortedByDescending { it.second }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.first.id }) { pair -> val g=pair.first; val xp=pair.second; Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.first.id == g.id }+1} ${g.name}"); Text("XP کل $xp • اعضا ${repo.members.count { it.groupId == g.id }}") } } } }
         }
     }
-}
-
-@Composable
+}@Composable
 private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
