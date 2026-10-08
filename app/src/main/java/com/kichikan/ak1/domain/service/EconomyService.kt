@@ -80,6 +80,15 @@ object EconomyService {
         )
     }
 
+    /** Compatibility alias retained for existing callers and tests. */
+    fun addPoints(
+        economy: MemberEconomy,
+        amount: Int,
+        reason: String,
+        actor: String? = null,
+        now: Long
+    ): EconomyChange = adjustPoints(economy, amount, reason, actor, now)
+
     fun adjustDiamonds(
         economy: MemberEconomy,
         amount: Int,
