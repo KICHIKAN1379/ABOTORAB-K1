@@ -5,6 +5,7 @@ import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
 import com.kichikan.ak1.domain.service.MissionService
+import com.kichikan.ak1.domain.service.WheelService
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
