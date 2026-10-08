@@ -27,6 +27,7 @@ class AppRepository(context: Context) {
     val sessions = mutableListOf<Session>()
     val attendance = mutableListOf<Attendance>()
     val assets = mutableListOf<CustomAsset>()
+    val groups = mutableListOf<Group>()
 
     var wheel = WheelConfig()
         private set
@@ -43,6 +44,7 @@ class AppRepository(context: Context) {
             sessions += state.sessions
             attendance += state.attendance
             assets += state.assets
+            groups += state.groups
         }
     }
 
@@ -69,10 +71,7 @@ class AppRepository(context: Context) {
             ?.let { BirthdayRules.normalize(it, java.time.LocalDate.now()) }
 
         val member = Member(
-            "member-" + (++sequence),
-            ring!!.ringId,
-            name.trim(),
-            birthDate = normalizedBirthDate
+            "member-" + (++sequence), ring!!.ringId, name.trim(), birthDate = normalizedBirthDate
         )
         members += member
         persist()
@@ -110,6 +109,19 @@ class AppRepository(context: Context) {
         if (granted > 0) persist()
         return granted
     }
+
+    fun addGroup(name: String): Group {
+        require(ring != null) { "ابتدا حلقه را ایجاد کنید" }
+        require(name.isNotBlank()) { "نام گروه الزامی است" }
+        val group = Group("group-" + (++sequence), ring!!.ringId, name.trim())
+        groups += group; persist(); return group
+    }
+
+    fun updateGroup(group: Group) { val i = groups.indexOfFirst { it.id == group.id }; if (i >= 0) { groups[i] = group; persist() } }
+    fun deleteGroup(groupId: String) { groups.removeAll { it.id == groupId }; members.indices.reversed().forEach { i -> if (members[i].groupId == groupId) members[i] = members[i].copy(groupId = null) }; persist() }
+    fun assignMemberToGroup(memberId: String, groupId: String?) { val i = members.indexOfFirst { it.id == memberId }; if (i >= 0) { members[i] = members[i].copy(groupId = groupId); persist() } }
+
+    fun deleteMember(memberId: String) { members.removeAll { it.id == memberId }; history.removeAll { it.memberId == memberId }; attendance.removeAll { it.memberId == memberId }; sessions.removeAll { it.memberId == memberId }; persist() }
 
     fun updateMember(member: Member) {
         val index = members.indexOfFirst { it.id == member.id }
@@ -163,10 +175,16 @@ class AppRepository(context: Context) {
         return updated
     }
 
+    fun updateWheelItem(item: WheelItem) { setWheel(wheel.copy(items = wheel.items.map { if (it.id == item.id) item else it })) }
+    fun deleteWheelItem(itemId: String) { setWheel(wheel.copy(items = wheel.items.filterNot { it.id == itemId })) }
+
     fun setWheel(config: WheelConfig) {
         wheel = config
         persist()
     }
+
+    fun updateMission(mission: Mission) { val i = missions.indexOfFirst { it.id == mission.id }; if (i >= 0) { missions[i] = mission; persist() } }
+    fun deleteMission(missionId: String) { missions.removeAll { it.id == missionId }; missionCompletions.removeAll { it.missionId == missionId }; persist() }
 
     fun addMission(mission: Mission) {
         require(mission.xpReward >= 0 && mission.pointsReward >= 0 && mission.diamondReward >= 0)
@@ -225,25 +243,17 @@ class AppRepository(context: Context) {
         return completion
     }
 
-    fun addSession(
-        title: String,
-        startsAt: Long,
-        description: String = "",
-        location: String? = null
-    ): Session {
+    fun addSession(memberId: String, title: String, topic: String = "", location: String? = null): Session {
+        require(members.any { it.id == memberId }) { "عضو نامعتبر است" }
         require(title.isNotBlank()) { "عنوان جلسه الزامی است" }
-
-        val session = Session(
-            id = "session-" + (++sequence),
-            title = title.trim(),
-            description = description.trim(),
-            startsAt = startsAt,
-            location = location?.trim()?.takeIf { it.isNotEmpty() }
-        )
+        val session = Session("session-" + (++sequence), memberId, title.trim(), topic.trim(), System.currentTimeMillis(), location?.trim()?.takeIf { it.isNotEmpty() })
         sessions += session
         persist()
         return session
     }
+
+    fun updateSession(session: Session) { val i = sessions.indexOfFirst { it.id == session.id }; if (i >= 0) { sessions[i] = session; persist() } }
+    fun deleteSession(sessionId: String) { sessions.removeAll { it.id == sessionId }; attendance.removeAll { it.sessionId == sessionId }; persist() }
 
     fun addSession(session: Session) {
         sessions.removeAll { it.id == session.id }
@@ -361,6 +371,9 @@ class AppRepository(context: Context) {
         persist()
         return item
     }
+    fun updateShopItem(item: ShopItem) { val i = shop.indexOfFirst { it.id == item.id }; if (i >= 0) { shop[i] = item; persist() } }
+    fun deleteShopItem(itemId: String) { shop.removeAll { it.id == itemId }; persist() }
+
     fun addShopItem(item: ShopItem) {
         require(item.price >= 0) { "قیمت نمی‌تواند منفی باشد" }
         shop.removeAll { it.id == item.id }
