@@ -361,9 +361,6 @@ class AppRepository(context: Context) {
     fun updateShopItem(item: ShopItem) { val i = shop.indexOfFirst { it.id == item.id }; if (i >= 0) { shop[i] = item; persist() } }
     fun deleteShopItem(itemId: String) { shop.removeAll { it.id == itemId }; persist() }
 
-    fun updateShopItem(item: ShopItem) { val i = shop.indexOfFirst { it.id == item.id }; if (i >= 0) { shop[i] = item; persist() } }
-    fun deleteShopItem(itemId: String) { shop.removeAll { it.id == itemId }; persist() }
-
     fun addShopItem(item: ShopItem) {
         require(item.price >= 0) { "قیمت نمی‌تواند منفی باشد" }
         shop.removeAll { it.id == item.id }
