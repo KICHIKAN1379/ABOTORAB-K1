@@ -286,6 +286,11 @@ class AppRepository(context: Context) {
         val acquisitionError = ShopService.canAcquire(item, member, now)
         require(acquisitionError == null) { acquisitionError ?: "این آیتم قابل دریافت نیست" }
         if (item.stock != null) require(item.stock > 0) { "موجودی جایزه تمام شده است" }
+        val alreadyOwned = item.type != ShopItemType.REWARD && history.any { it.memberId == memberId && it.type == HistoryType.REWARD_RECEIVED && it.metadata["itemId"] == item.id }
+        if (alreadyOwned) {
+            equipShopItem(memberId, itemId)
+            return true
+        }
         val freeLevelUnlock = ShopService.isFreeLevelUnlock(item)
         if (!freeLevelUnlock && ShopService.hasDirectPurchase(item)) {
             when (item.currency) {
