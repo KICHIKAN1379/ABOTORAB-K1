@@ -215,39 +215,52 @@ private fun SummaryCard(repo: AppRepository) {
 @Composable
 private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var add by remember { mutableStateOf(false) }
+    var addGroup by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Member?>(null) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+    var editing by remember { mutableStateOf<Member?>(null) }
+    var groupEditing by remember { mutableStateOf<Group?>(null) }
+    var details by remember { mutableStateOf<Member?>(null) }
+    var exportMember by remember { mutableStateOf<Member?>(null) }
+    val context = LocalContext.current
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
+        val m = exportMember
+        if (uri != null && m != null) { context.contentResolver.openOutputStream(uri)?.use { out -> buildMemberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) }; Toast.makeText(context, "خروجی JPEG آماده شد", Toast.LENGTH_SHORT).show() }
+        exportMember = null
+    }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("اعضا", style = MaterialTheme.typography.headlineMedium)
-            Button({ add = true }) { Text("+ عضو") }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedButton({ addGroup = true }) { Text("+ گروه") }; Button({ add = true }) { Text("+ عضو") } }
         }
-        Spacer(Modifier.height(12.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(repo.members, key = { it.id }) { m ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text(m.name, style = MaterialTheme.typography.titleLarge)
-                            Text("سطح ${m.economy.level}  •  XP ${m.economy.xp}")
-                            BirthdayRules.parseStored(m.birthDate)?.let {
-                                Text("تولد: ${JalaliCalendar.format(it)}", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("🪙 ${m.economy.spendablePoints}")
-                            Text("💎 ${m.economy.diamonds}")
-                            TextButton({ selected = m }) { Text("تاریخچه") }
-                        }
-                    }
-                }
-            }
+        if (repo.groups.isNotEmpty()) { Text("گروه‌ها", style = MaterialTheme.typography.titleMedium); Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { repo.groups.forEach { g -> FilterChip(false, { groupEditing = g }, label = { Text(g.name + " (" + repo.members.count { it.groupId == g.id } + ")") }) } } }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) { items(repo.members, key = { it.id }) { m ->
+            Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(m.name, style = MaterialTheme.typography.titleLarge); Text("سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • 💎 ${m.economy.diamonds}"); repo.groups.firstOrNull { it.id == m.groupId }?.let { Text("گروه: ${it.name}", style = MaterialTheme.typography.bodySmall) } }; TextButton({ selected = m }) { Text("شناسنامه") } }
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { OutlinedButton({ details = m }) { Text("توضیحات") }; OutlinedButton({ editing = m }) { Text("ویرایش") }; OutlinedButton({ exportMember = m; exporter.launch("${m.name}-AK1.jpg") }) { Text("JPEG") } }
+            } }
         }
     }
     if (add) AddMemberDialog(repo, changed) { add = false }
+    if (addGroup) GroupDialog(repo, null, changed) { addGroup = false }
+    groupEditing?.let { GroupDialog(repo, it, changed) { groupEditing = null } }
+    editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
+    details?.let { MemberNotesDialog(repo, it) { details = null } }
     selected?.let { HistoryDialog(repo, it) { selected = null } }
 }
 
-@Composable
+private fun buildMemberCard(repo: AppRepository, member: Member): android.graphics.Bitmap {
+    val bitmap = android.graphics.Bitmap.createBitmap(1000, 620, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap); canvas.drawColor(android.graphics.Color.rgb(22, 33, 62))
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 34f }
+    val small = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.LTGRAY; textSize = 25f }
+    repo.shop.firstOrNull { it.id == member.avatarItemId }?.imagePath?.let { android.graphics.BitmapFactory.decodeFile(it) }?.let { canvas.drawBitmap(it, null, android.graphics.Rect(390, 50, 610, 270), paint) }
+    repo.shop.firstOrNull { it.id == member.frameItemId }?.imagePath?.let { android.graphics.BitmapFactory.decodeFile(it) }?.let { canvas.drawBitmap(it, null, android.graphics.Rect(370, 30, 630, 290), paint) }
+    canvas.drawText(member.name, 50f, 360f, paint)
+    canvas.drawText("سطح ${member.economy.level}    XP ${member.economy.xp}", 50f, 415f, small)
+    canvas.drawText("امتیاز ${member.economy.spendablePoints}    الماس ${member.economy.diamonds}", 50f, 455f, small)
+    canvas.drawText(repo.ring?.ringName ?: "ابوتراب K1", 50f, 535f, small)
+    return bitmap
+}@Composable
 private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
     var addMission by remember { mutableStateOf(false) }
