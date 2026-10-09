@@ -24,7 +24,7 @@ class LocalStore(private val context: Context) {
         assets: List<CustomAsset>,
         groups: List<Group>
     ) {
-        val root = JSONObject().put("schemaVersion", 4)
+        val root = JSONObject().put("schemaVersion", 5)
         ring?.let {
             root.put("ringId", it.ringId).put("ringName", it.ringName)
                 .put("ringUsername", it.ringUsername).put("passwordRequired", it.passwordRequired)
@@ -42,7 +42,14 @@ class LocalStore(private val context: Context) {
         }
         root.put("members", ms)
         val groupsJson = JSONArray()
-        groups.forEach { groupsJson.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)) }
+        groups.forEach {
+            groupsJson.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)
+                .put("leaderMemberId", it.leaderMemberId ?: JSONObject.NULL)
+                .put("memberIds", JSONArray(it.memberIds))
+                .put("xp", it.economy.xp).put("points", it.economy.spendablePoints)
+                .put("diamonds", it.economy.diamonds).put("halfDiamondUnits", it.economy.halfDiamondUnits)
+                .put("levelOverride", it.economy.levelOverride ?: JSONObject.NULL))
+        }
         root.put("groups", groupsJson)
 
         val hs = JSONArray()
@@ -152,7 +159,7 @@ class LocalStore(private val context: Context) {
     fun importJson(raw: String) {
         val root = JSONObject(raw)
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..4) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
         prefs.edit().putString("backup", raw).apply()
     }
 
@@ -160,7 +167,7 @@ class LocalStore(private val context: Context) {
         val raw = prefs.getString("backup", null) ?: return null
         val root = JSONObject(raw)
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..3) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
 
         val ring = if (root.has("ringId")) RingAccount(
             root.getString("ringId"), root.getString("ringName"),
@@ -187,7 +194,21 @@ class LocalStore(private val context: Context) {
 
         val groups = mutableListOf<Group>()
         val groupsJson = root.optJSONArray("groups") ?: JSONArray()
-        for (i in 0 until groupsJson.length()) { val o = groupsJson.getJSONObject(i); groups += Group(o.getString("id"), o.getString("ringId"), o.getString("name")) }
+        for (i in 0 until groupsJson.length()) {
+            val o = groupsJson.getJSONObject(i)
+            val memberIdsJson = o.optJSONArray("memberIds") ?: JSONArray()
+            val memberIds = (0 until memberIdsJson.length()).map { memberIdsJson.getString(it) }
+            groups += Group(
+                o.getString("id"), o.getString("ringId"), o.getString("name"),
+                o.optString("leaderMemberId").takeIf { it.isNotBlank() && it != "null" },
+                memberIds,
+                MemberEconomy(
+                    xp = o.optInt("xp", 0), spendablePoints = o.optInt("points", 0),
+                    diamonds = o.optInt("diamonds", 0), halfDiamondUnits = o.optInt("halfDiamondUnits", 0),
+                    levelOverride = if (o.isNull("levelOverride")) null else o.optInt("levelOverride")
+                )
+            )
+        }
 
         val history = mutableListOf<HistoryEvent>()
         val hs = root.optJSONArray("history") ?: JSONArray()
