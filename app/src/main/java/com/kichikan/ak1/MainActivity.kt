@@ -1073,7 +1073,7 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             val year = nowJ.year + Math.floorDiv(index, 12)
             val month = Math.floorMod(index, 12) + 1
             export.launch("حضور-غیاب-$year-$month.csv")
-        }, modifier = Modifier.fillMaxWidth()) { Text("خروجی Excel ماه شمسی") }
+        }, modifier = Modifier.fillMaxWidth()) { Text("خروجی ماه شمسی (CSV سازگار با Excel)") }
     }
 }
 
@@ -1139,7 +1139,7 @@ private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, chan
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.csv") }) { Text("خروجی Excel ماه") }
+                    Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.csv") }) { Text("خروجی ماه (CSV سازگار با Excel)") }
                     TextButton(close) { Text("بستن") }
                 }
             }
