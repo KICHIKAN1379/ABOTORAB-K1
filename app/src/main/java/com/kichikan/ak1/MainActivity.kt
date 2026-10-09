@@ -701,7 +701,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                     result = try {
                         val prize = repo.spinWheel(memberId)
                         if (prize == null) "جایزه قابل انتخابی وجود ندارد؛ از کارگاه، آیتم فعال تعریف کن."
-                        else "🎉 نتیجه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n\$it" } ?: "")
+                        else "🎉 نتیجه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
                     } catch (e: Exception) {
                         e.message ?: "چرخاندن گردونه انجام نشد."
                     }
