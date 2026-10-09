@@ -25,5 +25,6 @@ data class Member(
     val frameItemId: String? = null,
     val birthDate: String? = null,
     val groupId: String? = null,
-    val privateNotes: String = ""
+    val privateNotes: String = "",
+    val responsibility: String = ""
 )
