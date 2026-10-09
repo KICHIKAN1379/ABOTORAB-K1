@@ -106,28 +106,42 @@ private fun AK1App() {
 @Composable
 private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     val services = listOf(
-        Triple("تراشکاری", "مدیریت مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
-        Triple("جلسات", "جلسه‌ها و حضور و غیاب گروهی", Tab.SESSIONS),
+        Triple("تراشکاری", "مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
+        Triple("جلسات", "جلسه‌ها و حضور و غیاب", Tab.SESSIONS),
         Triple("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Tab.RANKING),
-        Triple("فروشگاه", "آواتار، قاب و جوایز", Tab.STORE)
+        Triple("فروشگاه", "آواتارها، قاب‌ها و جوایز", Tab.STORE)
     )
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val icons = listOf("⚒", "▦", "🏆", "🎁")
+    Column(
+        Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
         Text("خدمات", style = MaterialTheme.typography.headlineMedium)
-        services.forEachIndexed { i, item ->
-            Card(onClick = { open(item.third) }, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text(listOf("⚒", "▦", "🏆", "🎁")[i], style = MaterialTheme.typography.headlineMedium)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(item.first, style = MaterialTheme.typography.titleLarge)
-                        Text(item.second, style = MaterialTheme.typography.bodyMedium)
+        Text("ابزارهای مدیریت حلقه در یک‌جا", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        services.chunked(2).forEachIndexed { rowIndex, rowItems ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rowItems.forEachIndexed { colIndex, item ->
+                    val index = rowIndex * 2 + colIndex
+                    Card(onClick = { open(item.third) }, modifier = Modifier.weight(1f).heightIn(min = 164.dp)) {
+                        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                            Surface(
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                            ) {
+                                Text(icons[index], Modifier.padding(horizontal = 13.dp, vertical = 10.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(item.first, style = MaterialTheme.typography.titleLarge)
+                                Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
-                    Text("‹", style = MaterialTheme.typography.headlineMedium)
                 }
             }
         }
     }
 }
-
 @Composable
 private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
     var ringName by remember { mutableStateOf("") }
@@ -183,38 +197,78 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
         Triple("فروشگاه", "home_store", "🎁"),
         Triple("گردونه", "home_wheel", "◎")
     )
-    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
-        Text("پنل مربی", color = MaterialTheme.colorScheme.primary)
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("امروز • ${jalali.day} ${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleMedium)
-                Text(String.format(java.util.Locale("fa", "IR"), "%02d:%02d", now.hour, now.minute), style = MaterialTheme.typography.headlineMedium)
+    fun openShortcut(key: String) {
+        when (key) {
+            "home_identity" -> action = true
+            "home_members" -> openMembers()
+            "home_assistant" -> assistantOpen = true
+            "home_workshop" -> open(Tab.WORKSHOP)
+            "home_sessions" -> open(Tab.SESSIONS)
+            "home_ranking" -> open(Tab.RANKING)
+            "home_store" -> open(Tab.STORE)
+            "home_wheel" -> open(Tab.WHEEL)
+        }
+    }
+    val visibleShortcuts = shortcuts.filter { (_, key, _) ->
+        prefs.getBoolean(key, key in listOf("home_identity", "home_members", "home_assistant"))
+    }
+    Column(
+        Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
+                Text("پنل مربی", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall)
+            }
+            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
+                Text("K1", modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("امروز", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("${jalali.day} ${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleLarge)
+                    Text("زمان محلی دستگاه", style = MaterialTheme.typography.bodySmall)
+                }
+                Text(String.format(java.util.Locale("fa", "IR"), "%02d:%02d", now.hour, now.minute), style = MaterialTheme.typography.headlineLarge)
             }
         }
         SummaryCard(repo)
-        shortcuts.forEach { (label, key, icon) ->
-            if (prefs.getBoolean(key, key in listOf("home_identity", "home_members", "home_assistant"))) {
-                OutlinedButton(onClick = {
-                    when (key) {
-                        "home_identity" -> action = true
-                        "home_members" -> openMembers()
-                        "home_assistant" -> assistantOpen = true
-                        "home_workshop" -> open(Tab.WORKSHOP)
-                        "home_sessions" -> open(Tab.SESSIONS)
-                        "home_ranking" -> open(Tab.RANKING)
-                        "home_store" -> open(Tab.STORE)
-                        "home_wheel" -> open(Tab.WHEEL)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("دسترسی سریع", style = MaterialTheme.typography.titleLarge)
+            Text("${visibleShortcuts.size} میانبر", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (visibleShortcuts.isEmpty()) {
+            Card(Modifier.fillMaxWidth()) {
+                Text("هنوز میانبری انتخاب نشده؛ از تنظیمات، میانبرهای خانه را فعال کن.", Modifier.padding(16.dp))
+            }
+        } else {
+            visibleShortcuts.chunked(2).forEach { rowItems ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rowItems.forEach { (label, key, icon) ->
+                        Card(onClick = { openShortcut(key) }, modifier = Modifier.weight(1f).heightIn(min = 112.dp)) {
+                            Column(
+                                Modifier.fillMaxSize().padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(icon, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.height(7.dp))
+                                Text(label, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                        }
                     }
-                }, modifier = Modifier.fillMaxWidth()) { Text("$icon   $label", modifier = Modifier.fillMaxWidth()) }
+                    if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
         }
-        Text("نمایش هر میانبر را از تنظیمات انتخاب کن.", style = MaterialTheme.typography.bodySmall)
+        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (action) EconomyDialog(repo, changed) { action = false }
     if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
 }
-
 @Composable
 private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
     val report = remember(repo.members.size, repo.history.size, repo.attendance.size, repo.missionCompletions.size) {
