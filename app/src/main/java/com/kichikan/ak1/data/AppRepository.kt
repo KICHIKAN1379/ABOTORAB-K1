@@ -430,7 +430,19 @@ class AppRepository(context: Context) {
         // the member must not lose points or diamonds.
         val previousWinnerIds = history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }
             .mapNotNull { it.metadata["itemId"] }.toSet()
-        val item = WheelService.spin(wheel, previousWinnerIds) ?: return null
+        // Ignore stale or exhausted linked shop prizes before choosing, so a broken
+        // catalog reference can never consume a spin or charge the member.
+        val eligibleItems = wheel.items.filter { wheelItem ->
+            val linked = wheelItem.shopItemId?.let { id -> shop.firstOrNull { it.id == id } }
+            when (wheelItem.type) {
+                WheelRewardType.POINTS, WheelRewardType.DIAMONDS, WheelRewardType.CUSTOM ->
+                    wheelItem.shopItemId == null || linked != null
+                WheelRewardType.AVATAR -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.AVATAR } == true
+                WheelRewardType.FRAME -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.FRAME } == true
+                WheelRewardType.REWARD -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.REWARD } == true
+            }
+        }
+        val item = WheelService.spin(wheel.copy(items = eligibleItems), previousWinnerIds) ?: return null
 
         val pointsCost = when (wheel.mode) {
             WheelMode.FREE -> 0
@@ -447,7 +459,26 @@ class AppRepository(context: Context) {
         when (item.type) {
             WheelRewardType.POINTS -> item.amount?.takeIf { it > 0 }?.let { recordPoints(memberId, it, "گردونه: ${item.title}", "mentor") }
             WheelRewardType.DIAMONDS -> item.amount?.takeIf { it > 0 }?.let { recordDiamonds(memberId, it, "گردونه: ${item.title}", "mentor") }
-            else -> Unit
+            WheelRewardType.AVATAR, WheelRewardType.FRAME, WheelRewardType.REWARD -> {
+                val linked = shop.first { it.id == item.shopItemId && it.active && (it.stock == null || it.stock > 0) }
+                val memberIndex = members.indexOfFirst { it.id == memberId }
+                val current = members[memberIndex]
+                members[memberIndex] = when (linked.type) {
+                    ShopItemType.AVATAR -> current.copy(avatarItemId = linked.id)
+                    ShopItemType.FRAME -> current.copy(frameItemId = linked.id)
+                    ShopItemType.REWARD -> current
+                }
+                val shopIndex = shop.indexOfFirst { it.id == linked.id }
+                if (shopIndex >= 0 && linked.stock != null) shop[shopIndex] = linked.copy(stock = linked.stock - 1)
+                history += HistoryEvent(
+                    id = "wheel-item-${System.currentTimeMillis()}-$memberId",
+                    memberId = memberId, type = HistoryType.REWARD_RECEIVED, amount = null,
+                    title = "دریافت از گردونه: ${linked.name}", reason = item.customText ?: "جایزه گردونه",
+                    createdAtEpochMillis = System.currentTimeMillis(), createdBy = "mentor",
+                    metadata = mapOf("itemId" to linked.id, "acquisition" to "WHEEL", "type" to linked.type.name)
+                )
+            }
+            WheelRewardType.CUSTOM -> Unit
         }
         history += HistoryEvent(
             id = "wheel-${System.currentTimeMillis()}-$memberId", memberId = memberId,
