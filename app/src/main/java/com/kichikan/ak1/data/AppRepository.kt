@@ -13,7 +13,7 @@ import java.time.Instant
 import java.time.ZoneId
 
 class AppRepository(context: Context) {
-    private var sequence = 0L
+    private fun newId(prefix: String): String = "$prefix-${java.util.UUID.randomUUID()}"
     private val store = LocalStore(context)
 
     var ring: RingAccount? = null
@@ -54,7 +54,7 @@ class AppRepository(context: Context) {
         check(ring == null) { "حلقه قبلاً ایجاد شده است" }
 
         val account = RingAccount(
-            "ring-" + (++sequence),
+            newId("ring"),
             name.trim(),
             username.trim(),
             false
@@ -71,7 +71,7 @@ class AppRepository(context: Context) {
             ?.let { BirthdayRules.normalize(it, java.time.LocalDate.now()) }
 
         val member = Member(
-            "member-" + (++sequence), ring!!.ringId, name.trim(), birthDate = normalizedBirthDate
+            newId("member"), ring!!.ringId, name.trim(), birthDate = normalizedBirthDate
         )
         members += member
         persist()
@@ -113,7 +113,7 @@ class AppRepository(context: Context) {
     fun addGroup(name: String): Group {
         require(ring != null) { "ابتدا حلقه را ایجاد کنید" }
         require(name.isNotBlank()) { "نام گروه الزامی است" }
-        val group = Group("group-" + (++sequence), ring!!.ringId, name.trim())
+        val group = Group(newId("group"), ring!!.ringId, name.trim())
         groups += group; persist(); return group
     }
 
@@ -337,7 +337,7 @@ class AppRepository(context: Context) {
     fun addSession(memberId: String, title: String, topic: String = "", location: String? = null): Session {
         require(members.any { it.id == memberId }) { "عضو نامعتبر است" }
         require(title.isNotBlank()) { "عنوان جلسه الزامی است" }
-        val session = Session("session-" + (++sequence), memberId, title.trim(), topic.trim(), System.currentTimeMillis(), location?.trim()?.takeIf { it.isNotEmpty() })
+        val session = Session(newId("session"), memberId, title.trim(), topic.trim(), System.currentTimeMillis(), location?.trim()?.takeIf { it.isNotEmpty() })
         sessions += session
         persist()
         return session
