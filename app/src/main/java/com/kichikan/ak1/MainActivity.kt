@@ -527,14 +527,14 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                     FilterChip(selected = memberId == m.id, onClick = { memberId = m.id; result = null }, label = { Text(m.name) })
                 }
             }
-            member?.let { Text("سطح \${it.economy.level} • امتیاز \${it.economy.spendablePoints} • الماس \${it.economy.diamonds}") }
-            Text("جوایز فعال: \${repo.wheel.items.count { it.active }} • حالت: \${repo.wheel.mode.name}")
+            member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
+            Text("جوایز فعال: ${repo.wheel.items.count { it.active }} • حالت: ${repo.wheel.mode.name}")
             Button(
                 onClick = {
                     result = try {
                         val prize = repo.spinWheel(memberId)
                         if (prize == null) "جایزه قابل انتخابی وجود ندارد؛ از کارگاه، آیتم فعال تعریف کن."
-                        else "🎉 نتیجه: \${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n\$it" } ?: "")
+                        else "🎉 نتیجه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n\$it" } ?: "")
                     } catch (e: Exception) {
                         e.message ?: "چرخاندن گردونه انجام نشد."
                     }
