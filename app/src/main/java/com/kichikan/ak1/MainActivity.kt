@@ -615,23 +615,75 @@ private fun CompleteMissionDialog(repo: AppRepository, mission: Mission, changed
     if (add) SessionEditDialog(repo, null, changed) { add = false }; editing?.let { SessionEditDialog(repo, it, changed) { editing = null } }; if (attendance) selected?.let { AttendanceCalendarDialog(repo, it, changed) { attendance = false; selected = null } }
 }
 
-@Composable private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, changed: () -> Unit, close: () -> Unit) {
-    var weekOffset by remember { mutableIntStateOf(0) }; var monthExport by remember { mutableStateOf(false) }; val context = LocalContext.current
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.ms-excel")) { uri -> if (uri != null) { context.contentResolver.openOutputStream(uri)?.use { it.write(buildAttendanceExcel(repo).toByteArray()) }; Toast.makeText(context, "خروجی Excel آماده شد", Toast.LENGTH_SHORT).show() } }
-    val today = java.time.LocalDate.now().plusWeeks(weekOffset.toLong()); val monday = today.minusDays(((today.dayOfWeek.value + 6) % 7).toLong()); val days = (0L..6L).map { monday.plusDays(it) }
-    AlertDialog(onDismissRequest = close, title = { Text("تقویم حضور و غیاب") }, text = {
-        Column(Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { TextButton({ weekOffset-- }) { Text("‹ هفته قبل") }; Text("هفته ${monday}"); TextButton({ weekOffset++ }) { Text("هفته بعد ›") } }
-            Text("م = موجه   غ = غیرموجه   _ = ثبت‌نشده   ت = تأخیر", style = MaterialTheme.typography.bodySmall)
-            LazyColumn(Modifier.heightIn(max = 520.dp)) { items(repo.members, key = { it.id }) { member ->
-                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(6.dp)) { Text(member.name); Row(Modifier.horizontalScroll(rememberScrollState())) { days.forEach { day ->
-                    val epoch = day.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(); val current = repo.attendance.firstOrNull { it.memberId == member.id && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == day };
-                    val label = when (current?.status) { AttendanceStatus.EXCUSED -> "م"; AttendanceStatus.ABSENT -> "غ"; AttendanceStatus.LATE -> "ت"; else -> "_" };
-                    OutlinedButton({ val next = when (current?.status) { AttendanceStatus.UNMARKED, AttendanceStatus.PRESENT, null -> AttendanceStatus.EXCUSED; AttendanceStatus.EXCUSED -> AttendanceStatus.ABSENT; AttendanceStatus.ABSENT -> AttendanceStatus.LATE; AttendanceStatus.LATE -> AttendanceStatus.UNMARKED }; repo.recordWeeklyAttendance(member.id, epoch, next); changed() }, Modifier.width(52.dp).height(50.dp)) { Text("${day.dayOfMonth}\n$label") }
-                } } } } } }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) { Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.xls") }) { Text("خروجی Excel ماه") }; TextButton(close) { Text("بستن") } }
+@Composable
+private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, changed: () -> Unit, close: () -> Unit) {
+    var weekOffset by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.ms-excel")) { uri ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(buildAttendanceExcel(repo).toByteArray()) }
+            Toast.makeText(context, "خروجی Excel آماده شد", Toast.LENGTH_SHORT).show()
         }
-    }, confirmButton = {})
+    }
+    val today = java.time.LocalDate.now().plusWeeks(weekOffset.toLong())
+    val monday = today.minusDays(((today.dayOfWeek.value + 6) % 7).toLong())
+    val days = (0L..6L).map { monday.plusDays(it) }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("تقویم حضور و غیاب") },
+        text = {
+            Column(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton({ weekOffset-- }) { Text("‹ هفته قبل") }
+                    Text("هفته ${monday}")
+                    TextButton({ weekOffset++ }) { Text("هفته بعد ›") }
+                }
+                Text("م = موجه   غ = غیرموجه   _ = ثبت‌نشده   ت = تأخیر", style = MaterialTheme.typography.bodySmall)
+                LazyColumn(Modifier.heightIn(max = 520.dp)) {
+                    items(repo.members, key = { it.id }) { member ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(6.dp)) {
+                                Text(member.name)
+                                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                                    days.forEach { day ->
+                                        val epoch = day.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                        val current = repo.attendance.firstOrNull {
+                                            it.memberId == member.id &&
+                                                java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == day
+                                        }
+                                        val label = when (current?.status) {
+                                            AttendanceStatus.EXCUSED -> "م"
+                                            AttendanceStatus.ABSENT -> "غ"
+                                            AttendanceStatus.LATE -> "ت"
+                                            else -> "_"
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                val next = when (current?.status) {
+                                                    AttendanceStatus.UNMARKED, AttendanceStatus.PRESENT, null -> AttendanceStatus.EXCUSED
+                                                    AttendanceStatus.EXCUSED -> AttendanceStatus.ABSENT
+                                                    AttendanceStatus.ABSENT -> AttendanceStatus.LATE
+                                                    AttendanceStatus.LATE -> AttendanceStatus.UNMARKED
+                                                }
+                                                repo.recordWeeklyAttendance(member.id, epoch, next)
+                                                changed()
+                                            },
+                                            modifier = Modifier.width(52.dp).height(50.dp)
+                                        ) { Text("${day.dayOfMonth}\\n$label") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.xls") }) { Text("خروجی Excel ماه") }
+                    TextButton(close) { Text("بستن") }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }
 
 private fun buildAttendanceExcel(repo: AppRepository): String {
