@@ -586,8 +586,77 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
     )
 }
 @Composable private fun WheelEditDialog(repo: AppRepository, item: WheelItem?, changed: () -> Unit, close: () -> Unit) {
-    var title by remember { mutableStateOf(item?.title ?: "") };var amount by remember { mutableStateOf((item?.amount?:0).toString()) };var weight by remember { mutableStateOf((item?.weight?:1).toString()) };var type by remember { mutableStateOf(item?.type?:WheelRewardType.REWARD) };var text by remember { mutableStateOf(item?.customText?:"") }
-    AlertDialog(onDismissRequest=close,title={Text(if(item==null)"آیتم گردونه" else "ویرایش آیتم گردونه")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(title,{title=it},label={Text("عنوان")});Row(Modifier.horizontalScroll(rememberScrollState())){WheelRewardType.values().forEach{t->FilterChip(type==t,{type=t},label={Text(t.name)})}};OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text("مقدار")});OutlinedTextField(weight,{weight=it.filter(Char::isDigit)},label={Text("وزن")});OutlinedTextField(text,{text=it},label={Text("توضیح")})}},confirmButton={TextButton({if(title.isNotBlank()){val w=WheelItem(item?.id?:"wheel-"+System.currentTimeMillis(),title.trim(),type,amount.toIntOrNull(),item?.shopItemId,text.takeIf{it.isNotBlank()},(weight.toIntOrNull()?:1).coerceAtLeast(1),item?.active?:true);if(item==null)repo.setWheel(repo.wheel.copy(items=repo.wheel.items+w))else repo.updateWheelItem(w);changed();close()}}){Text("ذخیره")}},dismissButton={Row{if(item!=null)TextButton({repo.deleteWheelItem(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
+    var title by remember { mutableStateOf(item?.title ?: "") }
+    var amount by remember { mutableStateOf((item?.amount ?: 0).toString()) }
+    var weight by remember { mutableStateOf((item?.weight ?: 1).toString()) }
+    var type by remember { mutableStateOf(item?.type ?: WheelRewardType.REWARD) }
+    var text by remember { mutableStateOf(item?.customText ?: "") }
+    var shopItemId by remember { mutableStateOf(item?.shopItemId) }
+    var active by remember { mutableStateOf(item?.active ?: true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val compatible = repo.shop.filter { shop ->
+        shop.active && when (type) {
+            WheelRewardType.AVATAR -> shop.type == ShopItemType.AVATAR
+            WheelRewardType.FRAME -> shop.type == ShopItemType.FRAME
+            WheelRewardType.REWARD -> shop.type == ShopItemType.REWARD
+            else -> false
+        }
+    }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if(item==null) "آیتم گردونه" else "ویرایش آیتم گردونه") },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(title,{title=it},label={Text("عنوان")},singleLine=true)
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    WheelRewardType.values().forEach { candidate ->
+                        FilterChip(type==candidate, {
+                            type=candidate
+                            shopItemId=null
+                            error=null
+                        }, label={Text(candidate.name)})
+                    }
+                }
+                if (type in listOf(WheelRewardType.AVATAR, WheelRewardType.FRAME, WheelRewardType.REWARD)) {
+                    Text("جایزهٔ متصل از فروشگاه")
+                    if (compatible.isEmpty()) Text("ابتدا یک آیتم فعال و هم‌نوع در فروشگاه بساز.")
+                    compatible.forEach { shop ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(shopItemId == shop.id, { shopItemId = shop.id; if (title.isBlank()) title = shop.name })
+                            Text(shop.name + if (shop.stock != null) " • موجودی ${shop.stock}" else "")
+                        }
+                    }
+                } else {
+                    OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text("مقدار")},singleLine=true)
+                }
+                OutlinedTextField(weight,{weight=it.filter(Char::isDigit)},label={Text("وزن/احتمال")},singleLine=true)
+                OutlinedTextField(text,{text=it},label={Text("توضیح جایزه")})
+                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(active,{active=it}); Text("فعال") }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton({
+                try {
+                    require(title.isNotBlank()) { "عنوان جایزه الزامی است" }
+                    require(weight.toIntOrNull() != null && weight.toInt() > 0) { "وزن باید بیشتر از صفر باشد" }
+                    if (type in listOf(WheelRewardType.AVATAR, WheelRewardType.FRAME, WheelRewardType.REWARD)) {
+                        require(shopItemId != null && compatible.any { it.id == shopItemId }) { "برای این نوع جایزه، یک آیتم معتبر از فروشگاه انتخاب کن" }
+                    } else shopItemId = null
+                    val wheelItem = WheelItem(item?.id ?: "wheel-${java.util.UUID.randomUUID()}", title.trim(), type, amount.toIntOrNull(), shopItemId, text.takeIf { it.isNotBlank() }, weight.toInt(), active)
+                    if (item == null) repo.setWheel(repo.wheel.copy(items = repo.wheel.items + wheelItem)) else repo.updateWheelItem(wheelItem)
+                    changed()
+                    close()
+                } catch (e: Exception) { error = e.message ?: "ذخیره آیتم گردونه ناموفق بود" }
+            }) { Text("ذخیره") }
+        },
+        dismissButton = {
+            Row {
+                if(item!=null) TextButton({repo.deleteWheelItem(item.id);changed();close()}) { Text("حذف") }
+                TextButton(close) { Text("لغو") }
+            }
+        }
+    )
 }
 @Composable private fun ShopItemEditDialog(repo: AppRepository, item: ShopItem, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf(item.name) };var price by remember { mutableStateOf(item.price.toString()) };var description by remember { mutableStateOf(item.description) };var level by remember { mutableStateOf(item.minimumLevel?.toString()?:"") };var currency by remember { mutableStateOf(item.currency) }
