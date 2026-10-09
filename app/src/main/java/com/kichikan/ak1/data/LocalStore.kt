@@ -132,7 +132,8 @@ class LocalStore(private val context: Context) {
                 if (bytes.size <= 10 * 1024 * 1024) assetJson.put("dataBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
             }
             assetsJson.put(assetJson)
-        }        root.put("assets", assetsJson)
+        }
+        root.put("assets", assetsJson)
 
         prefs.edit().putString("backup", root.toString()).apply()
     }
