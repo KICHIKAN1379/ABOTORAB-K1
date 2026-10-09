@@ -560,6 +560,9 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    val mountainTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    val routeTint = MaterialTheme.colorScheme.secondary
+                    val summitTint = MaterialTheme.colorScheme.tertiary
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(86.dp)) {
                             val mountain = androidx.compose.ui.graphics.Path().apply {
@@ -572,15 +575,15 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
                                 lineTo(size.width, size.height)
                                 close()
                             }
-                            drawPath(mountain, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            drawPath(mountain, mountainTint)
                             val route = androidx.compose.ui.graphics.Path().apply {
                                 moveTo(size.width * 0.08f, size.height * 0.90f)
                                 lineTo(size.width * 0.22f, size.height * 0.62f)
                                 lineTo(size.width * 0.36f, size.height * 0.75f)
                                 lineTo(size.width * 0.60f, size.height * 0.31f)
                             }
-                            drawPath(route, MaterialTheme.colorScheme.secondary, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-                            drawCircle(MaterialTheme.colorScheme.tertiary, radius = 6f, center = androidx.compose.ui.geometry.Offset(size.width * 0.60f, size.height * 0.31f))
+                            drawPath(route, routeTint, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                            drawCircle(summitTint, radius = 6f, center = androidx.compose.ui.geometry.Offset(size.width * 0.60f, size.height * 0.31f))
                         }
                         Text("مسیر صعود به قله", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                         Text("$count از ${stages.size} مقام ثبت شده", style = MaterialTheme.typography.bodyMedium)
