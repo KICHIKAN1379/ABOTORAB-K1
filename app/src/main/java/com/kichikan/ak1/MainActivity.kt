@@ -888,21 +888,35 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
         }
     )
 }
-@Composable private fun ShopItemEditDialog(repo: AppRepository, item: ShopItem, changed: () -> Unit, close: () -> Unit) {
-    var name by remember { mutableStateOf(item.name) };var price by remember { mutableStateOf(item.price.toString()) };var description by remember { mutableStateOf(item.description) };var level by remember { mutableStateOf(item.minimumLevel?.toString()?:"") };var currency by remember { mutableStateOf(item.currency) }
-    AlertDialog(onDismissRequest=close,title={Text("ویرایش ${item.name}")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(name,{name=it},label={Text("نام")});OutlinedTextField(description,{description=it},label={Text("توضیحات جایزه")});OutlinedTextField(price,{price=it.filter(Char::isDigit)},label={Text("قیمت")});OutlinedTextField(level,{level=it.filter(Char::isDigit)},label={Text("حداقل سطح")});Row{Currency.values().forEach{cur->FilterChip(currency==cur,{currency=cur},label={Text(cur.name)})}}}},confirmButton={TextButton({if(name.isNotBlank()){repo.updateShopItem(item.copy(name=name.trim(),price=price.toIntOrNull()?:0,description=description.trim(),minimumLevel=level.toIntOrNull(),currency=currency));changed();close()}}){Text("ذخیره")}},dismissButton={Row{TextButton({repo.deleteShopItem(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
+@Composable
+private fun ShopItemEditDialog(repo: AppRepository, item: ShopItem, changed: () -> Unit, close: () -> Unit) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf(item.name) }
+    var price by remember { mutableStateOf(item.price.toString()) }
+    var description by remember { mutableStateOf(item.description) }
+    var level by remember { mutableStateOf(item.minimumLevel?.toString() ?: "") }
+    var currency by remember { mutableStateOf(item.currency) }
+    var imagePath by remember { mutableStateOf(item.imagePath) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching { copyShopImage(context, uri) }
+            .onSuccess { imagePath = it }
+            .onFailure { Toast.makeText(context, it.message ?: "انتخاب تصویر ناموفق بود", Toast.LENGTH_LONG).show() }
+    }
+    AlertDialog(onDismissRequest = close, title = { Text("ویرایش ${item.name}") }, text = {
+        Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text(if (imagePath == null) "افزودن تصویر" else "تغییر تصویر") }
+            imagePath?.let { raw -> remember(raw) { BitmapFactory.decodeFile(raw)?.asImageBitmap() }?.let { Image(bitmap = it, contentDescription = "تصویر آیتم فروشگاه", modifier = Modifier.size(112.dp).align(Alignment.CenterHorizontally)) } }
+            OutlinedTextField(description, { description = it }, label = { Text("توضیحات جایزه") }, minLines = 2, maxLines = 4, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(price, { price = it.filter(Char::isDigit) }, label = { Text("قیمت") }, singleLine = true)
+            OutlinedTextField(level, { level = it.filter(Char::isDigit) }, label = { Text("حداقل سطح") }, singleLine = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { Currency.entries.forEach { cur -> FilterChip(currency == cur, { currency = cur }, label = { Text(when(cur) { Currency.POINTS -> "امتیاز"; Currency.DIAMONDS -> "الماس"; Currency.NONE -> "رایگان" }) }) } }
+        }
+    }, confirmButton = { TextButton({ if (name.isNotBlank()) {
+        repo.updateShopItem(item.copy(name = name.trim(), imagePath = imagePath, price = price.toIntOrNull() ?: 0, description = description.trim(), minimumLevel = level.toIntOrNull(), currency = currency))
+        changed(); close()
+    } }) { Text("ذخیره") } }, dismissButton = { Row { TextButton({ repo.deleteShopItem(item.id); changed(); close() }) { Text("حذف") }; TextButton(close) { Text("لغو") } } })
 }
-private fun copyShopImage(context: android.content.Context, uri: android.net.Uri): String {
-    val mime = context.contentResolver.getType(uri) ?: "image/png"
-    require(mime.startsWith("image/")) { "فقط فایل تصویری قابل انتخاب است" }
-    val extension = when { mime.equals("image/jpeg", true) -> ".jpg"; mime.equals("image/webp", true) -> ".webp"; mime.equals("image/gif", true) -> ".gif"; else -> ".png" }
-    val target = java.io.File(context.filesDir, "custom_assets/shop-${System.currentTimeMillis()}$extension")
-    target.parentFile?.mkdirs()
-    context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
-        ?: throw IllegalStateException("خواندن تصویر انتخاب‌شده ممکن نشد")
-    return target.absolutePath
-}
-
 @Composable
 private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
