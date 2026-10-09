@@ -321,7 +321,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                             Text(g.name, style = MaterialTheme.typography.titleLarge)
                             Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
                             Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
-                            Text("سطح ${g.economy.level} • XP مستقل ${g.economy.xp} • امتیاز ${g.economy.spendablePoints} • 💎 ${g.economy.diamonds}")
+                            Text("امتیاز گروه ${g.economy.spendablePoints} • 💎 الماس ${g.economy.diamonds}")
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
                                 Button({ scoreGroup = g }) { Text("تغییر امتیاز") }
@@ -998,7 +998,7 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             days.forEach { day ->
                                 val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
-                                val current = repo.attendance.firstOrNull { it.memberId == member.id && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day }
+                                val current = repo.attendance.firstOrNull { it.memberId == member.id && it.sessionId == null && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day }
                                 val mark = when (current?.status) {
                                     AttendanceStatus.PRESENT -> "✓"
                                     AttendanceStatus.EXCUSED -> "م"
@@ -1136,7 +1136,7 @@ private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): Str
         sb.append("<tr><td>").append(member.name).append("</td>")
         var date = first
         while (!date.isAfter(last)) {
-            val a = repo.attendance.firstOrNull { it.memberId == member.id && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == date }
+            val a = repo.attendance.firstOrNull { it.memberId == member.id && it.sessionId == null && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == date }
             sb.append("<td>").append(when (a?.status) {
                 AttendanceStatus.PRESENT -> "حضور"
                 AttendanceStatus.EXCUSED -> "موجه"
