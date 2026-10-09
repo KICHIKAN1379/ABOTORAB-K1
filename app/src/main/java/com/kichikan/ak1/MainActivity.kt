@@ -1382,6 +1382,20 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
     val activeWeekdays = remember { mutableStateListOf<Int>().apply {
         addAll((shortcutPrefs.getStringSet("class_weekdays", setOf("6", "1", "3")) ?: setOf("6", "1", "3")).mapNotNull { it.toIntOrNull() })
     } }
+    var scheduleOpen by remember { mutableStateOf(false) }
+    var startDigits by remember { mutableStateOf("") }
+    var endDigits by remember { mutableStateOf("") }
+    var periodError by remember { mutableStateOf<String?>(null) }
+    val periodDays = remember { mutableStateListOf<Int>().apply { addAll(activeWeekdays) } }
+    var scheduleRefresh by remember { mutableIntStateOf(0) }
+    val schedulePeriods = remember(scheduleRefresh) {
+        mutableStateListOf<org.json.JSONObject>().apply {
+            runCatching {
+                val array = org.json.JSONArray(shortcutPrefs.getString("class_schedule_periods", "[]"))
+                for (i in 0 until array.length()) add(array.getJSONObject(i))
+            }
+        }
+    }
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
@@ -1392,6 +1406,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         HorizontalDivider()
         Text("روزهای برگزاری کلاس", style = MaterialTheme.typography.titleMedium)
         Text("هر زمان برنامه تغییر کرد، روزهای کلاس را از اینجا به‌روزرسانی کن. روز حذف‌شده در حضور و غیاب هفتگی نمایش داده نمی‌شود.")
+        OutlinedButton(onClick = { scheduleOpen = true; periodError = null; startDigits = JalaliCalendar.fromGregorian(java.time.LocalDate.now()).let { "%04d%02d%02d".format(it.year, it.month, it.day) }; endDigits = ""; periodDays.clear(); periodDays.addAll(activeWeekdays) }, modifier = Modifier.fillMaxWidth()) { Text("مدیریت بازه‌های زمانی برنامه هفتگی") }
         weekdayLabels.forEach { (day, label) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = activeWeekdays.contains(day), onCheckedChange = { checked ->
@@ -1439,6 +1454,103 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             }
         )
     }
+    if (scheduleOpen) {
+        AlertDialog(
+            onDismissRequest = { scheduleOpen = false },
+            title = { Text("بازه‌های زمانی برنامه کلاس") },
+            text = {
+                Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("برای هر بازه، تاریخ شروع، پایان اختیاری و روزهای کلاس را ثبت کن. بازه‌ها نباید هم‌پوشانی داشته باشند.")
+                    if (schedulePeriods.isNotEmpty()) {
+                        Text("بازه‌های ثبت‌شده", style = MaterialTheme.typography.titleMedium)
+                        schedulePeriods.forEach { period ->
+                            val start = period.optString("start")
+                            val finish = period.optString("end")
+                            val dayValues = runCatching {
+                                val a = period.getJSONArray("days")
+                                (0 until a.length()).map { a.getInt(it) }
+                            }.getOrDefault(emptyList())
+                            val startLabel = runCatching { JalaliCalendar.format(JalaliCalendar.fromGregorian(java.time.LocalDate.parse(start))) }.getOrDefault(start)
+                            val endLabel = if (finish.isBlank()) "بدون پایان" else runCatching { JalaliCalendar.format(JalaliCalendar.fromGregorian(java.time.LocalDate.parse(finish))) }.getOrDefault(finish)
+                            val daysLabel = weekdayLabels.filter { it.first in dayValues }.joinToString("، ") { it.second }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("$startLabel تا $endLabel", style = MaterialTheme.typography.titleSmall)
+                                    Text(daysLabel.ifBlank { "بدون روز کلاس" }, style = MaterialTheme.typography.bodySmall)
+                                }
+                                TextButton(onClick = {
+                                    val raw = org.json.JSONArray(shortcutPrefs.getString("class_schedule_periods", "[]"))
+                                    val updated = org.json.JSONArray()
+                                    for (i in 0 until raw.length()) {
+                                        val item = raw.getJSONObject(i)
+                                        if (item.optString("start") != start || item.optString("end") != finish) updated.put(item)
+                                    }
+                                    shortcutPrefs.edit().putString("class_schedule_periods", updated.toString()).apply()
+                                    scheduleRefresh++
+                                    changed()
+                                }) { Text("حذف") }
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("افزودن بازه", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(value = startDigits, onValueChange = { startDigits = it.filter(Char::isDigit).take(8); periodError = null },
+                        label = { Text("تاریخ شروع شمسی") }, placeholder = { Text("14050101") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), visualTransformation = JalaliDateTransformation,
+                        textStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Ltr))
+                    OutlinedTextField(value = endDigits, onValueChange = { endDigits = it.filter(Char::isDigit).take(8); periodError = null },
+                        label = { Text("تاریخ پایان شمسی (اختیاری)") }, placeholder = { Text("خالی = بدون پایان") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), visualTransformation = JalaliDateTransformation,
+                        textStyle = LocalTextStyle.current.copy(textDirection = TextDirection.Ltr))
+                    weekdayLabels.forEach { (day, label) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = periodDays.contains(day), onCheckedChange = { checked ->
+                                if (checked && day !in periodDays) periodDays.add(day)
+                                else if (!checked) periodDays.remove(day)
+                            })
+                            Text(label)
+                        }
+                    }
+                    periodError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        val startJ = JalaliCalendar.parse(startDigits, allowGregorian = false)
+                            ?: throw IllegalArgumentException("تاریخ شروع شمسی معتبر نیست")
+                        val endJ = if (endDigits.isBlank()) null else JalaliCalendar.parse(endDigits, allowGregorian = false)
+                            ?: throw IllegalArgumentException("تاریخ پایان شمسی معتبر نیست")
+                        val startDate = JalaliCalendar.toGregorian(startJ)
+                        val endDate = endJ?.let { JalaliCalendar.toGregorian(it) }
+                        require(endDate == null || !endDate.isBefore(startDate)) { "تاریخ پایان نباید قبل از شروع باشد" }
+                        require(periodDays.isNotEmpty()) { "حداقل یک روز کلاس انتخاب کن" }
+                        val existing = org.json.JSONArray(shortcutPrefs.getString("class_schedule_periods", "[]"))
+                        for (i in 0 until existing.length()) {
+                            val item = existing.getJSONObject(i)
+                            val oldStart = java.time.LocalDate.parse(item.getString("start"))
+                            val oldEndText = item.optString("end")
+                            val oldEnd = if (oldEndText.isBlank()) java.time.LocalDate.MAX else java.time.LocalDate.parse(oldEndText)
+                            val newEnd = endDate ?: java.time.LocalDate.MAX
+                            require(newEnd.isBefore(oldStart) || startDate.isAfter(oldEnd)) { "این بازه با یک بازه ثبت‌شده هم‌پوشانی دارد" }
+                        }
+                        val dayArray = org.json.JSONArray()
+                        periodDays.sorted().forEach { dayArray.put(it) }
+                        existing.put(org.json.JSONObject().put("start", startDate.toString()).put("end", endDate?.toString() ?: "").put("days", dayArray))
+                        shortcutPrefs.edit().putString("class_schedule_periods", existing.toString()).apply()
+                        scheduleRefresh++
+                        scheduleOpen = false
+                        changed()
+                        Toast.makeText(context, "بازه برنامه ثبت شد", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        periodError = e.message ?: "ثبت بازه ناموفق بود"
+                    }
+                }) { Text("ثبت بازه") }
+            },
+            dismissButton = { TextButton(onClick = { scheduleOpen = false }) { Text("بستن") } }
+        )
+    }
+
 }
 
 
