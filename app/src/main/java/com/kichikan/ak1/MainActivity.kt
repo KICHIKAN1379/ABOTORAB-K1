@@ -137,13 +137,28 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
 
 @Composable
 private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit) {
-    var action by remember { mutableStateOf(false) }; var assistantOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement=Arrangement.spacedBy(14.dp)){
-        Text(repo.ring?.ringName ?: "حلقه",style=MaterialTheme.typography.headlineMedium);Text("پنل مربی",color=MaterialTheme.colorScheme.primary);SummaryCard(repo)
-        Button({action=true},Modifier.fillMaxWidth()){Text("شناسنامه")}
-        OutlinedButton(openMembers,Modifier.fillMaxWidth()){Text("مدیریت اعضا")};OutlinedButton({assistantOpen=true},Modifier.fillMaxWidth()){Text("دستیار مربی")}
+    val context = LocalContext.current
+    val shortcuts = remember {
+        context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE)
     }
-    if(action) EconomyDialog(repo,changed){action=false};if(assistantOpen)MentorAssistantDialog(repo){assistantOpen=false}
+    val showIdentity = remember { mutableStateOf(shortcuts.getBoolean("home_identity", true)) }
+    val showMembers = remember { mutableStateOf(shortcuts.getBoolean("home_members", true)) }
+    val showAssistant = remember { mutableStateOf(shortcuts.getBoolean("home_assistant", true)) }
+    var action by remember { mutableStateOf(false) }
+    var assistantOpen by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement=Arrangement.spacedBy(14.dp)){
+        Text(repo.ring?.ringName ?: "حلقه",style=MaterialTheme.typography.headlineMedium)
+        Text("پنل مربی",color=MaterialTheme.colorScheme.primary)
+        SummaryCard(repo)
+        if (showIdentity.value) Button({action=true},Modifier.fillMaxWidth()){Text("شناسنامه")}
+        if (showMembers.value) OutlinedButton(openMembers,Modifier.fillMaxWidth()){Text("مدیریت اعضا")}
+        if (showAssistant.value) OutlinedButton({assistantOpen=true},Modifier.fillMaxWidth()){Text("دستیار مربی")}
+        if (!showIdentity.value && !showMembers.value && !showAssistant.value) {
+            Text("میانبرهای خانه خاموش‌اند؛ از تنظیمات می‌توانی آن‌ها را فعال کنی.")
+        }
+    }
+    if(action) EconomyDialog(repo,changed){action=false}
+    if(assistantOpen)MentorAssistantDialog(repo){assistantOpen=false}
 }@Composable
 private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
     val report = remember(repo.members.size, repo.history.size, repo.attendance.size, repo.missionCompletions.size) {
@@ -880,14 +895,58 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             }
         }
     }
+    var shortcutsOpen by remember { mutableStateOf(false) }
+    val shortcutPrefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
+    var homeIdentity by remember { mutableStateOf(shortcutPrefs.getBoolean("home_identity", true)) }
+    var homeMembers by remember { mutableStateOf(shortcutPrefs.getBoolean("home_members", true)) }
+    var homeAssistant by remember { mutableStateOf(shortcutPrefs.getBoolean("home_assistant", true)) }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
-        OutlinedButton({}, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
+        OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
         Text("این نسخه کاملاً آفلاین است. پشتیبان شامل حلقه، اعضا، اقتصاد، تاریخچه، فروشگاه، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و دارایی‌های ثبت‌شده است.")
+    }
+    if (shortcutsOpen) {
+        AlertDialog(
+            onDismissRequest = { shortcutsOpen = false },
+            title = { Text("میانبرهای خانه") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(homeIdentity, { homeIdentity = it }); Text("شناسنامه")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(homeMembers, { homeMembers = it }); Text("مدیریت اعضا")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(homeAssistant, { homeAssistant = it }); Text("دستیار مربی")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    shortcutPrefs.edit()
+                        .putBoolean("home_identity", homeIdentity)
+                        .putBoolean("home_members", homeMembers)
+                        .putBoolean("home_assistant", homeAssistant)
+                        .apply()
+                    shortcutsOpen = false
+                    changed()
+                    Toast.makeText(context, "میانبرهای خانه ذخیره شد", Toast.LENGTH_SHORT).show()
+                }) { Text("ذخیره") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    homeIdentity = shortcutPrefs.getBoolean("home_identity", true)
+                    homeMembers = shortcutPrefs.getBoolean("home_members", true)
+                    homeAssistant = shortcutPrefs.getBoolean("home_assistant", true)
+                    shortcutsOpen = false
+                }) { Text("انصراف") }
+            }
+        )
     }
 }
 
