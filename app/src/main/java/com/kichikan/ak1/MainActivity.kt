@@ -62,19 +62,24 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AK1Theme(content: @Composable () -> Unit) {
-    val scheme = darkColorScheme(
-        primary = androidx.compose.ui.graphics.Color(0xFF55D6C2),
-        onPrimary = androidx.compose.ui.graphics.Color(0xFF062C2B),
-        secondary = androidx.compose.ui.graphics.Color(0xFFFFB86B),
-        onSecondary = androidx.compose.ui.graphics.Color(0xFF35200A),
-        tertiary = androidx.compose.ui.graphics.Color(0xFFB9A0FF),
-        background = androidx.compose.ui.graphics.Color(0xFF101820),
-        onBackground = androidx.compose.ui.graphics.Color(0xFFEAF2F5),
-        surface = androidx.compose.ui.graphics.Color(0xFF1B2933),
-        onSurface = androidx.compose.ui.graphics.Color(0xFFEAF2F5),
-        surfaceVariant = androidx.compose.ui.graphics.Color(0xFF263944),
-        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB8CBD2),
-        outline = androidx.compose.ui.graphics.Color(0xFF58717D)
+    val scheme = lightColorScheme(
+        primary = androidx.compose.ui.graphics.Color(0xFF087F8C),
+        onPrimary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+        primaryContainer = androidx.compose.ui.graphics.Color(0xFFC9F0EE),
+        onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF073B40),
+        secondary = androidx.compose.ui.graphics.Color(0xFFCA5B3F),
+        onSecondary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+        secondaryContainer = androidx.compose.ui.graphics.Color(0xFFFFE0D5),
+        onSecondaryContainer = androidx.compose.ui.graphics.Color(0xFF592014),
+        tertiary = androidx.compose.ui.graphics.Color(0xFF6554A4),
+        onTertiary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+        background = androidx.compose.ui.graphics.Color(0xFFF6F7F3),
+        onBackground = androidx.compose.ui.graphics.Color(0xFF172D35),
+        surface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+        onSurface = androidx.compose.ui.graphics.Color(0xFF172D35),
+        surfaceVariant = androidx.compose.ui.graphics.Color(0xFFE7F0EE),
+        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF52686C),
+        outline = androidx.compose.ui.graphics.Color(0xFF9CB3B2)
     )
     MaterialTheme(colorScheme = scheme, content = content)
 }
@@ -240,13 +245,27 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
                 Text("پنل مربی • حلقه تربیتی", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.titleSmall)
             }
         }
-        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("امروز", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("${jalali.day} ${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleLarge)
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(54.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("${jalali.day}", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.headlineSmall)
+                    }
                 }
-                Text(String.format(java.util.Locale("fa", "IR"), "%02d:%02d", now.hour, now.minute), style = MaterialTheme.typography.headlineLarge)
+                Spacer(Modifier.width(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("امروز", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleLarge)
+                    Text("روز تازه، فرصت تازه برای رشد", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         SummaryCard(repo)
@@ -1080,6 +1099,7 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
 @Composable
 private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
     val context = LocalContext.current
+    var attendanceEditTarget by remember { mutableStateOf<Pair<Member, java.time.LocalDate>?>(null) }
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     var weekOffset by remember { mutableIntStateOf(0) }
     var monthOffset by remember { mutableIntStateOf(0) }
@@ -1176,17 +1196,20 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
                                     else -> "بدون ثبت"
                                 }
                                 val jd = JalaliCalendar.fromGregorian(day)
-                                OutlinedButton(onClick = {
-                                    val next = when (current?.status) {
-                                        null, AttendanceStatus.UNMARKED -> AttendanceStatus.PRESENT
-                                        AttendanceStatus.PRESENT -> AttendanceStatus.EXCUSED
-                                        AttendanceStatus.EXCUSED -> AttendanceStatus.ABSENT
-                                        AttendanceStatus.ABSENT -> AttendanceStatus.LATE
-                                        AttendanceStatus.LATE -> AttendanceStatus.UNMARKED
-                                    }
-                                    repo.recordWeeklyAttendance(member.id, epoch, next)
-                                    changed()
-                                }, modifier = Modifier.width(70.dp).height(66.dp)) {
+                                OutlinedButton(
+                                    onClick = { attendanceEditTarget = member to day },
+                                    modifier = Modifier.width(84.dp).height(76.dp),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = when (current?.status) {
+                                            AttendanceStatus.PRESENT -> androidx.compose.ui.graphics.Color(0xFFD9F4E5)
+                                            AttendanceStatus.EXCUSED -> androidx.compose.ui.graphics.Color(0xFFFFE8C7)
+                                            AttendanceStatus.ABSENT -> androidx.compose.ui.graphics.Color(0xFFFFDAD6)
+                                            AttendanceStatus.LATE -> androidx.compose.ui.graphics.Color(0xFFE5DEFF)
+                                            else -> MaterialTheme.colorScheme.surface
+                                        }
+                                    )
+                                ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                         Text("${jd.day}", style = MaterialTheme.typography.labelLarge)
                                         Text(mark, style = MaterialTheme.typography.titleMedium, color = if (current?.status == null || current.status == AttendanceStatus.UNMARKED) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
@@ -1215,6 +1238,45 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             val month = Math.floorMod(index, 12) + 1
             export.launch("حضور-غیاب-$year-$month.csv")
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی ماه شمسی (CSV سازگار با Excel)") }
+    }
+    attendanceEditTarget?.let { target ->
+        val (member, day) = target
+        val current = repo.attendance.firstOrNull {
+            it.memberId == member.id && it.sessionId == null &&
+                java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day
+        }
+        val options = listOf(
+            AttendanceStatus.PRESENT to "حاضر • ح",
+            AttendanceStatus.EXCUSED to "غیبت موجه • م",
+            AttendanceStatus.ABSENT to "غیبت غیرموجه • غ",
+            AttendanceStatus.LATE to "تأخیر • ت",
+            AttendanceStatus.UNMARKED to "بدون ثبت • —"
+        )
+        val jalaliDate = JalaliCalendar.fromGregorian(day)
+        AlertDialog(
+            onDismissRequest = { attendanceEditTarget = null },
+            title = { Text("حضور و غیاب ${member.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${jalaliDate.day} ${JalaliCalendar.MONTH_NAMES[jalaliDate.month - 1]} ${jalaliDate.year}")
+                    options.forEach { (status, label) ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = current?.status == status || (current == null && status == AttendanceStatus.UNMARKED),
+                                onClick = {
+                                    val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                                    repo.recordWeeklyAttendance(member.id, epoch, status)
+                                    changed()
+                                    attendanceEditTarget = null
+                                }
+                            )
+                            Text(label, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton({ attendanceEditTarget = null }) { Text("بستن") } }
+        )
     }
 }
 
@@ -1446,7 +1508,7 @@ private fun buildRankingCard(title: String, rows: List<String>): android.graphic
 
 @Composable
 private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
-    var memberId by remember { mutableStateOf("") }
+    var memberId by remember(repo.members.size) { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
     val member = repo.members.firstOrNull { it.id == memberId }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1462,12 +1524,12 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 }
             }
             member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
-            Text("جوایز فعال: ${repo.wheel.items.count { it.active }} • حالت: ${repo.wheel.mode.name}")
+            Text("جوایز فعال: ${repo.wheel.items.count { it.active }}")
             Button(
                 onClick = {
                     result = try {
                         val prize = repo.spinWheel(memberId)
-                        if (prize == null) "جایزه قابل انتخابی وجود ندارد؛ از کارگاه، آیتم فعال تعریف کن."
+                        if (prize == null) "جایزه قابل انتخابی وجود ندارد یا جوایز این عضو تمام شده‌اند؛ از کارگاه جایزه فعال تعریف کن."
                         else "🎉 نتیجه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
                     } catch (e: Exception) {
                         e.message ?: "چرخاندن گردونه انجام نشد."
@@ -1988,3 +2050,15 @@ private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = fal
     AlertDialog(onDismissRequest=close,title={Text("تنظیمات گردونه")},text={Column(verticalArrangement=Arrangement.spacedBy(7.dp)){Row(Modifier.horizontalScroll(rememberScrollState())){WheelMode.values().forEach{m->FilterChip(mode==m,{mode=m},label={Text(m.name)})}};OutlinedTextField(points,{points=it.filter(Char::isDigit)},label={Text("هزینه امتیاز")});OutlinedTextField(diamonds,{diamonds=it.filter(Char::isDigit)},label={Text("هزینه الماس")});Row(verticalAlignment=Alignment.CenterVertically){Checkbox(repeat,{repeat=it});Text("تکرار جایزه بعد از برد")}}},confirmButton={TextButton({repo.setWheel(repo.wheel.copy(mode=mode,spinCostPoints=points.toIntOrNull()?:0,spinCostDiamonds=diamonds.toIntOrNull()?:0,freeSpin=mode==WheelMode.FREE,allowRepeatAfterWin=repeat));changed();close()}){Text("ذخیره")}},dismissButton={TextButton(close){Text("لغو")}})
 }
 
+
+
+private fun copyShopImage(context: android.content.Context, uri: android.net.Uri): String {
+    val folder = java.io.File(context.filesDir, "shop_images")
+    if (!folder.exists() && !folder.mkdirs()) error("ساخت پوشه تصاویر ممکن نشد")
+    val target = java.io.File(folder, "shop-${java.util.UUID.randomUUID()}.img")
+    val input = context.contentResolver.openInputStream(uri) ?: error("خواندن تصویر انتخاب‌شده ممکن نشد")
+    input.use { stream ->
+        target.outputStream().use { output -> stream.copyTo(output) }
+    }
+    return target.absolutePath
+}
