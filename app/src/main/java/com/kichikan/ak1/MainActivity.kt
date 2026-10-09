@@ -494,7 +494,6 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
 
 @Composable
 private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> Unit, close: () -> Unit) {
-    var xp by remember { mutableStateOf("0") }
     var points by remember { mutableStateOf("0") }
     var diamonds by remember { mutableStateOf("0") }
     var reason by remember { mutableStateOf("") }
@@ -504,8 +503,7 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         title = { Text("تغییر امتیاز مستقل گروه ${group.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text("XP فعلی ${group.economy.xp} • امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}")
-                OutlinedTextField(xp, { xp = it.filter { c -> c.isDigit() || c == '-' } }, label = { Text("تغییر XP (+/-)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                Text("امتیاز گروه: ${group.economy.spendablePoints} • الماس: ${group.economy.diamonds}")
                 OutlinedTextField(points, { points = it.filter { c -> c.isDigit() || c == '-' } }, label = { Text("تغییر امتیاز (+/-)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                 OutlinedTextField(diamonds, { diamonds = it.filter { c -> c.isDigit() || c == '-' } }, label = { Text("تغییر الماس (+/-)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
                 OutlinedTextField(reason, { reason = it }, label = { Text("دلیل تغییر (اجباری)") })
@@ -515,7 +513,7 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         confirmButton = {
             TextButton(onClick = {
                 try {
-                    repo.adjustGroupScore(group.id, xp.toIntOrNull() ?: 0, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0, reason)
+                    repo.adjustGroupScore(group.id, 0, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0, reason)
                     changed()
                     close()
                 } catch (e: Exception) { error = e.message ?: "تغییر امتیاز انجام نشد." }
@@ -1143,9 +1141,9 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
                 exportTitle = "رتبه‌بندی اعضا"
                 exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | XP ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
             } else {
-                val rows = repo.groups.map { g -> g to g.economy.xp }.sortedByDescending { it.second }
+                val rows = repo.groups.sortedByDescending { it.economy.spendablePoints }
                 exportTitle = "رتبه‌بندی گروه‌ها"
-                exportRows = rows.mapIndexed { i, pair -> "${i + 1}. ${pair.first.name} | XP گروه ${pair.second} | امتیاز ${pair.first.economy.spendablePoints} | الماس ${pair.first.economy.diamonds}" }
+                exportRows = rows.mapIndexed { i, group -> "${i + 1}. ${group.name} | امتیاز ${group.economy.spendablePoints} | الماس ${group.economy.diamonds}" }
             }
             rankingExporter.launch(if (mode == 0) "رتبه‌بندی-اعضا.jpg" else "رتبه‌بندی-گروه‌ها.jpg")
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
@@ -1153,8 +1151,8 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • XP ${m.economy.xp}") } } } }
         } else {
-            val rankedGroups = repo.groups.map { g -> g to g.economy.xp }.sortedByDescending { it.second }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.first.id }) { pair -> val g=pair.first; val xp=pair.second; Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.first.id == g.id }+1} ${g.name}"); Text("XP گروه $xp • اعضا ${repo.members.count { it.groupId == g.id }}") } } } }
+            val rankedGroups = repo.groups.sortedByDescending { it.economy.spendablePoints }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
         }
     }
 }
