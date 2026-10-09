@@ -402,18 +402,27 @@ class AppRepository(context: Context) {
         persist()
     }
     fun spinWheel(memberId: String): WheelItem? {
-        check(members.any { it.id == memberId }) { "عضو نامعتبر است" }
-        when (wheel.mode) {
-            WheelMode.FREE -> Unit
-            WheelMode.POINTS -> if (wheel.spinCostPoints > 0) spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
-            WheelMode.POINTS_AND_DIAMONDS -> {
-                if (wheel.spinCostPoints > 0) spendPoints(memberId, wheel.spinCostPoints, "هزینه گردونه", "mentor")
-                if (wheel.spinCostDiamonds > 0) recordDiamonds(memberId, -wheel.spinCostDiamonds, "هزینه گردونه", "mentor")
-            }
-        }
+        val member = members.firstOrNull { it.id == memberId } ?: error("عضو نامعتبر است")
+        require(wheel.spinCostPoints >= 0 && wheel.spinCostDiamonds >= 0) { "هزینه گردونه نمی‌تواند منفی باشد" }
+
+        // Select a valid prize before charging anything. If all prizes are exhausted,
+        // the member must not lose points or diamonds.
         val previousWinnerIds = history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }
             .mapNotNull { it.metadata["itemId"] }.toSet()
         val item = WheelService.spin(wheel, previousWinnerIds) ?: return null
+
+        val pointsCost = when (wheel.mode) {
+            WheelMode.FREE -> 0
+            WheelMode.POINTS, WheelMode.POINTS_AND_DIAMONDS -> wheel.spinCostPoints
+        }
+        val diamondsCost = if (wheel.mode == WheelMode.POINTS_AND_DIAMONDS) wheel.spinCostDiamonds else 0
+        require(member.economy.spendablePoints >= pointsCost) { "امتیاز کافی برای چرخاندن گردونه نداری" }
+        require(member.economy.diamonds >= diamondsCost) { "الماس کافی برای چرخاندن گردونه نداری" }
+
+        // Validate both balances before either mutation so a failed spin cannot partially charge.
+        if (pointsCost > 0) spendPoints(memberId, pointsCost, "هزینه گردونه", "mentor")
+        if (diamondsCost > 0) recordDiamonds(memberId, -diamondsCost, "هزینه گردونه", "mentor")
+
         when (item.type) {
             WheelRewardType.POINTS -> item.amount?.takeIf { it > 0 }?.let { recordPoints(memberId, it, "گردونه: ${item.title}", "mentor") }
             WheelRewardType.DIAMONDS -> item.amount?.takeIf { it > 0 }?.let { recordDiamonds(memberId, it, "گردونه: ${item.title}", "mentor") }
