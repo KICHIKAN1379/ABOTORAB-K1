@@ -427,27 +427,31 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                     FilterChip(selected = category == 2, onClick = { category = 2 }, label = { Text("قاب‌ها (${frames.size})") })
                 }
                 when (category) {
-                    0 -> if (events.isEmpty()) Text("هنوز رویدادی در گنجینه ثبت نشده است.")
-                    else -> LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(events, key = { it.id }) { event ->
-                            Card(Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(event.title, style = MaterialTheme.typography.titleSmall)
-                                    Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
-                                    event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
-                                    Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                    0 -> {
+                        if (events.isEmpty()) Text("هنوز رویدادی در گنجینه ثبت نشده است.")
+                        else LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(events, key = { it.id }) { event ->
+                                Card(Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(event.title, style = MaterialTheme.typography.titleSmall)
+                                        Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
+                                        event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
+                                        Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
                         }
                     }
-                    else -> if (chosenItems.isEmpty()) Text(if (category == 1) "هنوز آواتاری در سوابق این عضو پیدا نشد." else "هنوز قابی در سوابق این عضو پیدا نشد.")
-                    else -> LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(chosenItems, key = { it.id }) { item ->
-                            Card(onClick = { selectedItem = item }, modifier = Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(item.name, style = MaterialTheme.typography.titleMedium)
-                                    Text(if (item.id == member.avatarItemId) "آواتار فعال" else if (item.id == member.frameItemId) "قاب فعال" else "دریافت‌شده")
-                                    Text("برای مشاهده روش دریافت لمس کن.", style = MaterialTheme.typography.bodySmall)
+                    1, 2 -> {
+                        if (chosenItems.isEmpty()) Text(if (category == 1) "هنوز آواتاری در سوابق این عضو پیدا نشد." else "هنوز قابی در سوابق این عضو پیدا نشد.")
+                        else LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(chosenItems, key = { it.id }) { item ->
+                                Card(onClick = { selectedItem = item }, modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(item.name, style = MaterialTheme.typography.titleMedium)
+                                        Text(if (item.id == member.avatarItemId) "آواتار فعال" else if (item.id == member.frameItemId) "قاب فعال" else "دریافت‌شده")
+                                        Text("برای مشاهده روش دریافت لمس کن.", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
                         }
