@@ -158,10 +158,26 @@ class LocalStore(private val context: Context) {
     fun exportJson(): String? = prefs.getString("backup", null)
 
     fun importJson(raw: String) {
-        val root = JSONObject(raw)
+        val root = try {
+            JSONObject(raw)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("ساختار فایل پشتیبان معتبر نیست", e)
+        }
         val version = root.optInt("schemaVersion", 0)
         require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
-        prefs.edit().putString("backup", raw).apply()
+
+        // Validate the entire backup before accepting it. If parsing any nested record fails,
+        // restore the previous saved data instead of leaving the app with a broken backup.
+        val previous = prefs.getString("backup", null)
+        prefs.edit().putString("backup", raw).commit()
+        try {
+            load()
+        } catch (e: Exception) {
+            val editor = prefs.edit()
+            if (previous == null) editor.remove("backup") else editor.putString("backup", previous)
+            editor.commit()
+            throw IllegalArgumentException("فایل پشتیبان ناقص یا ناسازگار است؛ اطلاعات قبلی حفظ شد.", e)
+        }
     }
 
     fun load(): LoadedState? {
