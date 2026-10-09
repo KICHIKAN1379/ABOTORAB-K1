@@ -990,7 +990,7 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
     var closedDates by remember { mutableStateOf(prefs.getStringSet("closed_class_dates", emptySet()) ?: emptySet()) }
     val days = scheduledDays.filterNot { it.toString() in closedDates }
     val jalaliWeek = JalaliCalendar.fromGregorian(saturday)
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.ms-excel")) { uri ->
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) runCatching {
             val raw = buildAttendanceExcel(repo, monthOffset)
             context.contentResolver.openOutputStream(uri)?.use { it.write(raw.toByteArray(Charsets.UTF_8)) }
@@ -1072,7 +1072,7 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             val index = nowJ.month - 1 + monthOffset
             val year = nowJ.year + Math.floorDiv(index, 12)
             val month = Math.floorMod(index, 12) + 1
-            export.launch("حضور-غیاب-$year-$month.xls")
+            export.launch("حضور-غیاب-$year-$month.csv")
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی Excel ماه شمسی") }
     }
 }
@@ -1081,7 +1081,7 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
 private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, changed: () -> Unit, close: () -> Unit) {
     var weekOffset by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.ms-excel")) { uri ->
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) {
             context.contentResolver.openOutputStream(uri)?.use { it.write(buildAttendanceExcel(repo).toByteArray()) }
             Toast.makeText(context, "خروجی Excel آماده شد", Toast.LENGTH_SHORT).show()
@@ -1139,7 +1139,7 @@ private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, chan
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.xls") }) { Text("خروجی Excel ماه") }
+                    Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.csv") }) { Text("خروجی Excel ماه") }
                     TextButton(close) { Text("بستن") }
                 }
             }
@@ -1149,6 +1149,8 @@ private fun AttendanceCalendarDialog(repo: AppRepository, session: Session, chan
 }
 
 private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): String {
+    // CSV is intentionally used instead of HTML content disguised as .xls.
+    // UTF-8 BOM makes Persian names and headers display correctly in desktop Excel.
     val zone = java.time.ZoneId.systemDefault()
     val todayJ = JalaliCalendar.fromGregorian(java.time.LocalDate.now(zone))
     val index = todayJ.month - 1 + monthOffset
@@ -1156,32 +1158,38 @@ private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): Str
     val month = Math.floorMod(index, 12) + 1
     val first = JalaliCalendar.toGregorian(com.kichikan.ak1.domain.calendar.JalaliDate(year, month, 1))
     val last = JalaliCalendar.toGregorian(com.kichikan.ak1.domain.calendar.JalaliDate(year, month, JalaliCalendar.daysInMonth(year, month)))
-    val sb = StringBuilder("<html><meta charset=\"UTF-8\"><table border=\"1\"><tr><th>عضو</th>")
+    fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+    val rows = mutableListOf<String>()
+    val headers = mutableListOf("عضو")
     var day = first
     while (!day.isAfter(last)) {
         val j = JalaliCalendar.fromGregorian(day)
-        sb.append("<th>").append(j.year).append("/").append(j.month.toString().padStart(2, '0')).append("/").append(j.day.toString().padStart(2, '0')).append("</th>")
+        headers += "${j.year}/${j.month.toString().padStart(2, '0')}/${j.day.toString().padStart(2, '0')}"
         day = day.plusDays(1)
     }
-    sb.append("</tr>")
+    rows += headers.joinToString(",") { csvCell(it) }
     repo.members.forEach { member ->
-        sb.append("<tr><td>").append(member.name).append("</td>")
+        val cells = mutableListOf(member.name)
         var date = first
         while (!date.isAfter(last)) {
-            val a = repo.attendance.firstOrNull { it.memberId == member.id && it.sessionId == null && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == date }
-            sb.append("<td>").append(when (a?.status) {
+            val attendance = repo.attendance.firstOrNull {
+                it.memberId == member.id && it.sessionId == null &&
+                    java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == date
+            }
+            cells += when (attendance?.status) {
                 AttendanceStatus.PRESENT -> "حضور"
                 AttendanceStatus.EXCUSED -> "موجه"
                 AttendanceStatus.ABSENT -> "غیرموجه"
                 AttendanceStatus.LATE -> "تأخیر"
                 else -> ""
-            }).append("</td>")
+            }
             date = date.plusDays(1)
         }
-        sb.append("</tr>")
+        rows += cells.joinToString(",") { csvCell(it) }
     }
-    return sb.append("</table></html>").toString()
+    return "\uFEFF" + rows.joinToString("\r\n")
 }
+
 @Composable private fun SessionEditDialog(repo: AppRepository, session: Session?, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
     var memberId by remember { mutableStateOf(session?.memberId ?: repo.members.firstOrNull()?.id ?: "") }
