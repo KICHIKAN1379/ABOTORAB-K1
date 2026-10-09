@@ -35,7 +35,7 @@ import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.HistoryCategory
 import com.kichikan.ak1.domain.service.HistoryService
 
-private enum class Tab { HOME, MEMBERS, WORKSHOP, SESSIONS, RANKING, STORE, SETTINGS }
+private enum class Tab { HOME, MEMBERS, WORKSHOP, WHEEL, SESSIONS, RANKING, STORE, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,7 +75,7 @@ private fun AK1App() {
     Scaffold(bottomBar = {
         NavigationBar {
             listOf(
-                Tab.HOME to "خانه", Tab.MEMBERS to "اعضا", Tab.WORKSHOP to "تراشکاری",
+                Tab.HOME to "خانه", Tab.MEMBERS to "اعضا", Tab.WORKSHOP to "کارگاه", Tab.WHEEL to "گردونه",
                 Tab.SESSIONS to "جلسات", Tab.RANKING to "رقابت", Tab.STORE to "فروشگاه", Tab.SETTINGS to "تنظیمات"
             ).forEach { (t, label) ->
                 NavigationBarItem(
@@ -90,6 +90,7 @@ private fun AK1App() {
                 Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() })
                 Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
                 Tab.WORKSHOP -> WorkshopScreen(repo, padding, { changed() })
+                Tab.WHEEL -> WheelScreen(repo, padding, { changed() })
                 Tab.SESSIONS -> SessionsScreen(padding, repo, { changed() })
                 Tab.RANKING -> RankingScreen(repo, padding)
                 Tab.STORE -> StoreScreen(repo, padding) { changed() }
@@ -455,10 +456,30 @@ private fun buildAttendanceExcel(repo: AppRepository): String {
 }@Composable
 private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     var mode by remember { mutableStateOf(0) }
+    val context = LocalContext.current
+    var exportRows by remember { mutableStateOf<List<String>>(emptyList()) }
+    var exportTitle by remember { mutableStateOf("رتبه‌بندی") }
+    val rankingExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> buildRankingCard(exportTitle, exportRows).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+            .onSuccess { Toast.makeText(context, "تصویر رتبه‌بندی ذخیره شد", Toast.LENGTH_SHORT).show() }
+            .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
+    }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         Text("رقابت", style = MaterialTheme.typography.headlineMedium)
         Text("سطح‌بندی و رتبه‌بندی فقط بر اساس XP است؛ خرج‌کردن امتیاز سطح را کم نمی‌کند.")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(mode == 0, { mode = 0 }, label = { Text("اعضا") }); FilterChip(mode == 1, { mode = 1 }, label = { Text("گروه‌ها") }) }
+        OutlinedButton(onClick = {
+            if (mode == 0) {
+                val rows = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
+                exportTitle = "رتبه‌بندی اعضا"
+                exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | XP ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
+            } else {
+                val rows = repo.groups.map { g -> g to repo.members.filter { it.groupId == g.id }.sumOf { it.economy.xp } }.sortedByDescending { it.second }
+                exportTitle = "رتبه‌بندی گروه‌ها"
+                exportRows = rows.mapIndexed { i, pair -> "${i + 1}. ${pair.first.name} | XP اعضا ${pair.second} | تعداد ${repo.members.count { it.groupId == pair.first.id }}" }
+            }
+            rankingExporter.launch(if (mode == 0) "رتبه‌بندی-اعضا.jpg" else "رتبه‌بندی-گروه‌ها.jpg")
+        }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
         if (mode == 0) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • XP ${m.economy.xp}") } } } }
@@ -467,7 +488,67 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.first.id }) { pair -> val g=pair.first; val xp=pair.second; Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.first.id == g.id }+1} ${g.name}"); Text("XP کل $xp • اعضا ${repo.members.count { it.groupId == g.id }}") } } } }
         }
     }
-}@Composable
+
+private fun buildRankingCard(title: String, rows: List<String>): android.graphics.Bitmap {
+    val width = 1200
+    val lineHeight = 52
+    val height = (170 + rows.size.coerceAtLeast(1) * lineHeight).coerceAtMost(6000)
+    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    canvas.drawColor(android.graphics.Color.rgb(22, 33, 62))
+    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(255, 215, 0); textSize = 42f; textAlign = android.graphics.Paint.Align.RIGHT; typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) }
+    val rowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 27f; textAlign = android.graphics.Paint.Align.RIGHT }
+    val dividerPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(56, 239, 125); strokeWidth = 2f }
+    canvas.drawText(title, width - 50f, 75f, titlePaint)
+    canvas.drawText("مجموعه فرهنگی تربیتی ابوتراب علیه السلام", width - 50f, 125f, rowPaint)
+    if (rows.isEmpty()) canvas.drawText("هنوز داده‌ای برای رتبه‌بندی وجود ندارد.", width - 50f, 205f, rowPaint)
+    rows.forEachIndexed { i, row ->
+        val y = 190f + i * lineHeight
+        canvas.drawText(row.take(85), width - 50f, y, rowPaint)
+        canvas.drawLine(45f, y + 15f, width - 45f, y + 15f, dividerPaint)
+    }
+    return bitmap
+}
+
+@Composable
+private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+    var memberId by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<String?>(null) }
+    val member = repo.members.firstOrNull { it.id == memberId }
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("گردونه شانس", style = MaterialTheme.typography.headlineMedium)
+        Text("اول عضو را انتخاب کن؛ سپس گردونه را بچرخان. نتیجه و پاداش در سابقه عضو ثبت می‌شود.")
+        if (repo.members.isEmpty()) {
+            Text("برای استفاده از گردونه ابتدا یک عضو بساز.")
+        } else {
+            Text("انتخاب عضو", style = MaterialTheme.typography.titleMedium)
+            LazyColumn(Modifier.heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(repo.members, key = { it.id }) { m ->
+                    FilterChip(selected = memberId == m.id, onClick = { memberId = m.id; result = null }, label = { Text(m.name) })
+                }
+            }
+            member?.let { Text("سطح \${it.economy.level} • امتیاز \${it.economy.spendablePoints} • الماس \${it.economy.diamonds}") }
+            Text("جوایز فعال: \${repo.wheel.items.count { it.active }} • حالت: \${repo.wheel.mode.name}")
+            Button(
+                onClick = {
+                    result = try {
+                        val prize = repo.spinWheel(memberId)
+                        if (prize == null) "جایزه قابل انتخابی وجود ندارد؛ از کارگاه، آیتم فعال تعریف کن."
+                        else "🎉 نتیجه: \${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n\$it" } ?: "")
+                    } catch (e: Exception) {
+                        e.message ?: "چرخاندن گردونه انجام نشد."
+                    }
+                    changed()
+                },
+                enabled = member != null && repo.wheel.items.any { it.active },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("چرخاندن گردونه") }
+            result?.let { Card(Modifier.fillMaxWidth()) { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium) } }
+        }
+    }
+}
+
+@Composable
 private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
