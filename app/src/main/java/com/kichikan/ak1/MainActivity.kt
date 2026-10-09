@@ -36,7 +36,7 @@ import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.HistoryCategory
 import com.kichikan.ak1.domain.service.HistoryService
 
-private enum class Tab { HOME, MEMBERS, WORKSHOP, WHEEL, SESSIONS, RANKING, STORE, SETTINGS }
+private enum class Tab { HOME, MEMBERS, SERVICES, WORKSHOP, WHEEL, SESSIONS, RANKING, STORE, SETTINGS }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,29 +67,20 @@ private fun AK1App() {
     var tab by remember { mutableStateOf(Tab.HOME) }
     var refresh by remember { mutableIntStateOf(0) }
     fun changed() { refresh++ }
-
-    if (repo.ring == null) {
-        SetupScreen(repo) { refresh++ }
-        return
-    }
-
+    if (repo.ring == null) { SetupScreen(repo) { refresh++ }; return }
     Scaffold(bottomBar = {
         NavigationBar {
-            listOf(
-                Tab.HOME to "خانه", Tab.MEMBERS to "اعضا", Tab.WORKSHOP to "کارگاه", Tab.WHEEL to "گردونه",
-                Tab.SESSIONS to "جلسات", Tab.RANKING to "رقابت", Tab.STORE to "فروشگاه", Tab.SETTINGS to "تنظیمات"
-            ).forEach { (t, label) ->
-                NavigationBarItem(
-                    selected = tab == t, onClick = { tab = t },
-                    icon = { Text(label.take(1)) }, label = { Text(label) }
-                )
+            listOf(Tab.HOME to "خانه", Tab.MEMBERS to "اعضا", Tab.SERVICES to "خدمات", Tab.SETTINGS to "تنظیمات").forEach { (t, label) ->
+                NavigationBarItem(selected = tab == t || (tab in listOf(Tab.WORKSHOP, Tab.SESSIONS, Tab.RANKING, Tab.STORE) && t == Tab.SERVICES),
+                    onClick = { tab = t }, icon = { Text(when(t) { Tab.HOME -> "⌂"; Tab.MEMBERS -> "♙"; Tab.SERVICES -> "▦"; else -> "⚙" }) }, label = { Text(label) })
             }
         }
     }) { padding ->
         key(refresh) {
             when (tab) {
-                Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() })
+                Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() }) { tab = it }
                 Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
+                Tab.SERVICES -> ServicesScreen(padding) { tab = it }
                 Tab.WORKSHOP -> WorkshopScreen(repo, padding, { changed() })
                 Tab.WHEEL -> WheelScreen(repo, padding, { changed() })
                 Tab.SESSIONS -> SessionsScreen(padding, repo, { changed() })
@@ -102,6 +93,30 @@ private fun AK1App() {
 }
 
 @Composable
+private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
+    val services = listOf(
+        Triple("تراشکاری", "مدیریت مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
+        Triple("جلسات", "جلسه‌ها و حضور و غیاب گروهی", Tab.SESSIONS),
+        Triple("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Tab.RANKING),
+        Triple("فروشگاه", "آواتار، قاب و جوایز", Tab.STORE)
+    )
+    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("خدمات", style = MaterialTheme.typography.headlineMedium)
+        services.forEachIndexed { i, item ->
+            Card(Modifier.fillMaxWidth(), onClick = { open(item.third) }) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(listOf("⚒", "▦", "🏆", "🎁")[i], style = MaterialTheme.typography.headlineMedium)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(item.first, style = MaterialTheme.typography.titleLarge)
+                        Text(item.second, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Text("‹", style = MaterialTheme.typography.headlineMedium)
+                }
+            }
+        }
+    }
+}
+
 private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
     var ringName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
@@ -137,30 +152,58 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
 }
 
 @Composable
-private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit) {
+private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit, open: (Tab) -> Unit) {
     val context = LocalContext.current
-    val shortcuts = remember {
-        context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE)
-    }
-    val showIdentity = remember { mutableStateOf(shortcuts.getBoolean("home_identity", true)) }
-    val showMembers = remember { mutableStateOf(shortcuts.getBoolean("home_members", true)) }
-    val showAssistant = remember { mutableStateOf(shortcuts.getBoolean("home_assistant", true)) }
+    val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); tick++ } }
     var action by remember { mutableStateOf(false) }
     var assistantOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement=Arrangement.spacedBy(14.dp)){
-        Text(repo.ring?.ringName ?: "حلقه",style=MaterialTheme.typography.headlineMedium)
-        Text("پنل مربی",color=MaterialTheme.colorScheme.primary)
-        SummaryCard(repo)
-        if (showIdentity.value) Button({action=true},Modifier.fillMaxWidth()){Text("شناسنامه")}
-        if (showMembers.value) OutlinedButton(openMembers,Modifier.fillMaxWidth()){Text("مدیریت اعضا")}
-        if (showAssistant.value) OutlinedButton({assistantOpen=true},Modifier.fillMaxWidth()){Text("دستیار مربی")}
-        if (!showIdentity.value && !showMembers.value && !showAssistant.value) {
-            Text("میانبرهای خانه خاموش‌اند؛ از تنظیمات می‌توانی آن‌ها را فعال کنی.")
+    val now = remember(tick) { java.time.LocalDateTime.now() }
+    val jalali = remember(tick) { JalaliCalendar.fromGregorian(now.toLocalDate()) }
+    val shortcuts = listOf(
+        Triple("شناسنامه", "home_identity", "◉"),
+        Triple("مدیریت اعضا", "home_members", "♙"),
+        Triple("دستیار مربی", "home_assistant", "✦"),
+        Triple("تراشکاری", "home_workshop", "⚒"),
+        Triple("جلسات", "home_sessions", "▦"),
+        Triple("رقابت", "home_ranking", "🏆"),
+        Triple("فروشگاه", "home_store", "🎁"),
+        Triple("گردونه", "home_wheel", "◎")
+    )
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
+        Text("پنل مربی", color = MaterialTheme.colorScheme.primary)
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("امروز • ${jalali.day} ${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleMedium)
+                Text(String.format(java.util.Locale("fa", "IR"), "%02d:%02d", now.hour, now.minute), style = MaterialTheme.typography.headlineMedium)
+            }
         }
+        SummaryCard(repo)
+        shortcuts.forEach { (label, key, icon) ->
+            if (prefs.getBoolean(key, key in listOf("home_identity", "home_members", "home_assistant"))) {
+                OutlinedButton(onClick = {
+                    when (key) {
+                        "home_identity" -> action = true
+                        "home_members" -> openMembers()
+                        "home_assistant" -> assistantOpen = true
+                        "home_workshop" -> open(Tab.WORKSHOP)
+                        "home_sessions" -> open(Tab.SESSIONS)
+                        "home_ranking" -> open(Tab.RANKING)
+                        "home_store" -> open(Tab.STORE)
+                        "home_wheel" -> open(Tab.WHEEL)
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text("$icon   $label", modifier = Modifier.fillMaxWidth()) }
+            }
+        }
+        Text("نمایش هر میانبر را از تنظیمات انتخاب کن.", style = MaterialTheme.typography.bodySmall)
     }
-    if(action) EconomyDialog(repo,changed){action=false}
-    if(assistantOpen)MentorAssistantDialog(repo){assistantOpen=false}
-}@Composable
+    if (action) EconomyDialog(repo, changed) { action = false }
+    if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
+}
+
+@Composable
 private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
     val report = remember(repo.members.size, repo.history.size, repo.attendance.size, repo.missionCompletions.size) {
         com.kichikan.ak1.domain.assistant.MentorAssistantAnalyzer.analyze(
@@ -499,7 +542,7 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
     var addMission by remember { mutableStateOf(false) }; var editMission by remember { mutableStateOf<Mission?>(null) }; var completeMission by remember { mutableStateOf<Mission?>(null) }; var addWheel by remember { mutableStateOf(false) }; var editWheelConfig by remember { mutableStateOf(false) }; var editWheel by remember { mutableStateOf<WheelItem?>(null) }; var addShop by remember { mutableStateOf(false) }; var editShop by remember { mutableStateOf<ShopItem?>(null) }
     var assetKind by remember { mutableStateOf<String?>(null) }; var assetMessage by remember { mutableStateOf<String?>(null) }
     val importAsset = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) try { val mime=context.contentResolver.getType(uri)?:"image/png"; require(mime.startsWith("image/")){"فقط فایل تصویری قابل ثبت است"}; val o=BitmapFactory.Options().also{it.inJustDecodeBounds=true}; context.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it,null,o)}; val frame=assetKind=="FRAME"; val size=if(frame)288 else 256; require(o.outWidth==size&&o.outHeight==size){"ابعاد ${if(frame)"قاب" else "آواتار"} باید ${size}×${size} باشد"}; val id="asset-"+System.currentTimeMillis(); val ext=when{mime.equals("image/jpeg",true)->".jpg";mime.equals("image/webp",true)->".webp";mime.equals("image/gif",true)->".gif";else->".png"}; val target=java.io.File(context.filesDir,"custom_assets/$id$ext");target.parentFile?.mkdirs();context.contentResolver.openInputStream(uri)?.use{input->target.outputStream().use{out->input.copyTo(out)}};repo.addAsset(CustomAsset(id,if(frame)"قاب سفارشی" else "آواتار سفارشی",if(frame)AssetType.FRAME else AssetType.AVATAR,target.absolutePath,mime,size,size));assetMessage="ثبت شد";changed()}catch(ex:Exception){assetMessage=ex.message} }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         Text("تراشکاری",style=MaterialTheme.typography.headlineMedium)
         Text("ساخت و مدیریت مأموریت، جوایز، گردونه و شخصی‌سازی")
         OutlinedButton({addMission=true},Modifier.fillMaxWidth()){Text("+ مأموریت")}
