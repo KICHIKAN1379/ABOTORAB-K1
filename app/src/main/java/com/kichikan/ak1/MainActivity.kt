@@ -580,7 +580,7 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         confirmButton = {
             TextButton(onClick = {
                 try {
-                    repo.adjustGroupScore(group.id, 0, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0, reason)
+                    repo.adjustGroupScore(group.id, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0, reason)
                     changed()
                     close()
                 } catch (e: Exception) { error = e.message ?: "تغییر امتیاز انجام نشد." }
@@ -1200,7 +1200,7 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         Text("رقابت", style = MaterialTheme.typography.headlineMedium)
-        Text("سطح‌بندی و رتبه‌بندی فقط بر اساس XP است؛ خرج‌کردن امتیاز سطح را کم نمی‌کند.")
+        Text("رتبه اعضا بر اساس سطح و XP است؛ رتبه گروه‌ها فقط با امتیاز و الماس مستقل گروه محاسبه می‌شود.")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(mode == 0, { mode = 0 }, label = { Text("اعضا") }); FilterChip(mode == 1, { mode = 1 }, label = { Text("گروه‌ها") }) }
         OutlinedButton(onClick = {
             if (mode == 0) {
