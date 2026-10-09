@@ -408,21 +408,47 @@ private fun buildMemberCard(repo: AppRepository, member: Member): android.graphi
 }@Composable
 private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
     val events = repo.history.filter { it.memberId == member.id }.sortedByDescending { it.createdAtEpochMillis }
+    var category by remember { mutableIntStateOf(0) }
+    var selectedItem by remember { mutableStateOf<ShopItem?>(null) }
+    val acquiredIds = (events.mapNotNull { it.metadata["itemId"] } + listOfNotNull(member.avatarItemId, member.frameItemId)).toSet()
+    val avatars = repo.shop.filter { it.id in acquiredIds && it.type == ShopItemType.AVATAR }.distinctBy { it.id }
+    val frames = repo.shop.filter { it.id in acquiredIds && it.type == ShopItemType.FRAME }.distinctBy { it.id }
+    val chosenItems = when (category) { 1 -> avatars; 2 -> frames; else -> emptyList() }
     AlertDialog(
         onDismissRequest = close,
         title = { Text("گنجینه — ${member.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("سطح ${member.economy.level} • XP ${member.economy.xp} • امتیاز ${member.economy.spendablePoints} • الماس ${member.economy.diamonds}")
-                if (events.isEmpty()) Text("هنوز رویدادی در گنجینه ثبت نشده است.")
-                else LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(events, key = { it.id }) { event ->
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(event.title, style = MaterialTheme.typography.titleSmall)
-                                Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
-                                event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
-                                Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                Text("امتیاز: ${member.economy.spendablePoints}   •   💎 الماس: ${member.economy.diamonds}", style = MaterialTheme.typography.titleMedium)
+                Text("سطح ${member.economy.level} • XP ${member.economy.xp}")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = category == 0, onClick = { category = 0 }, label = { Text("سوابق") })
+                    FilterChip(selected = category == 1, onClick = { category = 1 }, label = { Text("آواتارها (${avatars.size})") })
+                    FilterChip(selected = category == 2, onClick = { category = 2 }, label = { Text("قاب‌ها (${frames.size})") })
+                }
+                when (category) {
+                    0 -> if (events.isEmpty()) Text("هنوز رویدادی در گنجینه ثبت نشده است.")
+                    else -> LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(events, key = { it.id }) { event ->
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(event.title, style = MaterialTheme.typography.titleSmall)
+                                    Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
+                                    event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
+                                    Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                    else -> if (chosenItems.isEmpty()) Text(if (category == 1) "هنوز آواتاری در سوابق این عضو پیدا نشد." else "هنوز قابی در سوابق این عضو پیدا نشد.")
+                    else -> LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(chosenItems, key = { it.id }) { item ->
+                            Card(onClick = { selectedItem = item }, modifier = Modifier.fillMaxWidth()) {
+                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(item.name, style = MaterialTheme.typography.titleMedium)
+                                    Text(if (item.id == member.avatarItemId) "آواتار فعال" else if (item.id == member.frameItemId) "قاب فعال" else "دریافت‌شده")
+                                    Text("برای مشاهده روش دریافت لمس کن.", style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
                     }
@@ -431,6 +457,29 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
         },
         confirmButton = { TextButton(close) { Text("بستن") } }
     )
+    selectedItem?.let { item ->
+        val acquisition = events.firstOrNull { it.metadata["itemId"] == item.id }
+        AlertDialog(
+            onDismissRequest = { selectedItem = null },
+            title = { Text(item.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (item.type == ShopItemType.AVATAR) "دسته: آواتار" else "دسته: قاب")
+                    if (item.description.isNotBlank()) Text(item.description)
+                    Text("روش دریافت: " + (acquisition?.reason ?: when {
+                        item.methods.contains(AcquisitionMethod.LEVEL_UNLOCK) -> "بازشدن با سطح"
+                        item.methods.contains(AcquisitionMethod.WHEEL_ONLY) -> "گردونه"
+                        item.methods.contains(AcquisitionMethod.MISSION) -> "مأموریت"
+                        item.methods.contains(AcquisitionMethod.EVENT) -> "رویداد"
+                        item.methods.contains(AcquisitionMethod.MANUAL) -> "هدیه مربی"
+                        else -> "فروشگاه یا تجهیز دستی"
+                    }))
+                    acquisition?.let { Text("زمان دریافت: ${JalaliCalendar.formatDateTime(it.createdAtEpochMillis)}") }
+                }
+            },
+            confirmButton = { TextButton({ selectedItem = null }) { Text("بازگشت") } }
+        )
+    }
 }
 
 @Composable private fun GroupDialog(repo: AppRepository, group: Group?, changed: () -> Unit, close: () -> Unit) {
