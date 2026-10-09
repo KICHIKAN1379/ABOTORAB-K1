@@ -461,54 +461,70 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
 
 @Composable
 private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Unit) {
-    val memberHistory = repo.history.filter { it.memberId == member.id }
-    val memberAttendance = repo.attendance.filter { it.memberId == member.id }
-    val presentCount = memberAttendance.count { it.status == AttendanceStatus.PRESENT }
-    val completions = repo.missionCompletions.filter { it.memberIds.contains(member.id) }
-    val evidence = listOf(
-        Triple("شروع مسیر", true, "با عضویت در حلقه، مسیر رشد آغاز می‌شود."),
-        Triple("قدم اول", memberHistory.isNotEmpty(), "با ثبت نخستین رویداد در گنجینه باز می‌شود."),
-        Triple("پشتکار", completions.size >= 2 || memberHistory.count { it.type == HistoryType.XP_EARNED } >= 5, "با تکمیل ۲ مأموریت یا ثبت ۵ رویداد دریافت XP باز می‌شود."),
-        Triple("مسئولیت‌پذیری", memberAttendance.count { it.status != AttendanceStatus.UNMARKED } >= 3, "با ثبت وضعیت در دست‌کم ۳ نوبت حضور و غیاب باز می‌شود."),
-        Triple("حضور منظم", presentCount >= 5, "با ثبت ۵ حضور باز می‌شود."),
-        Triple("صداقت", memberHistory.any { "صداقت" in it.title || "صداقت" in (it.reason ?: "") }, "وقتی مربی رویدادی درباره صداقت ثبت کند، این نشانه باز می‌شود."),
-        Triple("خدمت و اثرگذاری", completions.any { completion -> repo.missions.firstOrNull { it.id == completion.missionId }?.type == MissionType.GROUP } || memberHistory.any { "خدمت" in it.title || "خدمت" in (it.reason ?: "") }, "با تکمیل مأموریت گروهی یا ثبت رویدادی درباره خدمت باز می‌شود."),
-        Triple("ثبات قدم", member.economy.level >= 5, "با رسیدن به سطح ۵، نشانه ثبات قدم روشن می‌شود.")
-    )
-    val unlocked = evidence.count { it.second }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
+    val defaultStages = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
+    val stages = remember(member.id) {
+        val raw = prefs.getString("growth_stages", null)
+        if (raw == null) defaultStages else runCatching {
+            val arr = org.json.JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }
+        }.getOrDefault(defaultStages)
+    }
+    val reachedKey = "growth_reached_${member.id}"
+    var reached by remember(member.id, stages) {
+        mutableStateOf((prefs.getStringSet(reachedKey, emptySet()) ?: emptySet()).toSet())
+    }
+    val count = stages.count { it in reached }
+    val progress = if (stages.isEmpty()) 0f else count.toFloat() / stages.size.toFloat()
     AlertDialog(
         onDismissRequest = close,
-        title = { Text("نقشه کمال — ${member.name}") },
+        title = { Text("نقشه کمال • صعود ${member.name}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("مسیر رشد از سوابق واقعی عضو ساخته می‌شود؛ مراحل به‌صورت خودکار باز می‌شوند.")
-                Text("پیشرفت مسیر: $unlocked از ${evidence.size}")
-                LinearProgressIndicator(progress = unlocked.toFloat() / evidence.size.toFloat(), modifier = Modifier.fillMaxWidth())
-                Text("سطح ${member.economy.level} • XP ${member.economy.xp} • امتیاز ${member.economy.spendablePoints} • 💎 ${member.economy.diamonds}")
-                LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(evidence.size) { index ->
-                        val item = evidence[index]
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(if (item.second) "●" else "○", color = if (item.second) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleLarge)
-                                if (index < evidence.lastIndex) Text("│", color = MaterialTheme.colorScheme.outline)
-                            }
-                            Card(Modifier.weight(1f)) {
-                                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(item.first, style = MaterialTheme.typography.titleMedium)
-                                    Text(if (item.second) "به‌دست‌آمده" else "در انتظار", style = MaterialTheme.typography.labelMedium, color = if (item.second) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(item.third, style = MaterialTheme.typography.bodySmall)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("مسیر صعود به قله", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("$count از ${stages.size} مقام ثبت شده", style = MaterialTheme.typography.bodyMedium)
+                        LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
+                        Text("سطح ${member.economy.level} • XP ${member.economy.xp}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (stages.isEmpty()) {
+                    Text("هنوز مرحله‌ای تعریف نشده؛ از تنظیمات، مسیر نقشه کمال را بساز.")
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(stages.size) { index ->
+                            val stage = stages[index]
+                            val isReached = stage in reached
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                                ) {
+                                    Text("${index + 1}", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = if (isReached) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
+                                }
+                                Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (isReached) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f) else MaterialTheme.colorScheme.surface)) {
+                                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(stage, style = MaterialTheme.typography.titleMedium)
+                                        Text(if (isReached) "مقام کسب‌شده" else "در انتظار صعود", color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                                        OutlinedButton(onClick = {
+                                            reached = if (isReached) reached - stage else reached + stage
+                                            prefs.edit().putStringSet(reachedKey, reached).apply()
+                                        }, modifier = Modifier.fillMaxWidth()) { Text(if (isReached) "لغو ثبت این مقام" else "ثبت رسیدن عضو به این مقام") }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                Text("ثبت مقام‌ها دستی است و فقط مربی آن را تغییر می‌دهد.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = { TextButton(close) { Text("بستن") } }
     )
 }
-
 private fun buildMemberCard(repo: AppRepository, member: Member): android.graphics.Bitmap {
     val bitmap = android.graphics.Bitmap.createBitmap(1000, 620, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap); canvas.drawColor(android.graphics.Color.rgb(22, 33, 62))
