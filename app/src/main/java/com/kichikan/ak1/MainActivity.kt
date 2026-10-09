@@ -489,7 +489,7 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
         confirmButton = { TextButton(close) { Text("بستن") } }
     )
     selectedItem?.let { item ->
-        val acquisition = events.firstOrNull { it.metadata["itemId"] == item.id }
+        val acquisition = events.firstOrNull { it.metadata["itemId"] == item.id && !it.title.startsWith("استفاده از") } ?: events.firstOrNull { it.metadata["itemId"] == item.id }
         AlertDialog(
             onDismissRequest = { selectedItem = null },
             title = { Text(item.name) },
