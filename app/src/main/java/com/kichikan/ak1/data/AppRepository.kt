@@ -464,6 +464,12 @@ class AppRepository(context: Context) {
     }
 
     fun recordWeeklyAttendance(memberId: String, dateEpochMillis: Long, status: AttendanceStatus, note: String? = null) {
+        val zone = ZoneId.systemDefault()
+        val targetDate = Instant.ofEpochMilli(dateEpochMillis).atZone(zone).toLocalDate()
+        attendance.removeAll { item ->
+            item.memberId == memberId && item.sessionId == null &&
+                Instant.ofEpochMilli(item.dateEpochMillis).atZone(zone).toLocalDate() == targetDate
+        }
         recordAttendance(Attendance("attendance-$memberId-$dateEpochMillis", memberId, dateEpochMillis, status, null, note, System.currentTimeMillis()))
     }
 
