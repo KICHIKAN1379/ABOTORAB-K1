@@ -1286,16 +1286,39 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
     }
     var shortcutsOpen by remember { mutableStateOf(false) }
     val shortcutPrefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
-    var homeIdentity by remember { mutableStateOf(shortcutPrefs.getBoolean("home_identity", true)) }
-    var homeMembers by remember { mutableStateOf(shortcutPrefs.getBoolean("home_members", true)) }
-    var homeAssistant by remember { mutableStateOf(shortcutPrefs.getBoolean("home_assistant", true)) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val shortcutLabels = listOf(
+        "home_identity" to "شناسنامه", "home_members" to "مدیریت اعضا",
+        "home_assistant" to "دستیار مربی", "home_workshop" to "تراشکاری",
+        "home_sessions" to "جلسات", "home_ranking" to "رقابت",
+        "home_store" to "فروشگاه", "home_wheel" to "گردونه"
+    )
+    val shortcutStates = remember { mutableStateMapOf<String, Boolean>().apply {
+        shortcutLabels.forEach { (key, _) -> put(key, shortcutPrefs.getBoolean(key, key in listOf("home_identity", "home_members", "home_assistant"))) }
+    } }
+    val weekdayLabels = listOf(6 to "شنبه", 0 to "یکشنبه", 1 to "دوشنبه", 2 to "سه‌شنبه", 3 to "چهارشنبه", 4 to "پنجشنبه", 5 to "جمعه")
+    val activeWeekdays = remember { mutableStateListOf<Int>().apply {
+        addAll((shortcutPrefs.getStringSet("class_weekdays", setOf("6", "1", "3")) ?: setOf("6", "1", "3")).mapNotNull { it.toIntOrNull() })
+    } }
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
         OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
+        HorizontalDivider()
+        Text("روزهای برگزاری کلاس", style = MaterialTheme.typography.titleMedium)
+        Text("هر زمان برنامه تغییر کرد، روزهای کلاس را از اینجا به‌روزرسانی کن. روز حذف‌شده در حضور و غیاب هفتگی نمایش داده نمی‌شود.")
+        weekdayLabels.forEach { (day, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = activeWeekdays.contains(day), onCheckedChange = { checked ->
+                    if (checked) { if (!activeWeekdays.contains(day)) activeWeekdays.add(day) }
+                    else activeWeekdays.remove(day)
+                    shortcutPrefs.edit().putStringSet("class_weekdays", activeWeekdays.map { it.toString() }.toSet()).apply()
+                })
+                Text(label)
+            }
+        }
         Text("این نسخه کاملاً آفلاین است. پشتیبان شامل حلقه، اعضا، اقتصاد، تاریخچه، فروشگاه، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و دارایی‌های ثبت‌شده است.")
     }
     if (shortcutsOpen) {
@@ -1303,25 +1326,21 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             onDismissRequest = { shortcutsOpen = false },
             title = { Text("میانبرهای خانه") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(homeIdentity, { homeIdentity = it }); Text("شناسنامه")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(homeMembers, { homeMembers = it }); Text("مدیریت اعضا")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(homeAssistant, { homeAssistant = it }); Text("دستیار مربی")
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("هر میانبری که تیک بخورد در خانه نمایش داده می‌شود.")
+                    shortcutLabels.forEach { (key, label) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = shortcutStates[key] == true, onCheckedChange = { shortcutStates[key] = it })
+                            Text(label)
+                        }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    shortcutPrefs.edit()
-                        .putBoolean("home_identity", homeIdentity)
-                        .putBoolean("home_members", homeMembers)
-                        .putBoolean("home_assistant", homeAssistant)
-                        .apply()
+                    shortcutPrefs.edit().also { editor ->
+                        shortcutStates.forEach { (key, enabled) -> editor.putBoolean(key, enabled) }
+                    }.apply()
                     shortcutsOpen = false
                     changed()
                     Toast.makeText(context, "میانبرهای خانه ذخیره شد", Toast.LENGTH_SHORT).show()
@@ -1329,9 +1348,9 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             },
             dismissButton = {
                 TextButton(onClick = {
-                    homeIdentity = shortcutPrefs.getBoolean("home_identity", true)
-                    homeMembers = shortcutPrefs.getBoolean("home_members", true)
-                    homeAssistant = shortcutPrefs.getBoolean("home_assistant", true)
+                    shortcutLabels.forEach { (key, _) ->
+                        shortcutStates[key] = shortcutPrefs.getBoolean(key, key in listOf("home_identity", "home_members", "home_assistant"))
+                    }
                     shortcutsOpen = false
                 }) { Text("انصراف") }
             }
