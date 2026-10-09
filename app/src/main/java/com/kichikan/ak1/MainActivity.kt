@@ -1550,6 +1550,17 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         }
     }
     var shortcutsOpen by remember { mutableStateOf(false) }
+    var profileOpen by remember { mutableStateOf(false) }
+    var profileImageUri by remember { mutableStateOf(prefs.getString("ring_profile_image", null)) }
+    val profileImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            profileImageUri = uri.toString()
+            prefs.edit().putString("ring_profile_image", uri.toString()).apply()
+            changed()
+            Toast.makeText(context, "تصویر پروفایل حلقه ذخیره شد", Toast.LENGTH_SHORT).show()
+        }
+    }
     val shortcutPrefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     val shortcutLabels = listOf(
         "home_identity" to "شناسنامه", "home_members" to "مدیریت اعضا",
@@ -1584,6 +1595,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
+        OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { Text("ویرایش پروفایل") }
         OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
         HorizontalDivider()
         Text("روزهای برگزاری کلاس", style = MaterialTheme.typography.titleMedium)
@@ -1600,6 +1612,35 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             }
         }
         Text("این نسخه کاملاً آفلاین است. پشتیبان شامل حلقه، اعضا، اقتصاد، تاریخچه، فروشگاه، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و دارایی‌های ثبت‌شده است.")
+    }
+    if (profileOpen) {
+        val preview = remember(profileImageUri) {
+            profileImageUri?.let { raw -> runCatching {
+                context.contentResolver.openInputStream(android.net.Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+            }.getOrNull() }
+        }
+        AlertDialog(
+            onDismissRequest = { profileOpen = false },
+            title = { Text("ویرایش پروفایل حلقه") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Surface(modifier = Modifier.size(112.dp), shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.surfaceVariant, border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)) {
+                        if (preview != null) Image(bitmap = preview, contentDescription = "پیش‌نمایش تصویر حلقه", modifier = Modifier.fillMaxSize())
+                        else Box(contentAlignment = Alignment.Center) { Text("K1", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary) }
+                    }
+                    Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.titleMedium)
+                    Text("تصویر در بالای صفحه خانه کنار نام حلقه نمایش داده می‌شود.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { profileImagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text("انتخاب تصویر") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { profileOpen = false }) { Text("انجام شد") } },
+            dismissButton = { TextButton(onClick = {
+                profileImageUri = null
+                prefs.edit().remove("ring_profile_image").apply()
+                changed()
+                profileOpen = false
+            }) { Text("حذف تصویر") } }
+        )
     }
     if (shortcutsOpen) {
         AlertDialog(
