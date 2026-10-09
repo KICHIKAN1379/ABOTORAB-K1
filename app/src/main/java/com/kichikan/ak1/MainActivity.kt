@@ -687,20 +687,38 @@ private fun AddWheelItemDialog(repo: AppRepository, changed: () -> Unit, close: 
 @Composable
 private fun CompleteMissionDialog(repo: AppRepository, mission: Mission, changed: () -> Unit, close: () -> Unit) {
     var selected by remember { mutableStateOf(setOf<String>()) }
+    var reason by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = close,
         title = { Text("ثبت مأموریت: " + mission.title) },
-        text = { LazyColumn { items(repo.members, key = { it.id }) { member ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(member.id in selected, { selected = if (it) selected + member.id else selected - member.id })
-                Text(member.name)
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 480.dp)) {
+                Text(if (mission.type == MissionType.GROUP) "اعضای شرکت‌کننده در مأموریت گروهی را انتخاب کن:" else "اعضای انجام‌دهنده را انتخاب کن:")
+                LazyColumn(Modifier.weight(1f, fill = false)) {
+                    items(repo.members, key = { it.id }) { member ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(member.id in selected, { selected = if (it) selected + member.id else selected - member.id })
+                            Text(member.name)
+                        }
+                    }
+                }
+                OutlinedTextField(reason, { reason = it }, label = { Text("توضیح ثبت (اختیاری)") }, modifier = Modifier.fillMaxWidth())
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-        } } },
-        confirmButton = { TextButton({
-            if (selected.isNotEmpty()) {
-                try { repo.completeMission(mission, selected.toList()); changed(); close() } catch (_: IllegalArgumentException) { }
-            }
-        }) { Text("ثبت") } },
+        },
+        confirmButton = {
+            TextButton({
+                try {
+                    require(selected.isNotEmpty()) { "حداقل یک عضو را انتخاب کن" }
+                    repo.completeMission(mission, selected.toList(), reason.trim().takeIf { it.isNotEmpty() })
+                    changed()
+                    close()
+                } catch (e: Exception) {
+                    error = e.message ?: "ثبت مأموریت انجام نشد"
+                }
+            }) { Text("ثبت") }
+        },
         dismissButton = { TextButton(close) { Text("لغو") } }
     )
 }
