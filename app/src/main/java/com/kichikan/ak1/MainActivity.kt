@@ -125,6 +125,18 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
         Triple("فروشگاه", "آواتارها، قاب‌ها و جوایز", Tab.STORE)
     )
     val icons = listOf("⚒", "▦", "🏆", "🎁")
+    val cardTints = listOf(
+        androidx.compose.ui.graphics.Color(0xFFDDF4F0),
+        androidx.compose.ui.graphics.Color(0xFFFFE5D9),
+        androidx.compose.ui.graphics.Color(0xFFE9E3FB),
+        androidx.compose.ui.graphics.Color(0xFFFFF0C9)
+    )
+    val iconTints = listOf(
+        androidx.compose.ui.graphics.Color(0xFF087F8C),
+        androidx.compose.ui.graphics.Color(0xFFCA5B3F),
+        androidx.compose.ui.graphics.Color(0xFF6554A4),
+        androidx.compose.ui.graphics.Color(0xFF9A6A08)
+    )
     Column(
         Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -135,19 +147,24 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 rowItems.forEachIndexed { colIndex, item ->
                     val index = rowIndex * 2 + colIndex
-                    Card(onClick = { open(item.third) }, modifier = Modifier.weight(1f).heightIn(min = 164.dp)) {
-                        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                    Card(
+                        onClick = { open(item.third) },
+                        modifier = Modifier.weight(1f).heightIn(min = 164.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = cardTints[index])
+                    ) {
+                        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
                             Surface(
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.72f)
                             ) {
-                                Text(icons[index], Modifier.padding(horizontal = 13.dp, vertical = 10.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                                Text(icons[index], Modifier.padding(horizontal = 14.dp, vertical = 11.dp), style = MaterialTheme.typography.headlineMedium, color = iconTints[index])
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(item.first, style = MaterialTheme.typography.titleLarge)
+                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = androidx.compose.ui.graphics.Color(0xFF172D35))
                                 Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = iconTints[index])
                         }
                     }
                 }
