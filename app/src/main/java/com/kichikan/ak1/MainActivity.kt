@@ -503,6 +503,27 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(86.dp)) {
+                            val mountain = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, size.height)
+                                lineTo(size.width * 0.22f, size.height * 0.46f)
+                                lineTo(size.width * 0.36f, size.height * 0.67f)
+                                lineTo(size.width * 0.60f, size.height * 0.18f)
+                                lineTo(size.width * 0.78f, size.height * 0.53f)
+                                lineTo(size.width, size.height * 0.24f)
+                                lineTo(size.width, size.height)
+                                close()
+                            }
+                            drawPath(mountain, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            val route = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(size.width * 0.08f, size.height * 0.90f)
+                                lineTo(size.width * 0.22f, size.height * 0.62f)
+                                lineTo(size.width * 0.36f, size.height * 0.75f)
+                                lineTo(size.width * 0.60f, size.height * 0.31f)
+                            }
+                            drawPath(route, MaterialTheme.colorScheme.secondary, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                            drawCircle(MaterialTheme.colorScheme.tertiary, radius = 6f, center = androidx.compose.ui.geometry.Offset(size.width * 0.60f, size.height * 0.31f))
+                        }
                         Text("مسیر صعود به قله", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                         Text("$count از ${stages.size} مقام ثبت شده", style = MaterialTheme.typography.bodyMedium)
                         LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
@@ -1564,7 +1585,16 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 val reason = member?.let { com.kichikan.ak1.domain.service.ShopService.canAcquire(item, it, now) }
                 val owned = member?.let { m -> historyOwned(repo, m.id, item.id) } == true
                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(88.dp)) }
+                    if (item.type == ShopItemType.FRAME) {
+                        val previewAvatarPath = repo.shop.firstOrNull { it.id == "starter-avatar-1" }?.imagePath
+                        val previewAvatar = remember(previewAvatarPath) { previewAvatarPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
+                        Box(Modifier.size(104.dp)) {
+                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.fillMaxSize()) }
+                            itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.fillMaxSize()) }
+                        }
+                    } else {
+                        itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(104.dp)) }
+                    }
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
                     Text(when (item.type) { ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" })
                     item.minimumLevel?.let { Text("حداقل سطح: $it") }
