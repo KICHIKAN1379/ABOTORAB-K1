@@ -474,6 +474,38 @@ class AppRepository(context: Context) {
     }
 
 
+    fun grantShopItem(memberId: String, itemId: String, reason: String): Boolean {
+        require(reason.isNotBlank()) { "دلیل هدیه الزامی است" }
+        val item = shop.firstOrNull { it.id == itemId && it.active } ?: error("آیتم فعال پیدا نشد")
+        val member = members.firstOrNull { it.id == memberId } ?: error("عضو پیدا نشد")
+        require(AcquisitionMethod.MANUAL in item.methods) { "این آیتم برای هدیه دستی تنظیم نشده است" }
+        require(item.stock == null || item.stock > 0) { "موجودی آیتم تمام شده است" }
+        val now = System.currentTimeMillis()
+        val updated = when (item.type) {
+            ShopItemType.AVATAR -> member.copy(avatarItemId = item.id)
+            ShopItemType.FRAME -> member.copy(frameItemId = item.id)
+            ShopItemType.REWARD -> member
+        }
+        members[members.indexOfFirst { it.id == memberId }] = updated
+        if (item.stock != null) {
+            val index = shop.indexOfFirst { it.id == item.id }
+            if (index >= 0) shop[index] = item.copy(stock = item.stock - 1)
+        }
+        history += HistoryEvent(
+            id = "manual-gift-$now-$memberId-$itemId",
+            memberId = memberId,
+            type = HistoryType.REWARD_RECEIVED,
+            amount = null,
+            title = "هدیه: ${item.name}",
+            reason = reason,
+            createdAtEpochMillis = now,
+            createdBy = "mentor",
+            metadata = mapOf("itemId" to item.id, "type" to item.type.name, "acquisition" to "MANUAL")
+        )
+        persist()
+        return true
+    }
+
     fun purchaseShopItem(memberId: String, itemId: String): Boolean {
         val item = shop.firstOrNull { it.id == itemId } ?: return false
         val member = members.firstOrNull { it.id == memberId } ?: return false
