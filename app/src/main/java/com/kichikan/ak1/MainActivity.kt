@@ -1337,6 +1337,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
 private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
+    var manualGrantItem by remember { mutableStateOf<ShopItem?>(null) }
     val member = repo.members.firstOrNull { it.id == selectedMemberId }
     val now = System.currentTimeMillis()
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1358,7 +1359,26 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                     item.minimumLevel?.let { Text("حداقل سطح: $it") }
                     Text(if (item.methods.isEmpty()) "دریافت مستقیم" else item.methods.joinToString(" • ") { it.name })
                     Text(if (owned) "قبلاً دریافت شده" else if (item.currency == Currency.NONE || item.price == 0) "رایگان" else "قیمت: ${item.price} ${item.currency.name}")
-                    Button(onClick = { try { repo.purchaseShopItem(selectedMemberId, item.id); result = "«${item.name}» دریافت و برای عضو فعال شد."; changed() } catch (ex: IllegalArgumentException) { result = ex.message } }, enabled = member != null && reason == null) { Text(if (owned) "استفاده" else "دریافت") }
+                    val manualOnly = AcquisitionMethod.MANUAL in item.methods &&
+                        AcquisitionMethod.DIRECT_PURCHASE !in item.methods &&
+                        AcquisitionMethod.LEVEL_UNLOCK !in item.methods
+                    Button(onClick = {
+                        try {
+                            if (owned && item.type != ShopItemType.REWARD) {
+                                repo.equipShopItem(selectedMemberId, item.id)
+                                result = "«${item.name}» برای عضو فعال شد."
+                                changed()
+                            } else if (manualOnly) {
+                                manualGrantItem = item
+                            } else {
+                                repo.purchaseShopItem(selectedMemberId, item.id)
+                                result = "«${item.name}» دریافت و برای عضو فعال شد."
+                                changed()
+                            }
+                        } catch (ex: Exception) { result = ex.message }
+                    }, enabled = member != null && (manualOnly || reason == null)) {
+                        Text(if (owned) "استفاده" else if (manualOnly) "هدیه مربی" else "دریافت")
+                    }
                     reason?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 } }
             }
@@ -1368,6 +1388,36 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
         Button(onClick = { try { val winner = repo.spinWheel(selectedMemberId); result = winner?.title ?: "گردونه آیتم قابل دریافت ندارد."; changed() } catch (ex: IllegalArgumentException) { result = ex.message } }, enabled = member != null && repo.wheel.items.isNotEmpty()) { Text("چرخاندن گردونه") }
         result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
+    manualGrantItem?.let { item ->
+        ManualGrantDialog(repo, selectedMemberId, item, changed) { manualGrantItem = null }
+    }
+}
+
+@Composable
+private fun ManualGrantDialog(repo: AppRepository, memberId: String, item: ShopItem, changed: () -> Unit, close: () -> Unit) {
+    var reason by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("هدیه دادن «${item.name}»") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("این هدیه بدون کسر امتیاز یا الماس به عضو داده می‌شود.")
+                OutlinedTextField(reason, { reason = it; error = null }, label = { Text("دلیل هدیه") }, singleLine = false)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                try {
+                    repo.grantShopItem(memberId, item.id, reason)
+                    changed()
+                    close()
+                } catch (e: Exception) { error = e.message ?: "هدیه ثبت نشد" }
+            }, enabled = reason.isNotBlank()) { Text("ثبت هدیه") }
+        },
+        dismissButton = { TextButton(close) { Text("لغو") } }
+    )
 }
 
 private fun historyOwned(repo: AppRepository, memberId: String, itemId: String): Boolean = repo.history.any { it.memberId == memberId && it.type == HistoryType.REWARD_RECEIVED && it.metadata["itemId"] == itemId }
