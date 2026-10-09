@@ -251,9 +251,13 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(g.name, style = MaterialTheme.typography.titleLarge)
-                            Text("تعداد اعضا: ${repo.members.count { it.groupId == g.id }}")
-                            Text("رتبه گروه فعلاً از مجموع XP اعضای عضو گروه محاسبه می‌شود.")
-                            OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
+                            Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
+                            Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
+                            Text("سطح ${g.economy.level} • XP مستقل ${g.economy.xp} • امتیاز ${g.economy.spendablePoints} • 💎 ${g.economy.diamonds}")
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
+                                Button({ scoreGroup = g }) { Text("تغییر امتیاز") }
+                            }
                         }
                     }
                 }
@@ -637,9 +641,9 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
                 exportTitle = "رتبه‌بندی اعضا"
                 exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | XP ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
             } else {
-                val rows = repo.groups.map { g -> g to repo.members.filter { it.groupId == g.id }.sumOf { it.economy.xp } }.sortedByDescending { it.second }
+                val rows = repo.groups.map { g -> g to g.economy.xp }.sortedByDescending { it.second }
                 exportTitle = "رتبه‌بندی گروه‌ها"
-                exportRows = rows.mapIndexed { i, pair -> "${i + 1}. ${pair.first.name} | XP اعضا ${pair.second} | تعداد ${repo.members.count { it.groupId == pair.first.id }}" }
+                exportRows = rows.mapIndexed { i, pair -> "${i + 1}. ${pair.first.name} | XP گروه ${pair.second} | امتیاز ${pair.first.economy.spendablePoints} | الماس ${pair.first.economy.diamonds}" }
             }
             rankingExporter.launch(if (mode == 0) "رتبه‌بندی-اعضا.jpg" else "رتبه‌بندی-گروه‌ها.jpg")
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
@@ -647,8 +651,8 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • XP ${m.economy.xp}") } } } }
         } else {
-            val rankedGroups = repo.groups.map { g -> g to repo.members.filter { it.groupId == g.id }.sumOf { it.economy.xp } }.sortedByDescending { it.second }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.first.id }) { pair -> val g=pair.first; val xp=pair.second; Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.first.id == g.id }+1} ${g.name}"); Text("XP کل $xp • اعضا ${repo.members.count { it.groupId == g.id }}") } } } }
+            val rankedGroups = repo.groups.map { g -> g to g.economy.xp }.sortedByDescending { it.second }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.first.id }) { pair -> val g=pair.first; val xp=pair.second; Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.first.id == g.id }+1} ${g.name}"); Text("XP گروه $xp • اعضا ${repo.members.count { it.groupId == g.id }}") } } } }
         }
     }
 
