@@ -47,16 +47,14 @@ class AppRepository(context: Context) {
             assets += state.assets
             groups += state.groups
         }
-        var unlockedAny = false
         members.toList().forEach { member ->
             val updated = grantLevelAvatars(member, (5..member.economy.level step 5).toList())
             if (updated != member) {
                 val index = members.indexOfFirst { it.id == member.id }
                 if (index >= 0) members[index] = updated
-                unlockedAny = true
             }
         }
-        if (unlockedAny) persist()
+        persist()
     }
 
     private fun grantLevelAvatars(member: Member, levels: List<Int>): Member {
@@ -89,7 +87,7 @@ class AppRepository(context: Context) {
         val directory = java.io.File(appContext.filesDir, "custom_assets/level_avatars")
         directory.mkdirs()
         val file = java.io.File(directory, "$id.png")
-        if (!file.exists()) createLevelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, file.outputStream())
+        if (!file.exists()) file.outputStream().use { output -> createLevelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output) }
         val item = ShopItem(
             id = id,
             name = "آواتار ویژه سطح $level",
@@ -257,17 +255,15 @@ class AppRepository(context: Context) {
         }
     }
 
-    fun adjustGroupScore(groupId: String, xpDelta: Int, pointsDelta: Int, diamondsDelta: Int, reason: String) {
+    fun adjustGroupScore(groupId: String, pointsDelta: Int, diamondsDelta: Int, reason: String) {
         require(reason.isNotBlank()) { "دلیل تغییر امتیاز گروه الزامی است" }
         val index = groups.indexOfFirst { it.id == groupId }
         require(index >= 0) { "گروه پیدا نشد" }
         val group = groups[index]
         val economy = group.economy
-        require(economy.xp + xpDelta >= 0) { "XP گروه نمی‌تواند منفی شود" }
         require(economy.spendablePoints + pointsDelta >= 0) { "امتیاز گروه نمی‌تواند منفی شود" }
         require(economy.diamonds + diamondsDelta >= 0) { "الماس گروه نمی‌تواند منفی شود" }
         groups[index] = group.copy(economy = economy.copy(
-            xp = economy.xp + xpDelta,
             spendablePoints = economy.spendablePoints + pointsDelta,
             diamonds = economy.diamonds + diamondsDelta
         ))
@@ -280,7 +276,6 @@ class AppRepository(context: Context) {
                 metadata = mapOf("entityType" to "GROUP", "groupId" to groupId, "delta" to delta.toString())
             )
         }
-        log(xpDelta, if (xpDelta >= 0) HistoryType.XP_EARNED else HistoryType.XP_DECREASED, "XP")
         log(pointsDelta, if (pointsDelta >= 0) HistoryType.POINTS_EARNED else HistoryType.POINTS_DECREASED, "امتیاز")
         log(diamondsDelta, if (diamondsDelta >= 0) HistoryType.DIAMONDS_EARNED else HistoryType.DIAMONDS_DECREASED, "الماس")
         persist()
