@@ -38,7 +38,7 @@ class LocalStore(private val context: Context) {
                 .put("halfDiamondUnits", it.economy.halfDiamondUnits)
                 .put("avatar", it.avatarItemId ?: JSONObject.NULL)
                 .put("frame", it.frameItemId ?: JSONObject.NULL)
-                .put("birthDate", it.birthDate ?: JSONObject.NULL).put("groupId", it.groupId ?: JSONObject.NULL).put("privateNotes", it.privateNotes))
+                .put("birthDate", it.birthDate ?: JSONObject.NULL).put("groupId", it.groupId ?: JSONObject.NULL).put("privateNotes", it.privateNotes).put("responsibility", it.responsibility))
         }
         root.put("members", ms)
         val groupsJson = JSONArray()
@@ -205,7 +205,8 @@ class LocalStore(private val context: Context) {
                 o.optString("frame").takeIf { it.isNotEmpty() && it != "null" },
                 o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" },
                 o.optString("groupId").takeIf { it.isNotEmpty() && it != "null" },
-                o.optString("privateNotes", "")
+                o.optString("privateNotes", ""),
+                o.optString("responsibility", "")
             )
         }
 
