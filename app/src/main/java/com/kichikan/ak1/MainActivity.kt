@@ -1094,7 +1094,14 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             Text("هفته ${jalaliWeek.day} ${JalaliCalendar.MONTH_NAMES[jalaliWeek.month - 1]} ${jalaliWeek.year}")
             TextButton(onClick = { weekOffset++ }) { Text("هفته بعد ›") }
         }
-        Text("روزهای کلاس از تنظیمات خوانده می‌شوند. ✓ حضور، م موجه، غ غیرموجه، ت تأخیر، _ ثبت‌نشده", style = MaterialTheme.typography.bodySmall)
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("وضعیت حضور هر روز", style = MaterialTheme.typography.titleSmall)
+                Text("ح = حاضر  •  م = غیبت موجه  •  غ = غیبت غیرموجه", style = MaterialTheme.typography.bodySmall)
+                Text("ت = تأخیر  •  — = بدون ثبت", style = MaterialTheme.typography.bodySmall)
+                Text("با لمس خانه هر روز، وضعیت همان عضو تغییر می‌کند.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         if (scheduledDays.isNotEmpty()) {
             Text("برای تعطیلی موردی، روز را لمس کن؛ روز تعطیل از جدول حضور و غیاب کنار گذاشته می‌شود.", style = MaterialTheme.typography.bodySmall)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1122,11 +1129,18 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
                                 val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
                                 val current = repo.attendance.firstOrNull { it.memberId == member.id && it.sessionId == null && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day }
                                 val mark = when (current?.status) {
-                                    AttendanceStatus.PRESENT -> "✓"
+                                    AttendanceStatus.PRESENT -> "ح"
                                     AttendanceStatus.EXCUSED -> "م"
                                     AttendanceStatus.ABSENT -> "غ"
                                     AttendanceStatus.LATE -> "ت"
-                                    else -> "_"
+                                    else -> "—"
+                                }
+                                val statusLabel = when (current?.status) {
+                                    AttendanceStatus.PRESENT -> "حاضر"
+                                    AttendanceStatus.EXCUSED -> "موجه"
+                                    AttendanceStatus.ABSENT -> "غایب"
+                                    AttendanceStatus.LATE -> "تأخیر"
+                                    else -> "بدون ثبت"
                                 }
                                 val jd = JalaliCalendar.fromGregorian(day)
                                 OutlinedButton(onClick = {
@@ -1139,8 +1153,12 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
                                     }
                                     repo.recordWeeklyAttendance(member.id, epoch, next)
                                     changed()
-                                }, modifier = Modifier.width(58.dp).height(58.dp)) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("${jd.day}"); Text(mark) }
+                                }, modifier = Modifier.width(70.dp).height(66.dp)) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                        Text("${jd.day}", style = MaterialTheme.typography.labelLarge)
+                                        Text(mark, style = MaterialTheme.typography.titleMedium, color = if (current?.status == null || current.status == AttendanceStatus.UNMARKED) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+                                        Text(statusLabel, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                                    }
                                 }
                             }
                         }
