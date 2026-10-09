@@ -10,7 +10,10 @@ data class RingAccount(
 data class Group(
     val id: String,
     val ringId: String,
-    val name: String
+    val name: String,
+    val leaderMemberId: String? = null,
+    val memberIds: List<String> = emptyList(),
+    val economy: MemberEconomy = MemberEconomy()
 )
 
 data class Member(
