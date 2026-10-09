@@ -436,7 +436,7 @@ class AppRepository(context: Context) {
             val linked = wheelItem.shopItemId?.let { id -> shop.firstOrNull { it.id == id } }
             when (wheelItem.type) {
                 WheelRewardType.POINTS, WheelRewardType.DIAMONDS, WheelRewardType.CUSTOM ->
-                    wheelItem.shopItemId == null || linked != null
+                    wheelItem.shopItemId == null
                 WheelRewardType.AVATAR -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.AVATAR } == true
                 WheelRewardType.FRAME -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.FRAME } == true
                 WheelRewardType.REWARD -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.REWARD } == true
