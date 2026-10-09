@@ -1542,6 +1542,7 @@ private fun historyOwned(repo: AppRepository, memberId: String, itemId: String):
 @Composable
 private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             try {
@@ -1581,7 +1582,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             Toast.makeText(context, "تصویر پروفایل حلقه ذخیره شد", Toast.LENGTH_SHORT).show()
         }
     }
-    val shortcutPrefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
+    val shortcutPrefs = prefs
     val shortcutLabels = listOf(
         "home_identity" to "شناسنامه", "home_members" to "مدیریت اعضا",
         "home_assistant" to "دستیار مربی", "home_workshop" to "تراشکاری",
