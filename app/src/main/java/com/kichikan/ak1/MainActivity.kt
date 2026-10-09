@@ -954,7 +954,25 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             addAll((prefs.getStringSet("class_weekdays", setOf("6", "1", "3")) ?: setOf("6", "1", "3")).mapNotNull { it.toIntOrNull() })
         }
     }
-    val scheduledDays = (0L..6L).map { saturday.plusDays(it) }.filter { activeDays.contains(it.dayOfWeek.value % 7) }
+    val rawSchedule = prefs.getString("class_schedule_periods", "[]") ?: "[]"
+    val schedulePeriods: List<Triple<java.time.LocalDate, java.time.LocalDate?, Set<Int>>> = remember(rawSchedule) {
+        runCatching {
+            val array = org.json.JSONArray(rawSchedule)
+            (0 until array.length()).map { i ->
+                val item = array.getJSONObject(i)
+                val dayArray = item.getJSONArray("days")
+                val periodDays = (0 until dayArray.length()).map { dayArray.getInt(it) }.toSet()
+                val endText = item.optString("end")
+                Triple(java.time.LocalDate.parse(item.getString("start")),
+                    if (endText.isBlank()) null else java.time.LocalDate.parse(endText), periodDays)
+            }
+        }.getOrDefault(emptyList())
+    }
+    val scheduledDays = (0L..6L).map { saturday.plusDays(it) }.filter { day ->
+        if (schedulePeriods.isEmpty()) activeDays.contains(day.dayOfWeek.value % 7)
+        else schedulePeriods.lastOrNull { period -> !day.isBefore(period.first) && (period.second == null || !day.isAfter(period.second)) }
+            ?.third?.contains(day.dayOfWeek.value % 7) == true
+    }
     var closedDates by remember { mutableStateOf(prefs.getStringSet("closed_class_dates", emptySet()) ?: emptySet()) }
     val days = scheduledDays.filterNot { it.toString() in closedDates }
     val jalaliWeek = JalaliCalendar.fromGregorian(saturday)
