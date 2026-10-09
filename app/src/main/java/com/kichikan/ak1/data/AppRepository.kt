@@ -47,6 +47,11 @@ class AppRepository(context: Context) {
             assets += state.assets
             groups += state.groups
         }
+        val catalogPrefs = appContext.getSharedPreferences("ak1_settings", Context.MODE_PRIVATE)
+        if (!catalogPrefs.getBoolean("starter_catalog_created", false)) {
+            seedStarterCatalog()
+            catalogPrefs.edit().putBoolean("starter_catalog_created", true).apply()
+        }
         members.toList().forEach { member ->
             val updated = grantLevelAvatars(member, (5..member.economy.level step 5).toList())
             if (updated != member) {
@@ -55,6 +60,104 @@ class AppRepository(context: Context) {
             }
         }
         persist()
+    }
+
+    private fun seedStarterCatalog() {
+        val directory = java.io.File(appContext.filesDir, "custom_assets/starter_catalog")
+        if (!directory.exists() && !directory.mkdirs()) return
+        val avatarStyles = listOf(
+            Triple("رهرو", android.graphics.Color.rgb(8, 127, 140), android.graphics.Color.rgb(39, 49, 67)),
+            Triple("پیش‌قدم", android.graphics.Color.rgb(202, 91, 63), android.graphics.Color.rgb(42, 48, 62)),
+            Triple("پژوهشگر", android.graphics.Color.rgb(101, 84, 164), android.graphics.Color.rgb(35, 43, 61)),
+            Triple("قله‌نورد", android.graphics.Color.rgb(43, 132, 88), android.graphics.Color.rgb(42, 54, 59))
+        )
+        avatarStyles.forEachIndexed { index, style ->
+            val id = "starter-avatar-${index + 1}"
+            if (shop.none { it.id == id }) {
+                val file = java.io.File(directory, "$id.png")
+                if (!file.exists()) file.outputStream().use { createStarterAvatarBitmap(style.second, style.third, index).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                shop += ShopItem(
+                    id = id, name = "آواتار ${style.first}", type = ShopItemType.AVATAR,
+                    imagePath = file.absolutePath, price = 0, currency = Currency.NONE,
+                    methods = setOf(AcquisitionMethod.DIRECT_PURCHASE), active = true,
+                    description = "آواتار نمونه رایگان؛ عضو می‌تواند آن را برای پروفایل خود انتخاب کند."
+                )
+            }
+        }
+        val frameStyles = listOf(
+            Triple("فیروزه‌ای", android.graphics.Color.rgb(8, 127, 140), android.graphics.Color.rgb(190, 242, 231)),
+            Triple("طلایی", android.graphics.Color.rgb(190, 137, 39), android.graphics.Color.rgb(255, 225, 145)),
+            Triple("ارغوانی", android.graphics.Color.rgb(101, 84, 164), android.graphics.Color.rgb(210, 198, 255)),
+            Triple("مرجانی", android.graphics.Color.rgb(202, 91, 63), android.graphics.Color.rgb(255, 196, 175))
+        )
+        frameStyles.forEachIndexed { index, style ->
+            val id = "starter-frame-${index + 1}"
+            if (shop.none { it.id == id }) {
+                val file = java.io.File(directory, "$id.png")
+                if (!file.exists()) file.outputStream().use { createStarterFrameBitmap(style.second, style.third).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                shop += ShopItem(
+                    id = id, name = "قاب ${style.first}", type = ShopItemType.FRAME,
+                    imagePath = file.absolutePath, price = 0, currency = Currency.NONE,
+                    methods = setOf(AcquisitionMethod.DIRECT_PURCHASE), active = true,
+                    description = "قاب نمونه رایگان؛ روی آواتار عضو قرار می‌گیرد."
+                )
+            }
+        }
+    }
+
+    private fun createStarterAvatarBitmap(background: Int, clothing: Int, variant: Int): android.graphics.Bitmap {
+        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = background
+        canvas.drawRoundRect(0f, 0f, 256f, 256f, 54f, 54f, p)
+        p.color = android.graphics.Color.argb(45, 255, 255, 255)
+        canvas.drawCircle(42f, 42f, 22f, p)
+        canvas.drawCircle(216f, 68f, 13f, p)
+        p.color = android.graphics.Color.rgb(225, 184, 145)
+        canvas.drawCircle(128f, 94f, 42f, p)
+        p.color = clothing
+        canvas.drawRoundRect(54f, 137f, 202f, 274f, 62f, 62f, p)
+        p.color = android.graphics.Color.rgb(35, 39, 49)
+        when (variant % 4) {
+            0 -> canvas.drawArc(86f, 46f, 170f, 117f, 180f, 180f, true, p)
+            1 -> canvas.drawRoundRect(84f, 42f, 172f, 78f, 25f, 25f, p)
+            2 -> { canvas.drawCircle(95f, 65f, 16f, p); canvas.drawCircle(145f, 61f, 20f, p) }
+            else -> canvas.drawArc(78f, 43f, 178f, 105f, 185f, 170f, true, p)
+        }
+        p.color = android.graphics.Color.rgb(39, 45, 51)
+        canvas.drawCircle(114f, 96f, 4f, p)
+        canvas.drawCircle(142f, 96f, 4f, p)
+        p.color = android.graphics.Color.rgb(151, 85, 70)
+        p.style = android.graphics.Paint.Style.STROKE
+        p.strokeWidth = 4f
+        canvas.drawArc(111f, 104f, 145f, 128f, 15f, 150f, false, p)
+        return bitmap
+    }
+
+    private fun createStarterFrameBitmap(primary: Int, highlight: Int): android.graphics.Bitmap {
+        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = 12f; color = primary }
+        canvas.drawCircle(128f, 128f, 112f, p)
+        p.strokeWidth = 4f
+        p.color = highlight
+        canvas.drawCircle(128f, 128f, 96f, p)
+        p.style = android.graphics.Paint.Style.FILL
+        p.color = primary
+        val path = android.graphics.Path().apply {
+            moveTo(128f, 5f); lineTo(143f, 23f); lineTo(128f, 41f); lineTo(113f, 23f); close()
+        }
+        canvas.drawPath(path, p)
+        p.color = highlight
+        canvas.drawCircle(24f, 128f, 7f, p)
+        canvas.drawCircle(232f, 128f, 7f, p)
+        canvas.drawCircle(128f, 232f, 7f, p)
+        p.style = android.graphics.Paint.Style.STROKE
+        p.strokeWidth = 3f
+        canvas.drawArc(34f, 34f, 222f, 222f, 215f, 110f, false, p)
+        canvas.drawArc(34f, 34f, 222f, 222f, 35f, 110f, false, p)
+        return bitmap
     }
 
     private fun grantLevelAvatars(member: Member, levels: List<Int>): Member {
