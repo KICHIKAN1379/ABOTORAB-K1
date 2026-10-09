@@ -206,6 +206,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     var selected by remember { mutableStateOf<Member?>(null) }
     var editing by remember { mutableStateOf<Member?>(null) }
     var groupEditing by remember { mutableStateOf<Group?>(null) }
+    var scoreGroup by remember { mutableStateOf<Group?>(null) }
     var details by remember { mutableStateOf<Member?>(null) }
     var mapMember by remember { mutableStateOf<Member?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
@@ -262,6 +263,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     if (add) AddMemberDialog(repo, changed) { add = false }
     if (addGroup) GroupDialog(repo, null, changed) { addGroup = false }
     groupEditing?.let { GroupDialog(repo, it, changed) { groupEditing = null } }
+    scoreGroup?.let { GroupScoreDialog(repo, it, changed) { scoreGroup = null } }
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
     details?.let { MemberNotesDialog(repo, it) { details = null } }
     selected?.let { HistoryDialog(repo, it) { selected = null } }
@@ -323,10 +325,95 @@ private fun buildMemberCard(repo: AppRepository, member: Member): android.graphi
     return bitmap
 }@Composable private fun GroupDialog(repo: AppRepository, group: Group?, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf(group?.name ?: "") }
-    AlertDialog(onDismissRequest = close, title = { Text(if (group == null) "ساخت گروه" else "ویرایش گروه") },
-        text = { OutlinedTextField(name, { name = it }, label = { Text("نام گروه") }, singleLine = true) },
-        confirmButton = { TextButton({ if (name.isNotBlank()) { if (group == null) repo.addGroup(name) else repo.updateGroup(group.copy(name = name.trim())); changed(); close() } }) { Text("ثبت") } },
-        dismissButton = { Row { if (group != null) TextButton({ repo.deleteGroup(group.id); changed(); close() }) { Text("حذف") }; TextButton(close) { Text("لغو") } } })
+    val initialMembers = remember(group?.id, repo.members.size) {
+        (group?.memberIds?.takeIf { it.isNotEmpty() }
+            ?: repo.members.filter { it.groupId == group?.id && group != null }.map { it.id }).toSet()
+    }
+    var memberIds by remember(group?.id, repo.members.size) { mutableStateOf(initialMembers) }
+    var leaderId by remember(group?.id, repo.members.size) {
+        mutableStateOf(group?.leaderMemberId ?: repo.members.firstOrNull { it.groupId == group?.id && group != null }?.id.orEmpty())
+    }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if (group == null) "ساخت گروه" else "ویرایش گروه") },
+        text = {
+            Column(Modifier.heightIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("نام گروه") }, singleLine = true)
+                Text("سرگروه")
+                if (repo.members.isEmpty()) Text("برای انتخاب سرگروه ابتدا عضو بساز.")
+                else LazyColumn(Modifier.heightIn(max = 100.dp)) {
+                    items(repo.members, key = { it.id }) { m ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = leaderId == m.id, onClick = { leaderId = m.id; memberIds = memberIds + m.id })
+                            Text(m.name)
+                        }
+                    }
+                }
+                Text("اعضای گروه")
+                LazyColumn(Modifier.heightIn(max = 180.dp)) {
+                    items(repo.members, key = { it.id }) { m ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = memberIds.contains(m.id), onCheckedChange = { checked ->
+                                memberIds = if (checked) memberIds + m.id else memberIds - m.id
+                                if (!checked && leaderId == m.id) leaderId = ""
+                            })
+                            Text(m.name)
+                        }
+                    }
+                }
+                Text("امتیاز گروه جدا از امتیاز اعضاست.")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.isNotBlank() && (repo.members.isEmpty() || (leaderId.isNotBlank() && memberIds.contains(leaderId)))) {
+                    val saved = if (group == null) repo.addGroup(name.trim()) else group.copy(name = name.trim())
+                    repo.updateGroup(saved.copy(name = name.trim(), leaderMemberId = leaderId.takeIf { it.isNotBlank() }, memberIds = memberIds.toList()))
+                    changed()
+                    close()
+                }
+            }, enabled = name.isNotBlank() && (repo.members.isEmpty() || (leaderId.isNotBlank() && memberIds.contains(leaderId)))) { Text("ثبت") }
+        },
+        dismissButton = {
+            Row {
+                if (group != null) TextButton({ repo.deleteGroup(group.id); changed(); close() }) { Text("حذف") }
+                TextButton(close) { Text("لغو") }
+            }
+        }
+    )
+}
+
+@Composable
+private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> Unit, close: () -> Unit) {
+    var xp by remember { mutableStateOf("0") }
+    var points by remember { mutableStateOf("0") }
+    var diamonds by remember { mutableStateOf("0") }
+    var reason by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("تغییر امتیاز مستقل گروه ${group.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("XP فعلی ${group.economy.xp} • امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}")
+                OutlinedTextField(xp, { xp = it.filter { c -> c.isDigit() || c == '-' } }, label = { Text("تغییر XP (+/-)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                OutlinedTextField(points, { points = it.filter { c -> c.isDigit() || c == '-' } }, label = { Text("تغییر امتیاز (+/-)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                OutlinedTextField(diamonds, { diamonds = it.filter { c -> c.isDigit() || c == '-' } }, label = { Text("تغییر الماس (+/-)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
+                OutlinedTextField(reason, { reason = it }, label = { Text("دلیل تغییر (اجباری)") })
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                try {
+                    repo.adjustGroupScore(group.id, xp.toIntOrNull() ?: 0, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0, reason)
+                    changed()
+                    close()
+                } catch (e: Exception) { error = e.message ?: "تغییر امتیاز انجام نشد." }
+            }, enabled = reason.isNotBlank()) { Text("ثبت تغییر") }
+        },
+        dismissButton = { TextButton(close) { Text("لغو") } }
+    )
 }
 @Composable private fun MemberEditDialog(repo: AppRepository, member: Member, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf(member.name) }; var groupId by remember { mutableStateOf(member.groupId) }; var notes by remember { mutableStateOf(member.privateNotes) }
