@@ -103,7 +103,7 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("خدمات", style = MaterialTheme.typography.headlineMedium)
         services.forEachIndexed { i, item ->
-            Card(Modifier.fillMaxWidth(), onClick = { open(item.third) }) {
+            Card(onClick = { open(item.third) }, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(listOf("⚒", "▦", "🏆", "🎁")[i], style = MaterialTheme.typography.headlineMedium)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1039,8 +1039,8 @@ private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): Str
     val index = todayJ.month - 1 + monthOffset
     val year = todayJ.year + Math.floorDiv(index, 12)
     val month = Math.floorMod(index, 12) + 1
-    val first = JalaliCalendar.toGregorian(JalaliDate(year, month, 1))
-    val last = JalaliCalendar.toGregorian(JalaliDate(year, month, JalaliCalendar.daysInMonth(year, month)))
+    val first = JalaliCalendar.toGregorian(com.kichikan.ak1.domain.calendar.JalaliDate(year, month, 1))
+    val last = JalaliCalendar.toGregorian(com.kichikan.ak1.domain.calendar.JalaliDate(year, month, JalaliCalendar.daysInMonth(year, month)))
     val sb = StringBuilder("<html><meta charset=\"UTF-8\"><table border=\"1\"><tr><th>عضو</th>")
     var day = first
     while (!day.isAfter(last)) {
