@@ -14,7 +14,8 @@ import java.time.ZoneId
 
 class AppRepository(context: Context) {
     private fun newId(prefix: String): String = "$prefix-${java.util.UUID.randomUUID()}"
-    private val store = LocalStore(context)
+    private val appContext = context.applicationContext
+    private val store = LocalStore(appContext)
 
     var ring: RingAccount? = null
         private set
@@ -46,6 +47,108 @@ class AppRepository(context: Context) {
             assets += state.assets
             groups += state.groups
         }
+        var unlockedAny = false
+        members.toList().forEach { member ->
+            val updated = grantLevelAvatars(member, (5..member.economy.level step 5).toList())
+            if (updated != member) {
+                val index = members.indexOfFirst { it.id == member.id }
+                if (index >= 0) members[index] = updated
+                unlockedAny = true
+            }
+        }
+        if (unlockedAny) persist()
+    }
+
+    private fun grantLevelAvatars(member: Member, levels: List<Int>): Member {
+        var updated = member
+        levels.forEach { level ->
+            val item = ensureLevelAvatarItem(level)
+            val alreadyOwned = history.any { it.memberId == member.id && it.metadata["itemId"] == item.id }
+            if (!alreadyOwned) {
+                val now = System.currentTimeMillis()
+                history += HistoryEvent(
+                    id = "level-avatar-${member.id}-$level",
+                    memberId = member.id,
+                    type = HistoryType.REWARD_RECEIVED,
+                    amount = null,
+                    title = "هدیه آواتار سطح $level",
+                    reason = "هدیه خودکار رسیدن به هر پنج سطح",
+                    createdAtEpochMillis = now,
+                    createdBy = "system",
+                    metadata = mapOf("itemId" to item.id, "acquisition" to "LEVEL_UNLOCK", "level" to level.toString())
+                )
+                updated = updated.copy(avatarItemId = item.id)
+            }
+        }
+        return updated
+    }
+
+    private fun ensureLevelAvatarItem(level: Int): ShopItem {
+        val id = "level-avatar-$level"
+        shop.firstOrNull { it.id == id }?.let { return it }
+        val directory = java.io.File(appContext.filesDir, "custom_assets/level_avatars")
+        directory.mkdirs()
+        val file = java.io.File(directory, "$id.png")
+        if (!file.exists()) createLevelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, file.outputStream())
+        val item = ShopItem(
+            id = id,
+            name = "آواتار ویژه سطح $level",
+            type = ShopItemType.AVATAR,
+            imagePath = file.absolutePath,
+            price = 0,
+            currency = Currency.NONE,
+            minimumLevel = level,
+            methods = setOf(AcquisitionMethod.LEVEL_UNLOCK),
+            active = true,
+            description = "آواتار هدیه‌ای که با رسیدن به سطح $level آزاد می‌شود."
+        )
+        shop += item
+        return item
+    }
+
+    private fun createLevelAvatarBitmap(level: Int): android.graphics.Bitmap {
+        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val palette = listOf(
+            android.graphics.Color.rgb(48, 145, 160),
+            android.graphics.Color.rgb(55, 105, 190),
+            android.graphics.Color.rgb(120, 76, 180),
+            android.graphics.Color.rgb(190, 125, 35),
+            android.graphics.Color.rgb(45, 145, 90)
+        )
+        val tier = ((level / 5 - 1) / 2).coerceAtLeast(0)
+        val accent = palette[tier % palette.size]
+        fun paint(color: Int, style: android.graphics.Paint.Style = android.graphics.Paint.Style.FILL, width: Float = 1f) =
+            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color; this.style = style; strokeWidth = width }
+        canvas.drawCircle(128f, 128f, 120f, paint(android.graphics.Color.rgb(22, 33, 62)))
+        canvas.drawCircle(128f, 128f, 111f, paint(accent, android.graphics.Paint.Style.STROKE, if (level >= 20) 9f else 5f))
+        if (level >= 15) {
+            canvas.drawCircle(128f, 128f, 98f, paint(android.graphics.Color.rgb(255, 215, 0), android.graphics.Paint.Style.STROKE, 3f))
+        }
+        canvas.drawOval(48f, 150f, 208f, 255f, paint(accent))
+        canvas.drawRoundRect(108f, 135f, 148f, 180f, 14f, 14f, paint(android.graphics.Color.rgb(190, 125, 92)))
+        canvas.drawCircle(128f, 100f, 53f, paint(android.graphics.Color.rgb(218, 166, 128)))
+        canvas.drawArc(74f, 42f, 182f, 128f, 180f, 180f, true, paint(android.graphics.Color.rgb(35, 30, 32)))
+        canvas.drawCircle(108f, 103f, 5f, paint(android.graphics.Color.rgb(25, 25, 25)))
+        canvas.drawCircle(148f, 103f, 5f, paint(android.graphics.Color.rgb(25, 25, 25)))
+        canvas.drawArc(104f, 112f, 152f, 139f, 10f, 160f, false, paint(android.graphics.Color.rgb(90, 45, 40), android.graphics.Paint.Style.STROKE, 4f))
+        if (level >= 25) {
+            val gold = paint(android.graphics.Color.rgb(255, 215, 0))
+            val path = android.graphics.Path().apply {
+                moveTo(90f, 48f); lineTo(80f, 18f); lineTo(112f, 37f); lineTo(128f, 8f)
+                lineTo(145f, 37f); lineTo(176f, 18f); lineTo(166f, 48f); close()
+            }
+            canvas.drawPath(path, gold)
+        } else if (level >= 10) {
+            canvas.drawCircle(128f, 43f, 11f, paint(android.graphics.Color.rgb(255, 215, 0)))
+        }
+        val badge = paint(android.graphics.Color.rgb(255, 215, 0))
+        canvas.drawCircle(190f, 190f, 24f, badge)
+        val textPaint = paint(android.graphics.Color.rgb(22, 33, 62)).apply {
+            textSize = 20f; textAlign = android.graphics.Paint.Align.CENTER; typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        }
+        canvas.drawText(level.toString(), 190f, 197f, textPaint)
+        return bitmap
     }
 
     fun createRing(name: String, username: String): RingAccount {
@@ -261,7 +364,10 @@ class AppRepository(context: Context) {
 
         history += change.events.map { it.copy(memberId = memberId) }
 
-        val updated = member.copy(economy = change.economy)
+        var updated = member.copy(economy = change.economy)
+        if (change.economy.level > member.economy.level) {
+            updated = grantLevelAvatars(updated, (5..change.economy.level step 5).filter { it > member.economy.level })
+        }
         updateMember(updated)
         return updated
     }
