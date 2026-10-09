@@ -117,6 +117,7 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     }
 }
 
+@Composable
 private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
     var ringName by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
