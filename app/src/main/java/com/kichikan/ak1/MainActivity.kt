@@ -855,21 +855,28 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
     val context = LocalContext.current
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
-            context.contentResolver.openOutputStream(uri)?.use { it.write(repo.exportBackup().toByteArray()) }
-            Toast.makeText(context, "پشتیبان ذخیره شد", Toast.LENGTH_SHORT).show()
+            try {
+                val raw = repo.exportBackup()
+                val output = context.contentResolver.openOutputStream(uri)
+                    ?: throw IllegalStateException("امکان نوشتن در فایل انتخاب‌شده وجود ندارد")
+                output.use { it.write(raw.toByteArray(Charsets.UTF_8)) }
+                Toast.makeText(context, "پشتیبان ذخیره شد", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, e.message ?: "ذخیره پشتیبان انجام نشد", Toast.LENGTH_LONG).show()
+            }
         }
     }
     val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            if (!raw.isNullOrBlank()) {
-                try {
-                    repo.importBackup(raw)
-                    changed()
-                    Toast.makeText(context, "پشتیبان بازیابی شد", Toast.LENGTH_SHORT).show()
-                } catch (e: IllegalArgumentException) {
-                    Toast.makeText(context, e.message ?: "پشتیبان نامعتبر است", Toast.LENGTH_LONG).show()
-                }
+            try {
+                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                    ?: throw IllegalArgumentException("خواندن فایل پشتیبان ممکن نشد")
+                require(raw.isNotBlank()) { "فایل پشتیبان خالی است" }
+                repo.importBackup(raw)
+                changed()
+                Toast.makeText(context, "پشتیبان بازیابی شد", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, e.message ?: "پشتیبان نامعتبر است", Toast.LENGTH_LONG).show()
             }
         }
     }
