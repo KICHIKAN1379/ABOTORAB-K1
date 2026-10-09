@@ -404,6 +404,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                             }
                             TextButton(onClick = { actionMember = m }) { Text(m.name, style = MaterialTheme.typography.titleLarge) }
                             Text("سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • 💎 ${m.economy.diamonds}")
+                            m.responsibility.takeIf { it.isNotBlank() }?.let { Text("مسئولیت در حلقه: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary) }
                             repo.groups.firstOrNull { it.id == m.groupId }?.let { Text("گروه: ${it.name}", style = MaterialTheme.typography.bodySmall) }
                             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 OutlinedButton({ actionMember = m }) { Text("گزینه‌ها") }
@@ -694,12 +695,13 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
     )
 }
 @Composable private fun MemberEditDialog(repo: AppRepository, member: Member, changed: () -> Unit, close: () -> Unit) {
-    var name by remember { mutableStateOf(member.name) }; var groupId by remember { mutableStateOf(member.groupId) }; var notes by remember { mutableStateOf(member.privateNotes) }
+    var name by remember { mutableStateOf(member.name) }; var groupId by remember { mutableStateOf(member.groupId) }; var notes by remember { mutableStateOf(member.privateNotes) }; var responsibility by remember { mutableStateOf(member.responsibility) }
     AlertDialog(onDismissRequest = close, title = { Text("ویرایش عضو") }, text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true); Text("گروه")
         Row(Modifier.horizontalScroll(rememberScrollState())) { FilterChip(groupId == null, { groupId = null }, label = { Text("بدون گروه") }); repo.groups.forEach { g -> FilterChip(groupId == g.id, { groupId = g.id }, label = { Text(g.name) }) } }
+        OutlinedTextField(responsibility, { responsibility = it }, label = { Text("مسئولیت در حلقه (نمایش در اعضا، نه رتبه‌بندی)") }, singleLine = true)
         OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات محرمانه تربیتی") })
-    } }, confirmButton = { TextButton({ if (name.isNotBlank()) { repo.updateMember(member.copy(name = name.trim(), groupId = groupId, privateNotes = notes)); changed(); close() } }) { Text("ذخیره") } },
+    } }, confirmButton = { TextButton({ if (name.isNotBlank()) { repo.updateMember(member.copy(name = name.trim(), groupId = groupId, privateNotes = notes, responsibility = responsibility.trim())); changed(); close() } }) { Text("ذخیره") } },
     dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("حذف عضو") }; TextButton(close) { Text("لغو") } } })
 }
 @Composable private fun MemberNotesDialog(repo: AppRepository, member: Member, close: () -> Unit) {
@@ -1301,8 +1303,8 @@ private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): Str
 @Composable private fun SessionEditDialog(repo: AppRepository, session: Session?, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
     var memberId by remember { mutableStateOf(session?.memberId ?: repo.members.firstOrNull()?.id ?: "") }
-    var title by remember { mutableStateOf(session?.title ?: "") }
-    var topic by remember { mutableStateOf(session?.topic ?: "") }
+    var topic by remember { mutableStateOf(session?.title ?: "") }
+    var description by remember { mutableStateOf(session?.topic ?: "") }
     var startsAt by remember { mutableLongStateOf(session?.startsAt ?: System.currentTimeMillis()) }
     fun showDatePicker() {
         val calendar = java.util.Calendar.getInstance().apply { timeInMillis = startsAt }
@@ -1333,8 +1335,8 @@ private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): Str
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("عضو")
             Row(Modifier.horizontalScroll(rememberScrollState())) { repo.members.forEach { m -> FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)}) } }
-            OutlinedTextField(title,{title=it},label={Text("عنوان")},singleLine=true)
-            OutlinedTextField(topic,{topic=it},label={Text("موضوع")},singleLine=true)
+            OutlinedTextField(topic,{topic=it},label={Text("موضوع جلسه")},singleLine=true)
+            OutlinedTextField(description,{description=it},label={Text("توضیحات جلسه")},minLines=3,maxLines=5)
             Text("تاریخ و ساعت جلسه")
             Text(JalaliCalendar.formatDateTime(startsAt))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1345,8 +1347,8 @@ private fun buildAttendanceExcel(repo: AppRepository, monthOffset: Int = 0): Str
         }
     },
     confirmButton={TextButton({
-        if(title.isNotBlank()&&memberId.isNotBlank()){
-            val saved = Session(session?.id ?: "session-${java.util.UUID.randomUUID()}", memberId, title.trim(), topic.trim(), startsAt, session?.location)
+        if(topic.isNotBlank()&&memberId.isNotBlank()){
+            val saved = Session(session?.id ?: "session-${java.util.UUID.randomUUID()}", memberId, topic.trim(), description.trim(), startsAt, session?.location)
             repo.addSession(saved)
             changed()
             close()
