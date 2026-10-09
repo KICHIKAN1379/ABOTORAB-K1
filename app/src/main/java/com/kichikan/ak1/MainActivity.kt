@@ -311,17 +311,39 @@ private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
 
 @Composable
 private fun SummaryCard(repo: AppRepository) {
+    val metrics = listOf(
+        Triple("اعضای حلقه", repo.members.size.toString(), "♙"),
+        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
+        Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }.toString(), "✦"),
+        Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }.toString(), "◆")
+    )
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("خلاصه حلقه", style = MaterialTheme.typography.titleLarge)
-            Text("اعضا: ${repo.members.size}")
-            Text("XP کل: ${repo.members.sumOf { it.economy.xp }}")
-            Text("امتیاز قابل خرج: ${repo.members.sumOf { it.economy.spendablePoints }}")
-            Text("الماس: ${repo.members.sumOf { it.economy.diamonds }}")
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("خلاصه حلقه", style = MaterialTheme.typography.titleLarge)
+                Text("نمای کلی", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            metrics.chunked(2).forEach { rowItems ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rowItems.forEach { (label, value, icon) ->
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(icon, color = MaterialTheme.colorScheme.primary)
+                                    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
-
 @Composable
 private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var page by remember { mutableIntStateOf(0) }
