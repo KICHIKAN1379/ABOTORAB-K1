@@ -892,8 +892,20 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
     var name by remember { mutableStateOf(item.name) };var price by remember { mutableStateOf(item.price.toString()) };var description by remember { mutableStateOf(item.description) };var level by remember { mutableStateOf(item.minimumLevel?.toString()?:"") };var currency by remember { mutableStateOf(item.currency) }
     AlertDialog(onDismissRequest=close,title={Text("ویرایش ${item.name}")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(name,{name=it},label={Text("نام")});OutlinedTextField(description,{description=it},label={Text("توضیحات جایزه")});OutlinedTextField(price,{price=it.filter(Char::isDigit)},label={Text("قیمت")});OutlinedTextField(level,{level=it.filter(Char::isDigit)},label={Text("حداقل سطح")});Row{Currency.values().forEach{cur->FilterChip(currency==cur,{currency=cur},label={Text(cur.name)})}}}},confirmButton={TextButton({if(name.isNotBlank()){repo.updateShopItem(item.copy(name=name.trim(),price=price.toIntOrNull()?:0,description=description.trim(),minimumLevel=level.toIntOrNull(),currency=currency));changed();close()}}){Text("ذخیره")}},dismissButton={Row{TextButton({repo.deleteShopItem(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
 }
+private fun copyShopImage(context: android.content.Context, uri: android.net.Uri): String {
+    val mime = context.contentResolver.getType(uri) ?: "image/png"
+    require(mime.startsWith("image/")) { "فقط فایل تصویری قابل انتخاب است" }
+    val extension = when { mime.equals("image/jpeg", true) -> ".jpg"; mime.equals("image/webp", true) -> ".webp"; mime.equals("image/gif", true) -> ".gif"; else -> ".png" }
+    val target = java.io.File(context.filesDir, "custom_assets/shop-${System.currentTimeMillis()}$extension")
+    target.parentFile?.mkdirs()
+    context.contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+        ?: throw IllegalStateException("خواندن تصویر انتخاب‌شده ممکن نشد")
+    return target.absolutePath
+}
+
 @Composable
 private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var type by remember { mutableStateOf(ShopItemType.AVATAR) }
     var price by remember { mutableStateOf("0") }
@@ -904,13 +916,28 @@ private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: (
     var wheelOnly by remember { mutableStateOf(false) }
     var event by remember { mutableStateOf(false) }
     var assetId by remember { mutableStateOf<String?>(null) }
+    var imagePath by remember { mutableStateOf<String?>(null) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching { copyShopImage(context, uri) }
+            .onSuccess { imagePath = it }
+            .onFailure { Toast.makeText(context, it.message ?: "انتخاب تصویر ناموفق بود", Toast.LENGTH_LONG).show() }
+    }
     val compatibleAssets = repo.assets.filter { when (type) { ShopItemType.AVATAR -> it.type == AssetType.AVATAR; ShopItemType.FRAME -> it.type == AssetType.FRAME; ShopItemType.REWARD -> it.type == AssetType.REWARD_IMAGE } }
     AlertDialog(onDismissRequest = close, title = { Text("آیتم فروشگاه") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 520.dp)) {
-            OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(candidate.name) }) } }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState())) {
+            OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(when(candidate){ ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" }) }) } }
+            OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text(if (imagePath == null) "انتخاب تصویر برای نمایش در فروشگاه" else "تغییر تصویر انتخاب‌شده") }
+            imagePath?.let { raw -> remember(raw) { BitmapFactory.decodeFile(raw)?.asImageBitmap() }?.let { Image(bitmap = it, contentDescription = "پیش‌نمایش تصویر آیتم", modifier = Modifier.size(104.dp).align(Alignment.CenterHorizontally)) } }
+            if (compatibleAssets.isNotEmpty()) {
+                Text("یا از دارایی‌های ثبت‌شده انتخاب کن")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { compatibleAssets.forEach { asset ->
+                    val thumb = remember(asset.path) { BitmapFactory.decodeFile(asset.path)?.asImageBitmap() }
+                    Card(onClick = { assetId = asset.id; imagePath = null }) { Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) { thumb?.let { Image(bitmap = it, contentDescription = asset.name, modifier = Modifier.size(54.dp)) }; Text(asset.name, style = MaterialTheme.typography.labelSmall) } }
+                } }
+            }
             OutlinedTextField(price, { price = it.filter(Char::isDigit) }, label = { Text("قیمت") }, singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { Currency.entries.forEach { candidate -> FilterChip(currency == candidate, { currency = candidate }, label = { Text(candidate.name) }) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { Currency.entries.forEach { candidate -> FilterChip(currency == candidate, { currency = candidate }, label = { Text(when(candidate){ Currency.POINTS -> "امتیاز"; Currency.DIAMONDS -> "الماس"; Currency.NONE -> "رایگان" }) }) } }
             OutlinedTextField(level, { level = it.filter(Char::isDigit) }, label = { Text("حداقل سطح (اختیاری)") }, singleLine = true)
             Text("شرایط دریافت")
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -919,40 +946,14 @@ private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: (
                 FilterChip(wheelOnly, { wheelOnly = !wheelOnly }, label = { Text("فقط گردونه") })
                 FilterChip(event, { event = !event }, label = { Text("رویداد") })
             }
-            if (compatibleAssets.isNotEmpty()) { Text("تصویر"); Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) { compatibleAssets.forEach { asset -> FilterChip(assetId == asset.id, { assetId = asset.id }, label = { Text(asset.name) }) } } }
         }
-    },
-    confirmButton = { TextButton({ if (name.isNotBlank()) { val methods = buildSet { if (direct) add(AcquisitionMethod.DIRECT_PURCHASE); if (levelUnlock) add(AcquisitionMethod.LEVEL_UNLOCK); if (wheelOnly) add(AcquisitionMethod.WHEEL_ONLY); if (event) add(AcquisitionMethod.EVENT) }; repo.addShopItem(ShopItem("shop-" + System.currentTimeMillis(), name.trim(), type, assetId?.let { id -> repo.assets.firstOrNull { it.id == id }?.path }, price.toIntOrNull() ?: 0, currency, level.toIntOrNull(), methods)); changed(); close() } }) { Text("ثبت") } },
-    dismissButton = { TextButton(close) { Text("لغو") } })
-}@Composable
-private fun AddMissionDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var xp by remember { mutableStateOf("0") }
-    var points by remember { mutableStateOf("0") }
-    var diamonds by remember { mutableStateOf("0") }
-    var group by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = close,
-        title = { Text("مأموریت جدید") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, singleLine = true)
-            OutlinedTextField(description, { description = it }, label = { Text("توضیحات") })
-            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(group, { group = it }); Text("مأموریت گروهی") }
-            OutlinedTextField(xp, { xp = it.filter(Char::isDigit) }, label = { Text("XP") }, singleLine = true)
-            OutlinedTextField(points, { points = it.filter(Char::isDigit) }, label = { Text("امتیاز") }, singleLine = true)
-            OutlinedTextField(diamonds, { diamonds = it.filter(Char::isDigit) }, label = { Text("الماس") }, singleLine = true)
-        } },
-        confirmButton = { TextButton({
-            if (title.isNotBlank()) {
-                repo.addMission(Mission("mission-" + System.currentTimeMillis(), title.trim(), description.trim(), if (group) MissionType.GROUP else MissionType.INDIVIDUAL, xp.toIntOrNull() ?: 0, points.toIntOrNull() ?: 0, diamonds.toIntOrNull() ?: 0))
-                changed(); close()
-            }
-        }) { Text("ثبت") } },
-        dismissButton = { TextButton(close) { Text("لغو") } }
-    )
+    }, confirmButton = { TextButton({ if (name.isNotBlank()) {
+        val methods = buildSet { if (direct) add(AcquisitionMethod.DIRECT_PURCHASE); if (levelUnlock) add(AcquisitionMethod.LEVEL_UNLOCK); if (wheelOnly) add(AcquisitionMethod.WHEEL_ONLY); if (event) add(AcquisitionMethod.EVENT) }
+        val selectedImage = imagePath ?: assetId?.let { id -> repo.assets.firstOrNull { it.id == id }?.path }
+        repo.addShopItem(ShopItem("shop-" + System.currentTimeMillis(), name.trim(), type, selectedImage, price.toIntOrNull() ?: 0, currency, level.toIntOrNull(), methods))
+        changed(); close()
+    } }) { Text("ثبت") } }, dismissButton = { TextButton(close) { Text("لغو") } })
 }
-
 @Composable
 private fun AddWheelItemDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
     var title by remember { mutableStateOf("") }
