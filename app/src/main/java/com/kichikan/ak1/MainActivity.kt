@@ -413,21 +413,62 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                     val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
                     val avatarBitmap = remember(avatarPath) { avatarPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                     val frameBitmap = remember(framePath) { framePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            if (avatarBitmap != null || frameBitmap != null) {
-                                Box(Modifier.size(76.dp)) {
-                                    avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.fillMaxSize()) }
-                                    frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize()) }
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(
+                                    modifier = Modifier.size(82.dp),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(m.name.take(1), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                                        avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.fillMaxSize()) }
+                                        frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize()) }
+                                    }
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(onClick = { actionMember = m }, contentPadding = PaddingValues(0.dp)) {
+                                        Text(m.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                    repo.groups.firstOrNull { it.id == m.groupId }?.let {
+                                        Text(it.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    m.responsibility.takeIf { it.isNotBlank() }?.let {
+                                        Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondaryContainer) {
+                                            Text("مسئولیت: $it", Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                        }
+                                    }
                                 }
                             }
-                            TextButton(onClick = { actionMember = m }) { Text(m.name, style = MaterialTheme.typography.titleLarge) }
-                            Text("سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • 💎 ${m.economy.diamonds}")
-                            m.responsibility.takeIf { it.isNotBlank() }?.let { Text("مسئولیت در حلقه: $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary) }
-                            repo.groups.firstOrNull { it.id == m.groupId }?.let { Text("گروه: ${it.name}", style = MaterialTheme.typography.bodySmall) }
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                OutlinedButton({ actionMember = m }) { Text("گزینه‌ها") }
-                                OutlinedButton({ exportMember = m; exporter.launch("${m.name}-AK1.jpg") }) { Text("JPEG") }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                listOf(
+                                    Triple("سطح", m.economy.level.toString(), MaterialTheme.colorScheme.primaryContainer),
+                                    Triple("XP", m.economy.xp.toString(), MaterialTheme.colorScheme.secondaryContainer),
+                                    Triple("امتیاز", m.economy.spendablePoints.toString(), MaterialTheme.colorScheme.tertiary.copy(alpha = 0.13f)),
+                                    Triple("💎", m.economy.diamonds.toString(), MaterialTheme.colorScheme.surfaceVariant)
+                                ).forEach { (label, value, tint) ->
+                                    Surface(
+                                        modifier = Modifier.weight(1f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                        color = tint
+                                    ) {
+                                        Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                    }
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { actionMember = m }, modifier = Modifier.weight(1f)) { Text("گزینه‌های عضو") }
+                                OutlinedButton(onClick = { exportMember = m; exporter.launch("${m.name}-AK1.jpg") }, modifier = Modifier.weight(1f)) { Text("خروجی کارت") }
                             }
                         }
                     }
