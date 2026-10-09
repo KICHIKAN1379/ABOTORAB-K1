@@ -63,10 +63,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AK1Theme(content: @Composable () -> Unit) {
     val scheme = darkColorScheme(
-        primary = androidx.compose.ui.graphics.Color(0xFFFFD700),
-        secondary = androidx.compose.ui.graphics.Color(0xFF38EF7D),
-        background = androidx.compose.ui.graphics.Color(0xFF16213E),
-        surface = androidx.compose.ui.graphics.Color(0xFF101827)
+        primary = androidx.compose.ui.graphics.Color(0xFF55D6C2),
+        onPrimary = androidx.compose.ui.graphics.Color(0xFF062C2B),
+        secondary = androidx.compose.ui.graphics.Color(0xFFFFB86B),
+        onSecondary = androidx.compose.ui.graphics.Color(0xFF35200A),
+        tertiary = androidx.compose.ui.graphics.Color(0xFFB9A0FF),
+        background = androidx.compose.ui.graphics.Color(0xFF101820),
+        onBackground = androidx.compose.ui.graphics.Color(0xFFEAF2F5),
+        surface = androidx.compose.ui.graphics.Color(0xFF1B2933),
+        onSurface = androidx.compose.ui.graphics.Color(0xFFEAF2F5),
+        surfaceVariant = androidx.compose.ui.graphics.Color(0xFF263944),
+        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB8CBD2),
+        outline = androidx.compose.ui.graphics.Color(0xFF58717D)
     )
     MaterialTheme(colorScheme = scheme, content = content)
 }
@@ -181,6 +189,12 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
 private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit, open: (Tab) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
+    val ringPhotoUri = remember { prefs.getString("ring_profile_image", null) }
+    val ringPhoto = remember(ringPhotoUri) {
+        ringPhotoUri?.let { raw -> runCatching {
+            context.contentResolver.openInputStream(android.net.Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+        }.getOrNull() }
+    }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); tick++ } }
     var action by remember { mutableStateOf(false) }
@@ -216,13 +230,14 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
         Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(repo.ring?.ringName ?: "حلقه", style = MaterialTheme.typography.headlineMedium)
-                Text("پنل مربی", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(modifier = Modifier.size(64.dp), shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)) {
+                if (ringPhoto != null) Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
+                else Box(contentAlignment = Alignment.Center) { Text("K1", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge) }
             }
-            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
-                Text("K1", modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
+                Text("پنل مربی • حلقه تربیتی", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.titleSmall)
             }
         }
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -230,7 +245,6 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("امروز", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Text("${jalali.day} ${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleLarge)
-                    Text("زمان محلی دستگاه", style = MaterialTheme.typography.bodySmall)
                 }
                 Text(String.format(java.util.Locale("fa", "IR"), "%02d:%02d", now.hour, now.minute), style = MaterialTheme.typography.headlineLarge)
             }
