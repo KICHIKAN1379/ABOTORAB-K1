@@ -513,8 +513,76 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
     }
     if(editWheelConfig) WheelConfigDialog(repo,changed){editWheelConfig=false};if(addMission) MissionEditDialog(repo,null,changed){addMission=false};editMission?.let{MissionEditDialog(repo,it,changed){editMission=null}};if(addWheel)WheelEditDialog(repo,null,changed){addWheel=false};editWheel?.let{WheelEditDialog(repo,it,changed){editWheel=null}};if(addShop)AddShopItemDialog(repo,changed){addShop=false};editShop?.let{ShopItemEditDialog(repo,it,changed){editShop=null}}
 }@Composable private fun MissionEditDialog(repo: AppRepository, item: Mission?, changed: () -> Unit, close: () -> Unit) {
-    var title by remember { mutableStateOf(item?.title ?: "") }; var desc by remember { mutableStateOf(item?.description ?: "") }; var xp by remember { mutableStateOf((item?.xpReward ?: 0).toString()) }; var pts by remember { mutableStateOf((item?.pointsReward ?: 0).toString()) }; var dia by remember { mutableStateOf((item?.diamondReward ?: 0).toString()) }; var group by remember { mutableStateOf(item?.type == MissionType.GROUP) }
-    AlertDialog(onDismissRequest=close,title={Text(if(item==null)"ساخت مأموریت" else "ویرایش مأموریت")},text={Column(verticalArrangement=Arrangement.spacedBy(5.dp)){OutlinedTextField(title,{title=it},label={Text("عنوان")});OutlinedTextField(desc,{desc=it},label={Text("توضیحات")});Row{Checkbox(group,{group=it});Text("گروهی")};OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("XP")});OutlinedTextField(pts,{pts=it.filter(Char::isDigit)},label={Text("امتیاز")});OutlinedTextField(dia,{dia=it.filter(Char::isDigit)},label={Text("الماس")})}},confirmButton={TextButton({if(title.isNotBlank()){val m=Mission(item?.id?:"mission-"+System.currentTimeMillis(),title.trim(),desc.trim(),if(group)MissionType.GROUP else MissionType.INDIVIDUAL,xp.toIntOrNull()?:0,pts.toIntOrNull()?:0,dia.toIntOrNull()?:0,item?.active?:true,item?.startAt,item?.endAt);if(item==null)repo.addMission(m)else repo.updateMission(m);changed();close()}}){Text("ذخیره")}},dismissButton={Row{if(item!=null)TextButton({repo.deleteMission(item.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
+    val context = LocalContext.current
+    var title by remember { mutableStateOf(item?.title ?: "") }
+    var desc by remember { mutableStateOf(item?.description ?: "") }
+    var xp by remember { mutableStateOf((item?.xpReward ?: 0).toString()) }
+    var pts by remember { mutableStateOf((item?.pointsReward ?: 0).toString()) }
+    var dia by remember { mutableStateOf((item?.diamondReward ?: 0).toString()) }
+    var group by remember { mutableStateOf(item?.type == MissionType.GROUP) }
+    var active by remember { mutableStateOf(item?.active ?: true) }
+    var startAt by remember { mutableStateOf(item?.startAt) }
+    var endAt by remember { mutableStateOf(item?.endAt) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun pickDate(initial: Long?, isStart: Boolean) {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = initial ?: System.currentTimeMillis() }
+        android.app.DatePickerDialog(context, { _, year, month, day ->
+            val selected = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.YEAR, year)
+                set(java.util.Calendar.MONTH, month)
+                set(java.util.Calendar.DAY_OF_MONTH, day)
+                set(java.util.Calendar.HOUR_OF_DAY, if (isStart) 0 else 23)
+                set(java.util.Calendar.MINUTE, if (isStart) 0 else 59)
+                set(java.util.Calendar.SECOND, if (isStart) 0 else 59)
+                set(java.util.Calendar.MILLISECOND, if (isStart) 0 else 999)
+            }.timeInMillis
+            if (isStart) startAt = selected else endAt = selected
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+    }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text(if(item==null) "ساخت مأموریت" else "ویرایش مأموریت") },
+        text = {
+            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(title,{title=it},label={Text("عنوان")},singleLine=true)
+                OutlinedTextField(desc,{desc=it},label={Text("توضیحات")})
+                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(group,{group=it}); Text("مأموریت گروهی") }
+                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(active,{active=it}); Text("مأموریت فعال است") }
+                OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("پاداش XP")},singleLine=true)
+                OutlinedTextField(pts,{pts=it.filter(Char::isDigit)},label={Text("پاداش امتیاز")},singleLine=true)
+                OutlinedTextField(dia,{dia=it.filter(Char::isDigit)},label={Text("پاداش الماس")},singleLine=true)
+                Text("محدودیت زمانی (اختیاری)")
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton({ pickDate(startAt, true) }) { Text("شروع: ${startAt?.let { JalaliCalendar.formatDateTime(it) } ?: "بدون محدودیت"}") }
+                    if (startAt != null) TextButton({ startAt = null }) { Text("پاک‌کردن") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton({ pickDate(endAt, false) }) { Text("پایان: ${endAt?.let { JalaliCalendar.formatDateTime(it) } ?: "بدون محدودیت"}") }
+                    if (endAt != null) TextButton({ endAt = null }) { Text("پاک‌کردن") }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton({
+                try {
+                    require(title.isNotBlank()) { "عنوان مأموریت الزامی است" }
+                    require((xp.toIntOrNull() ?: 0) >= 0 && (pts.toIntOrNull() ?: 0) >= 0 && (dia.toIntOrNull() ?: 0) >= 0) { "پاداش نمی‌تواند منفی باشد" }
+                    require(startAt == null || endAt == null || startAt!! <= endAt!!) { "تاریخ شروع باید قبل از پایان باشد" }
+                    val mission = Mission(item?.id ?: "mission-${java.util.UUID.randomUUID()}", title.trim(), desc.trim(), if(group) MissionType.GROUP else MissionType.INDIVIDUAL, xp.toIntOrNull() ?: 0, pts.toIntOrNull() ?: 0, dia.toIntOrNull() ?: 0, active, startAt, endAt)
+                    if (item == null) repo.addMission(mission) else repo.updateMission(mission)
+                    changed()
+                    close()
+                } catch (e: Exception) { error = e.message ?: "ذخیره مأموریت ناموفق بود" }
+            }) { Text("ذخیره") }
+        },
+        dismissButton = {
+            Row {
+                if(item!=null) TextButton({repo.deleteMission(item.id);changed();close()}) { Text("حذف") }
+                TextButton(close) { Text("لغو") }
+            }
+        }
+    )
 }
 @Composable private fun WheelEditDialog(repo: AppRepository, item: WheelItem?, changed: () -> Unit, close: () -> Unit) {
     var title by remember { mutableStateOf(item?.title ?: "") };var amount by remember { mutableStateOf((item?.amount?:0).toString()) };var weight by remember { mutableStateOf((item?.weight?:1).toString()) };var type by remember { mutableStateOf(item?.type?:WheelRewardType.REWARD) };var text by remember { mutableStateOf(item?.customText?:"") }
