@@ -114,7 +114,7 @@ class AppRepository(context: Context) {
             android.graphics.Color.rgb(190, 125, 35),
             android.graphics.Color.rgb(45, 145, 90)
         )
-        val tier = ((level / 5 - 1) / 2).coerceAtLeast(0)
+        val tier = (level / 5 - 1).coerceAtLeast(0)
         val accent = palette[tier % palette.size]
         fun paint(color: Int, style: android.graphics.Paint.Style = android.graphics.Paint.Style.FILL, width: Float = 1f) =
             android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color; this.style = style; strokeWidth = width }
