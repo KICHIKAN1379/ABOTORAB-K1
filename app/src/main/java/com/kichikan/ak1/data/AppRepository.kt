@@ -117,9 +117,71 @@ class AppRepository(context: Context) {
         groups += group; persist(); return group
     }
 
-    fun updateGroup(group: Group) { val i = groups.indexOfFirst { it.id == group.id }; if (i >= 0) { groups[i] = group; persist() } }
-    fun deleteGroup(groupId: String) { groups.removeAll { it.id == groupId }; members.indices.reversed().forEach { i -> if (members[i].groupId == groupId) members[i] = members[i].copy(groupId = null) }; persist() }
-    fun assignMemberToGroup(memberId: String, groupId: String?) { val i = members.indexOfFirst { it.id == memberId }; if (i >= 0) { members[i] = members[i].copy(groupId = groupId); persist() } }
+    fun updateGroup(group: Group) {
+        val i = groups.indexOfFirst { it.id == group.id }
+        if (i >= 0) {
+            val validIds = group.memberIds.filter { id -> members.any { it.id == id } }.distinct()
+            groups[i] = group.copy(memberIds = validIds, leaderMemberId = group.leaderMemberId?.takeIf { id -> validIds.contains(id) })
+            members.indices.forEach { index ->
+                val member = members[index]
+                if (validIds.contains(member.id)) members[index] = member.copy(groupId = group.id)
+                else if (member.groupId == group.id) members[index] = member.copy(groupId = null)
+            }
+            groups.indices.forEach { gi ->
+                if (groups[gi].id != group.id && groups[gi].memberIds.any { validIds.contains(it) }) {
+                    groups[gi] = groups[gi].copy(memberIds = groups[gi].memberIds.filterNot { validIds.contains(it) },
+                        leaderMemberId = groups[gi].leaderMemberId?.takeUnless { validIds.contains(it) })
+                }
+            }
+            persist()
+        }
+    }
+    fun deleteGroup(groupId: String) {
+        groups.removeAll { it.id == groupId }
+        members.indices.reversed().forEach { i -> if (members[i].groupId == groupId) members[i] = members[i].copy(groupId = null) }
+        persist()
+    }
+    fun assignMemberToGroup(memberId: String, groupId: String?) {
+        val i = members.indexOfFirst { it.id == memberId }
+        if (i >= 0) {
+            members[i] = members[i].copy(groupId = groupId)
+            groups.indices.forEach { gi ->
+                val g = groups[gi]
+                groups[gi] = if (g.id == groupId) g.copy(memberIds = (g.memberIds + memberId).distinct())
+                else g.copy(memberIds = g.memberIds - memberId, leaderMemberId = g.leaderMemberId?.takeUnless { it == memberId })
+            }
+            persist()
+        }
+    }
+
+    fun adjustGroupScore(groupId: String, xpDelta: Int, pointsDelta: Int, diamondsDelta: Int, reason: String) {
+        require(reason.isNotBlank()) { "دلیل تغییر امتیاز گروه الزامی است" }
+        val index = groups.indexOfFirst { it.id == groupId }
+        require(index >= 0) { "گروه پیدا نشد" }
+        val group = groups[index]
+        val economy = group.economy
+        require(economy.xp + xpDelta >= 0) { "XP گروه نمی‌تواند منفی شود" }
+        require(economy.spendablePoints + pointsDelta >= 0) { "امتیاز گروه نمی‌تواند منفی شود" }
+        require(economy.diamonds + diamondsDelta >= 0) { "الماس گروه نمی‌تواند منفی شود" }
+        groups[index] = group.copy(economy = economy.copy(
+            xp = economy.xp + xpDelta,
+            spendablePoints = economy.spendablePoints + pointsDelta,
+            diamonds = economy.diamonds + diamondsDelta
+        ))
+        val now = System.currentTimeMillis()
+        fun log(delta: Int, type: HistoryType, label: String) {
+            if (delta != 0) history += HistoryEvent(
+                id = "group-${now}-${groupId}-${type.name}", memberId = groupId, type = type,
+                amount = kotlin.math.abs(delta), title = "${label} گروه ${group.name}",
+                reason = reason, createdAtEpochMillis = now, createdBy = "mentor",
+                metadata = mapOf("entityType" to "GROUP", "groupId" to groupId, "delta" to delta.toString())
+            )
+        }
+        log(xpDelta, if (xpDelta >= 0) HistoryType.XP_EARNED else HistoryType.XP_DECREASED, "XP")
+        log(pointsDelta, if (pointsDelta >= 0) HistoryType.POINTS_EARNED else HistoryType.POINTS_DECREASED, "امتیاز")
+        log(diamondsDelta, if (diamondsDelta >= 0) HistoryType.DIAMONDS_EARNED else HistoryType.DIAMONDS_DECREASED, "الماس")
+        persist()
+    }
 
     fun deleteMember(memberId: String) { members.removeAll { it.id == memberId }; history.removeAll { it.memberId == memberId }; attendance.removeAll { it.memberId == memberId }; sessions.removeAll { it.memberId == memberId }; persist() }
 
