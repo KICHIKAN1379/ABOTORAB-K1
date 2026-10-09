@@ -183,7 +183,28 @@ class AppRepository(context: Context) {
         persist()
     }
 
-    fun deleteMember(memberId: String) { members.removeAll { it.id == memberId }; history.removeAll { it.memberId == memberId }; attendance.removeAll { it.memberId == memberId }; sessions.removeAll { it.memberId == memberId }; persist() }
+    fun deleteMember(memberId: String) {
+        members.removeAll { it.id == memberId }
+        history.removeAll { it.memberId == memberId }
+        attendance.removeAll { it.memberId == memberId }
+        sessions.removeAll { it.memberId == memberId }
+        missionCompletions.indices.reversed().forEach { index ->
+            val completion = missionCompletions[index]
+            val remainingMemberIds = completion.memberIds.filterNot { it == memberId }
+            if (remainingMemberIds.isEmpty()) missionCompletions.removeAt(index)
+            else if (remainingMemberIds.size != completion.memberIds.size) {
+                missionCompletions[index] = completion.copy(memberIds = remainingMemberIds)
+            }
+        }
+        groups.indices.forEach { index ->
+            val group = groups[index]
+            groups[index] = group.copy(
+                memberIds = group.memberIds.filterNot { it == memberId },
+                leaderMemberId = group.leaderMemberId?.takeUnless { it == memberId }
+            )
+        }
+        persist()
+    }
 
     fun updateMember(member: Member) {
         val index = members.indexOfFirst { it.id == member.id }
