@@ -351,19 +351,17 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
 private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Unit) {
     val memberHistory = repo.history.filter { it.memberId == member.id }
     val memberAttendance = repo.attendance.filter { it.memberId == member.id }
-    val memberMissionCompletions = repo.missionCompletions.filter { it.memberIds.contains(member.id) }
+    val presentCount = memberAttendance.count { it.status == AttendanceStatus.PRESENT }
+    val completions = repo.missionCompletions.filter { it.memberIds.contains(member.id) }
     val evidence = listOf(
-        Triple("شروع مسیر", true, "عضویت در حلقه ثبت شده است."),
-        Triple("پشتکار", memberMissionCompletions.size >= 2 || memberHistory.count { it.type == HistoryType.XP_EARNED } >= 5,
-            "با ثبت دست‌کم ۲ مأموریت یا ۵ رویداد دریافت XP باز می‌شود."),
-        Triple("مسئولیت‌پذیری", memberAttendance.size >= 3,
-            "با ثبت ۳ نوبت حضور و غیاب باز می‌شود؛ وضعیت‌ها جداگانه در سوابق قابل بررسی‌اند."),
-        Triple("صداقت", memberHistory.any { ("صداقت" in it.title) || ("صداقت" in (it.reason ?: "")) },
-            "وقتی مربی رویدادی با عنوان یا دلیل «صداقت» ثبت کند، این نشانه باز می‌شود."),
-        Triple("خدمت و اثرگذاری", memberMissionCompletions.any { completion ->
-            repo.missions.firstOrNull { it.id == completion.missionId }?.let { it.type == MissionType.GROUP } == true
-        } || memberHistory.any { "خدمت" in it.title || "خدمت" in (it.reason ?: "") },
-            "با تکمیل مأموریت گروهی یا ثبت رویدادی درباره خدمت باز می‌شود.")
+        Triple("شروع مسیر", true, "با عضویت در حلقه، مسیر رشد آغاز می‌شود."),
+        Triple("قدم اول", memberHistory.isNotEmpty(), "با ثبت نخستین رویداد در گنجینه باز می‌شود."),
+        Triple("پشتکار", completions.size >= 2 || memberHistory.count { it.type == HistoryType.XP_EARNED } >= 5, "با تکمیل ۲ مأموریت یا ثبت ۵ رویداد دریافت XP باز می‌شود."),
+        Triple("مسئولیت‌پذیری", memberAttendance.count { it.status != AttendanceStatus.UNMARKED } >= 3, "با ثبت وضعیت در دست‌کم ۳ نوبت حضور و غیاب باز می‌شود."),
+        Triple("حضور منظم", presentCount >= 5, "با ثبت ۵ حضور باز می‌شود."),
+        Triple("صداقت", memberHistory.any { "صداقت" in it.title || "صداقت" in (it.reason ?: "") }, "وقتی مربی رویدادی درباره صداقت ثبت کند، این نشانه باز می‌شود."),
+        Triple("خدمت و اثرگذاری", completions.any { completion -> repo.missions.firstOrNull { it.id == completion.missionId }?.type == MissionType.GROUP } || memberHistory.any { "خدمت" in it.title || "خدمت" in (it.reason ?: "") }, "با تکمیل مأموریت گروهی یا ثبت رویدادی درباره خدمت باز می‌شود."),
+        Triple("ثبات قدم", member.economy.level >= 5, "با رسیدن به سطح ۵، نشانه ثبات قدم روشن می‌شود.")
     )
     val unlocked = evidence.count { it.second }
     AlertDialog(
@@ -371,22 +369,28 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
         title = { Text("نقشه کمال — ${member.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("مسیر رشد بر اساس سوابق واقعی این عضو؛ نشانه‌ها خودکار از روی رویدادها باز می‌شوند.")
+                Text("مسیر رشد از سوابق واقعی عضو ساخته می‌شود؛ مراحل به‌صورت خودکار باز می‌شوند.")
                 Text("پیشرفت مسیر: $unlocked از ${evidence.size}")
+                LinearProgressIndicator(progress = unlocked.toFloat() / evidence.size.toFloat(), modifier = Modifier.fillMaxWidth())
+                Text("سطح ${member.economy.level} • XP ${member.economy.xp} • امتیاز ${member.economy.spendablePoints} • 💎 ${member.economy.diamonds}")
                 LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(evidence) { item ->
-                        Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text((if (item.second) "●  " else "○  ") + item.first,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (item.second) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                                Text(if (item.second) "به‌دست‌آمده" else "هنوز باز نشده", style = MaterialTheme.typography.labelMedium)
-                                Text(item.third, style = MaterialTheme.typography.bodySmall)
+                    items(evidence.size) { index ->
+                        val item = evidence[index]
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(if (item.second) "●" else "○", color = if (item.second) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleLarge)
+                                if (index < evidence.lastIndex) Text("│", color = MaterialTheme.colorScheme.outline)
+                            }
+                            Card(Modifier.weight(1f)) {
+                                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(item.first, style = MaterialTheme.typography.titleMedium)
+                                    Text(if (item.second) "به‌دست‌آمده" else "در انتظار", style = MaterialTheme.typography.labelMedium, color = if (item.second) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(item.third, style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
                     }
                 }
-                Text("سطح فعلی: ${member.economy.level} • XP: ${member.economy.xp}")
             }
         },
         confirmButton = { TextButton(close) { Text("بستن") } }
