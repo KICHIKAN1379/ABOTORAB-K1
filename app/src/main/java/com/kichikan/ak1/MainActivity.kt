@@ -954,7 +954,9 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             addAll((prefs.getStringSet("class_weekdays", setOf("6", "1", "3")) ?: setOf("6", "1", "3")).mapNotNull { it.toIntOrNull() })
         }
     }
-    val days = (0L..6L).map { saturday.plusDays(it) }.filter { activeDays.contains(it.dayOfWeek.value % 7) }
+    val scheduledDays = (0L..6L).map { saturday.plusDays(it) }.filter { activeDays.contains(it.dayOfWeek.value % 7) }
+    var closedDates by remember { mutableStateOf(prefs.getStringSet("closed_class_dates", emptySet()) ?: emptySet()) }
+    val days = scheduledDays.filterNot { it.toString() in closedDates }
     val jalaliWeek = JalaliCalendar.fromGregorian(saturday)
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.ms-excel")) { uri ->
         if (uri != null) runCatching {
@@ -971,7 +973,23 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             TextButton(onClick = { weekOffset++ }) { Text("هفته بعد ›") }
         }
         Text("روزهای کلاس از تنظیمات خوانده می‌شوند. ✓ حضور، م موجه، غ غیرموجه، ت تأخیر، _ ثبت‌نشده", style = MaterialTheme.typography.bodySmall)
-        if (days.isEmpty()) Text("برای این هفته روز کلاسی انتخاب نشده است؛ روزها را در تنظیمات مشخص کن.")
+        if (scheduledDays.isNotEmpty()) {
+            Text("برای تعطیلی موردی، روز را لمس کن؛ روز تعطیل از جدول حضور و غیاب کنار گذاشته می‌شود.", style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                scheduledDays.forEach { day ->
+                    val dateKey = day.toString()
+                    val isClosed = dateKey in closedDates
+                    val j = JalaliCalendar.fromGregorian(day)
+                    val weekday = listOf("یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه")[day.dayOfWeek.value % 7]
+                    FilterChip(selected = isClosed, onClick = {
+                        closedDates = if (isClosed) closedDates - dateKey else closedDates + dateKey
+                        prefs.edit().putStringSet("closed_class_dates", closedDates).apply()
+                    }, label = { Text("$weekday ${j.day}" + if (isClosed) " • تعطیل" else "") })
+                }
+            }
+        }
+        if (scheduledDays.isEmpty()) Text("برای این هفته روز کلاسی تنظیم نشده است؛ روزها را در تنظیمات مشخص کن.")
+        else if (days.isEmpty()) Text("تمام روزهای برنامه‌ریزی‌شده این هفته تعطیل شده‌اند.")
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(repo.members, key = { it.id }) { member ->
                 Card(Modifier.fillMaxWidth()) {
