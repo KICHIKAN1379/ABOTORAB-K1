@@ -284,24 +284,45 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
         )
     }
-    mapMember?.let { m -> GrowthMapDialog(m) { mapMember = null } }
+    mapMember?.let { m -> GrowthMapDialog(repo, m) { mapMember = null } }
 }
 
 @Composable
-private fun GrowthMapDialog(member: Member, close: () -> Unit) {
-    val milestones = listOf("شروع مسیر", "پشتکار", "مسئولیت‌پذیری", "صداقت", "خدمت و اثرگذاری")
-    val reached = (member.economy.level - 1).coerceIn(0, milestones.lastIndex)
+private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+    val memberHistory = repo.history.filter { it.memberId == member.id }
+    val memberAttendance = repo.attendance.filter { it.memberId == member.id }
+    val memberMissionCompletions = repo.missionCompletions.filter { it.memberIds.contains(member.id) }
+    val evidence = listOf(
+        Triple("شروع مسیر", true, "عضویت در حلقه ثبت شده است."),
+        Triple("پشتکار", memberMissionCompletions.size >= 2 || memberHistory.count { it.type == HistoryType.XP_EARNED } >= 5,
+            "با ثبت دست‌کم ۲ مأموریت یا ۵ رویداد دریافت XP باز می‌شود."),
+        Triple("مسئولیت‌پذیری", memberAttendance.size >= 3,
+            "با ثبت ۳ نوبت حضور و غیاب باز می‌شود؛ وضعیت‌ها جداگانه در سوابق قابل بررسی‌اند."),
+        Triple("صداقت", memberHistory.any { ("صداقت" in it.title) || ("صداقت" in (it.reason ?: "")) },
+            "وقتی مربی رویدادی با عنوان یا دلیل «صداقت» ثبت کند، این نشانه باز می‌شود."),
+        Triple("خدمت و اثرگذاری", memberMissionCompletions.any { completion ->
+            repo.missions.firstOrNull { it.id == completion.missionId }?.let { it.type == MissionType.GROUP } == true
+        } || memberHistory.any { "خدمت" in it.title || "خدمت" in (it.reason ?: "") },
+            "با تکمیل مأموریت گروهی یا ثبت رویدادی درباره خدمت باز می‌شود.")
+    )
+    val unlocked = evidence.count { it.second }
     AlertDialog(
         onDismissRequest = close,
         title = { Text("نقشه کمال — ${member.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("مسیر رشد بر اساس سطح فعلی؛ این نقشه فعلاً نمایشی است و هنوز به نشان‌های اختصاصی وصل نشده.")
-                milestones.forEachIndexed { i, milestone ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(if (i <= reached) "●  $milestone" else "○  $milestone")
-                            if (i == reached) Text("اینجا هستی", color = MaterialTheme.colorScheme.primary)
+                Text("مسیر رشد بر اساس سوابق واقعی این عضو؛ نشانه‌ها خودکار از روی رویدادها باز می‌شوند.")
+                Text("پیشرفت مسیر: $unlocked از ${evidence.size}")
+                LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(evidence) { item ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text((if (item.second) "●  " else "○  ") + item.first,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = if (item.second) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                                Text(if (item.second) "به‌دست‌آمده" else "هنوز باز نشده", style = MaterialTheme.typography.labelMedium)
+                                Text(item.third, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
