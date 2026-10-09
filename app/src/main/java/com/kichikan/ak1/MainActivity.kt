@@ -732,6 +732,7 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.first.id }) { pair -> val g=pair.first; val xp=pair.second; Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.first.id == g.id }+1} ${g.name}"); Text("XP گروه $xp • اعضا ${repo.members.count { it.groupId == g.id }}") } } } }
         }
     }
+}
 
 private fun buildRankingCard(title: String, rows: List<String>): android.graphics.Bitmap {
     val width = 1200
