@@ -199,30 +199,64 @@ private fun SummaryCard(repo: AppRepository) {
 
 @Composable
 private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+    var page by remember { mutableIntStateOf(0) }
     var add by remember { mutableStateOf(false) }
     var addGroup by remember { mutableStateOf(false) }
+    var actionMember by remember { mutableStateOf<Member?>(null) }
     var selected by remember { mutableStateOf<Member?>(null) }
     var editing by remember { mutableStateOf<Member?>(null) }
     var groupEditing by remember { mutableStateOf<Group?>(null) }
     var details by remember { mutableStateOf<Member?>(null) }
+    var mapMember by remember { mutableStateOf<Member?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
     val context = LocalContext.current
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
         val m = exportMember
-        if (uri != null && m != null) { context.contentResolver.openOutputStream(uri)?.use { out -> buildMemberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) }; Toast.makeText(context, "خروجی JPEG آماده شد", Toast.LENGTH_SHORT).show() }
+        if (uri != null && m != null) {
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> buildMemberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+                .onSuccess { Toast.makeText(context, "خروجی JPEG آماده شد", Toast.LENGTH_SHORT).show() }
+                .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود", Toast.LENGTH_SHORT).show() }
+        }
         exportMember = null
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("اعضا", style = MaterialTheme.typography.headlineMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedButton({ addGroup = true }) { Text("+ گروه") }; Button({ add = true }) { Text("+ عضو") } }
+        Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.headlineMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(page == 0, { page = 0 }, label = { Text("اعضا") })
+            FilterChip(page == 1, { page = 1 }, label = { Text("گروه‌ها") })
         }
-        if (repo.groups.isNotEmpty()) { Text("گروه‌ها", style = MaterialTheme.typography.titleMedium); Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { repo.groups.forEach { g -> FilterChip(false, { groupEditing = g }, label = { Text(g.name + " (" + repo.members.count { it.groupId == g.id } + ")") }) } } }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) { items(repo.members, key = { it.id }) { m ->
-            Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(m.name, style = MaterialTheme.typography.titleLarge); Text("سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • 💎 ${m.economy.diamonds}"); repo.groups.firstOrNull { it.id == m.groupId }?.let { Text("گروه: ${it.name}", style = MaterialTheme.typography.bodySmall) } }; TextButton({ selected = m }) { Text("شناسنامه") } }
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) { OutlinedButton({ details = m }) { Text("توضیحات") }; OutlinedButton({ editing = m }) { Text("ویرایش") }; OutlinedButton({ exportMember = m; exporter.launch("${m.name}-AK1.jpg") }) { Text("JPEG") } }
-            } }
+        if (page == 0) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button({ add = true }) { Text("+ عضو") } }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(repo.members, key = { it.id }) { m ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            TextButton(onClick = { actionMember = m }) { Text(m.name, style = MaterialTheme.typography.titleLarge) }
+                            Text("سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • 💎 ${m.economy.diamonds}")
+                            repo.groups.firstOrNull { it.id == m.groupId }?.let { Text("گروه: ${it.name}", style = MaterialTheme.typography.bodySmall) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                OutlinedButton({ actionMember = m }) { Text("گزینه‌ها") }
+                                OutlinedButton({ exportMember = m; exporter.launch("${m.name}-AK1.jpg") }) { Text("JPEG") }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button({ addGroup = true }) { Text("+ گروه") } }
+            if (repo.groups.isEmpty()) Text("هنوز گروهی ساخته نشده است.")
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(repo.groups, key = { it.id }) { g ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(g.name, style = MaterialTheme.typography.titleLarge)
+                            Text("تعداد اعضا: ${repo.members.count { it.groupId == g.id }}")
+                            Text("رتبه گروه فعلاً از مجموع XP اعضای عضو گروه محاسبه می‌شود.")
+                            OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
+                        }
+                    }
+                }
+            }
         }
     }
     if (add) AddMemberDialog(repo, changed) { add = false }
@@ -231,6 +265,48 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
     details?.let { MemberNotesDialog(repo, it) { details = null } }
     selected?.let { HistoryDialog(repo, it) { selected = null } }
+    actionMember?.let { m ->
+        AlertDialog(
+            onDismissRequest = { actionMember = null },
+            title = { Text(m.name) },
+            text = { Text("انتخاب کن چه کاری می‌خواهی انجام بدهی.") },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton({ actionMember = null; editing = m }) { Text("ویرایش") }
+                    TextButton({ actionMember = null; selected = m }) { Text("گنجینه") }
+                    TextButton({ actionMember = null; mapMember = m }) { Text("نقشه کمال") }
+                    TextButton({ actionMember = null; details = m }) { Text("توضیحات خصوصی") }
+                }
+            },
+            dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
+        )
+    }
+    mapMember?.let { m -> GrowthMapDialog(m) { mapMember = null } }
+}
+
+@Composable
+private fun GrowthMapDialog(member: Member, close: () -> Unit) {
+    val milestones = listOf("شروع مسیر", "پشتکار", "مسئولیت‌پذیری", "صداقت", "خدمت و اثرگذاری")
+    val reached = (member.economy.level - 1).coerceIn(0, milestones.lastIndex)
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("نقشه کمال — ${member.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("مسیر رشد بر اساس سطح فعلی؛ این نقشه فعلاً نمایشی است و هنوز به نشان‌های اختصاصی وصل نشده.")
+                milestones.forEachIndexed { i, milestone ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (i <= reached) "●  $milestone" else "○  $milestone")
+                            if (i == reached) Text("اینجا هستی", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+                Text("سطح فعلی: ${member.economy.level} • XP: ${member.economy.xp}")
+            }
+        },
+        confirmButton = { TextButton(close) { Text("بستن") } }
+    )
 }
 
 private fun buildMemberCard(repo: AppRepository, member: Member): android.graphics.Bitmap {
