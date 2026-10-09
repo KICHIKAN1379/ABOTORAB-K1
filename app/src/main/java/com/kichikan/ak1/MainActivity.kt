@@ -729,9 +729,59 @@ private fun buildAttendanceExcel(repo: AppRepository): String {
 }
 
 @Composable private fun SessionEditDialog(repo: AppRepository, session: Session?, changed: () -> Unit, close: () -> Unit) {
-    var memberId by remember { mutableStateOf(session?.memberId ?: repo.members.firstOrNull()?.id ?: "") }; var title by remember { mutableStateOf(session?.title ?: "") }; var topic by remember { mutableStateOf(session?.topic ?: "") }
-    AlertDialog(onDismissRequest = close, title = { Text(if(session==null)"جلسه جدید" else "ویرایش جلسه") }, text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("عضو"); Row(Modifier.horizontalScroll(rememberScrollState())) { repo.members.forEach { m -> FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)}) } }; OutlinedTextField(title,{title=it},label={Text("عنوان")},singleLine=true); OutlinedTextField(topic,{topic=it},label={Text("موضوع")},singleLine=true); Text("تاریخ و ساعت: ${session?.let { JalaliCalendar.formatDateTime(it.startsAt) } ?: "اکنون در موبایل"}") } },
-    confirmButton={TextButton({if(title.isNotBlank()&&memberId.isNotBlank()){if(session==null) repo.addSession(memberId,title,topic) else repo.updateSession(session.copy(memberId=memberId,title=title.trim(),topic=topic.trim()));changed();close()}}){Text("ذخیره")}},
+    val context = LocalContext.current
+    var memberId by remember { mutableStateOf(session?.memberId ?: repo.members.firstOrNull()?.id ?: "") }
+    var title by remember { mutableStateOf(session?.title ?: "") }
+    var topic by remember { mutableStateOf(session?.topic ?: "") }
+    var startsAt by remember { mutableLongStateOf(session?.startsAt ?: System.currentTimeMillis()) }
+    fun showDatePicker() {
+        val calendar = java.util.Calendar.getInstance().apply { timeInMillis = startsAt }
+        android.app.DatePickerDialog(context, { _, year, month, day ->
+            val updated = java.util.Calendar.getInstance().apply {
+                timeInMillis = startsAt
+                set(java.util.Calendar.YEAR, year)
+                set(java.util.Calendar.MONTH, month)
+                set(java.util.Calendar.DAY_OF_MONTH, day)
+            }
+            startsAt = updated.timeInMillis
+        }, calendar.get(java.util.Calendar.YEAR), calendar.get(java.util.Calendar.MONTH), calendar.get(java.util.Calendar.DAY_OF_MONTH)).show()
+    }
+    fun showTimePicker() {
+        val calendar = java.util.Calendar.getInstance().apply { timeInMillis = startsAt }
+        android.app.TimePickerDialog(context, { _, hour, minute ->
+            val updated = java.util.Calendar.getInstance().apply {
+                timeInMillis = startsAt
+                set(java.util.Calendar.HOUR_OF_DAY, hour)
+                set(java.util.Calendar.MINUTE, minute)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            startsAt = updated.timeInMillis
+        }, calendar.get(java.util.Calendar.HOUR_OF_DAY), calendar.get(java.util.Calendar.MINUTE), true).show()
+    }
+    AlertDialog(onDismissRequest = close, title = { Text(if(session==null)"جلسه جدید" else "ویرایش جلسه") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("عضو")
+            Row(Modifier.horizontalScroll(rememberScrollState())) { repo.members.forEach { m -> FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)}) } }
+            OutlinedTextField(title,{title=it},label={Text("عنوان")},singleLine=true)
+            OutlinedTextField(topic,{topic=it},label={Text("موضوع")},singleLine=true)
+            Text("تاریخ و ساعت جلسه")
+            Text(JalaliCalendar.formatDateTime(startsAt))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { showDatePicker() }) { Text("انتخاب تاریخ") }
+                OutlinedButton(onClick = { showTimePicker() }) { Text("انتخاب ساعت") }
+            }
+            Text("برای ثبت جلسه‌های گذشته هم می‌توانی تاریخ قبلی را انتخاب کنی.", style = MaterialTheme.typography.bodySmall)
+        }
+    },
+    confirmButton={TextButton({
+        if(title.isNotBlank()&&memberId.isNotBlank()){
+            val saved = Session(session?.id ?: "session-${java.util.UUID.randomUUID()}", memberId, title.trim(), topic.trim(), startsAt, session?.location)
+            repo.addSession(saved)
+            changed()
+            close()
+        }
+    }){Text("ذخیره")}},
     dismissButton={Row{if(session!=null)TextButton({repo.deleteSession(session.id);changed();close()}){Text("حذف")};TextButton(close){Text("لغو")}}})
 }@Composable
 private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
