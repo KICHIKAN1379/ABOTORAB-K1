@@ -603,7 +603,7 @@ private fun CompleteMissionDialog(repo: AppRepository, mission: Mission, changed
                     val epoch = day.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(); val current = repo.attendance.firstOrNull { it.memberId == member.id && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == day };
                     val label = when (current?.status) { AttendanceStatus.EXCUSED -> "م"; AttendanceStatus.ABSENT -> "غ"; AttendanceStatus.LATE -> "ت"; else -> "_" };
                     OutlinedButton({ val next = when (current?.status) { AttendanceStatus.UNMARKED, AttendanceStatus.PRESENT, null -> AttendanceStatus.EXCUSED; AttendanceStatus.EXCUSED -> AttendanceStatus.ABSENT; AttendanceStatus.ABSENT -> AttendanceStatus.LATE; AttendanceStatus.LATE -> AttendanceStatus.UNMARKED }; repo.recordWeeklyAttendance(member.id, epoch, next); changed() }, Modifier.width(52.dp).height(50.dp)) { Text("${day.dayOfMonth}\n$label") }
-                } } } } }
+                } } } } } }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) { Button({ export.launch("AK1-attendance-${java.time.YearMonth.now()}.xls") }) { Text("خروجی Excel ماه") }; TextButton(close) { Text("بستن") } }
         }
     }, confirmButton = {})
