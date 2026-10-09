@@ -324,7 +324,35 @@ private fun buildMemberCard(repo: AppRepository, member: Member): android.graphi
     canvas.drawText("امتیاز ${member.economy.spendablePoints}    الماس ${member.economy.diamonds}", 50f, 455f, small)
     canvas.drawText(repo.ring?.ringName ?: "ابوتراب K1", 50f, 535f, small)
     return bitmap
-}@Composable private fun GroupDialog(repo: AppRepository, group: Group?, changed: () -> Unit, close: () -> Unit) {
+}@Composable
+private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+    val events = repo.history.filter { it.memberId == member.id }.sortedByDescending { it.createdAtEpochMillis }
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("گنجینه — ${member.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("سطح ${member.economy.level} • XP ${member.economy.xp} • امتیاز ${member.economy.spendablePoints} • الماس ${member.economy.diamonds}")
+                if (events.isEmpty()) Text("هنوز رویدادی در گنجینه ثبت نشده است.")
+                else LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(events, key = { it.id }) { event ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(event.title, style = MaterialTheme.typography.titleSmall)
+                                Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
+                                event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
+                                Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(close) { Text("بستن") } }
+    )
+}
+
+@Composable private fun GroupDialog(repo: AppRepository, group: Group?, changed: () -> Unit, close: () -> Unit) {
     var name by remember { mutableStateOf(group?.name ?: "") }
     val initialMembers = remember(group?.id, repo.members.size) {
         (group?.memberIds?.takeIf { it.isNotEmpty() }
