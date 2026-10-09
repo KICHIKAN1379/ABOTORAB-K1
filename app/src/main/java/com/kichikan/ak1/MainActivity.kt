@@ -1030,7 +1030,7 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.titleSmall)
                             Text(session.title, style = MaterialTheme.typography.titleLarge)
-                            if (session.topic.isNotBlank()) Text("موضوع: " + session.topic)
+                            if (session.topic.isNotBlank()) Text("توضیحات: " + session.topic)
                             Text(JalaliCalendar.formatDateTime(session.startsAt))
                             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 OutlinedButton(onClick = { editing = session }) { Text("ویرایش") }
