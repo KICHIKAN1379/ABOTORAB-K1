@@ -189,6 +189,14 @@ class AppRepository(context: Context) {
         val index = members.indexOfFirst { it.id == member.id }
         if (index >= 0) {
             members[index] = member
+            groups.indices.forEach { gi ->
+                val group = groups[gi]
+                groups[gi] = when {
+                    group.id == member.groupId -> group.copy(memberIds = (group.memberIds + member.id).distinct())
+                    else -> group.copy(memberIds = group.memberIds - member.id,
+                        leaderMemberId = group.leaderMemberId?.takeUnless { it == member.id })
+                }
+            }
             persist()
         }
     }
