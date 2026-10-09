@@ -207,7 +207,6 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     var editing by remember { mutableStateOf<Member?>(null) }
     var groupEditing by remember { mutableStateOf<Group?>(null) }
     var scoreGroup by remember { mutableStateOf<Group?>(null) }
-    var details by remember { mutableStateOf<Member?>(null) }
     var mapMember by remember { mutableStateOf<Member?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
     val context = LocalContext.current
@@ -269,7 +268,6 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     groupEditing?.let { GroupDialog(repo, it, changed) { groupEditing = null } }
     scoreGroup?.let { GroupScoreDialog(repo, it, changed) { scoreGroup = null } }
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
-    details?.let { MemberNotesDialog(repo, it) { details = null } }
     selected?.let { HistoryDialog(repo, it) { selected = null } }
     actionMember?.let { m ->
         AlertDialog(
@@ -281,7 +279,6 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                     TextButton({ actionMember = null; editing = m }) { Text("ویرایش") }
                     TextButton({ actionMember = null; selected = m }) { Text("گنجینه") }
                     TextButton({ actionMember = null; mapMember = m }) { Text("نقشه کمال") }
-                    TextButton({ actionMember = null; details = m }) { Text("توضیحات خصوصی") }
                 }
             },
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
