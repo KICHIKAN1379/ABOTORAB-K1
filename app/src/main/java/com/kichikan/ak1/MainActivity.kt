@@ -300,8 +300,18 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button({ add = true }) { Text("+ عضو") } }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(repo.members, key = { it.id }) { m ->
+                    val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
+                    val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
+                    val avatarBitmap = remember(avatarPath) { avatarPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
+                    val frameBitmap = remember(framePath) { framePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            if (avatarBitmap != null || frameBitmap != null) {
+                                Box(Modifier.size(76.dp)) {
+                                    avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.fillMaxSize()) }
+                                    frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize()) }
+                                }
+                            }
                             TextButton(onClick = { actionMember = m }) { Text(m.name, style = MaterialTheme.typography.titleLarge) }
                             Text("سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • 💎 ${m.economy.diamonds}")
                             repo.groups.firstOrNull { it.id == m.groupId }?.let { Text("گروه: ${it.name}", style = MaterialTheme.typography.bodySmall) }
