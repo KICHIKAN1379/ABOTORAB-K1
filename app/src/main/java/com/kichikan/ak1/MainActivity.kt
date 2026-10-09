@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
@@ -459,8 +461,10 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                         if (chosenItems.isEmpty()) Text(if (category == 1) "هنوز آواتاری در سوابق این عضو پیدا نشد." else "هنوز قابی در سوابق این عضو پیدا نشد.")
                         else LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(chosenItems, key = { it.id }) { item ->
+                                val itemBitmap = remember(item.imagePath) { item.imagePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                                 Card(onClick = { selectedItem = item }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(88.dp)) }
                                         Text(item.name, style = MaterialTheme.typography.titleMedium)
                                         Text(if (item.id == member.avatarItemId) "آواتار فعال" else if (item.id == member.frameItemId) "قاب فعال" else "دریافت‌شده")
                                         Text("برای مشاهده روش دریافت لمس کن.", style = MaterialTheme.typography.bodySmall)
@@ -1334,9 +1338,11 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
         }
         if (repo.shop.isEmpty()) Text("هنوز آیتمی در فروشگاه تعریف نشده است.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
             items(repo.shop.filter { it.active }, key = { it.id }) { item ->
+                val itemBitmap = remember(item.imagePath) { item.imagePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                 val reason = member?.let { com.kichikan.ak1.domain.service.ShopService.canAcquire(item, it, now) }
                 val owned = member?.let { m -> historyOwned(repo, m.id, item.id) } == true
                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(88.dp)) }
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
                     Text(when (item.type) { ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" })
                     item.minimumLevel?.let { Text("حداقل سطح: $it") }
