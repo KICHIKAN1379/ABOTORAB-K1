@@ -103,16 +103,16 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     )
     val icons = listOf("⚒", "▦", "🏆", "🎁")
     val cardTints = listOf(
-        androidx.compose.ui.graphics.Color(0xFFDDF4F0),
-        androidx.compose.ui.graphics.Color(0xFFFFE5D9),
-        androidx.compose.ui.graphics.Color(0xFFE9E3FB),
-        androidx.compose.ui.graphics.Color(0xFFFFF0C9)
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
+        MaterialTheme.colorScheme.surfaceVariant
     )
     val iconTints = listOf(
-        androidx.compose.ui.graphics.Color(0xFF087F8C),
-        androidx.compose.ui.graphics.Color(0xFFCA5B3F),
-        androidx.compose.ui.graphics.Color(0xFF6554A4),
-        androidx.compose.ui.graphics.Color(0xFF9A6A08)
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.onSurfaceVariant
     )
     Column(
         Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -138,7 +138,7 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
                                 Text(icons[index], Modifier.padding(horizontal = 14.dp, vertical = 11.dp), style = MaterialTheme.typography.headlineMedium, color = iconTints[index])
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = androidx.compose.ui.graphics.Color(0xFF172D35))
+                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                                 Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = iconTints[index])
@@ -301,7 +301,12 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
             Text("${visibleShortcuts.size} میانبر", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (visibleShortcuts.isEmpty()) {
-            Card(Modifier.fillMaxWidth()) {
+            Card(
+                        Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
                 Text("هنوز میانبری انتخاب نشده؛ از تنظیمات، میانبرهای خانه را فعال کن.", Modifier.padding(16.dp))
             }
         } else {
