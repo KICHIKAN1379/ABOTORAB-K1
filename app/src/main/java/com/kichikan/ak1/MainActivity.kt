@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.kichikan.ak1.ui.theme.AK1Theme
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.notification.DailyDateNotification
@@ -58,30 +59,6 @@ class MainActivity : ComponentActivity() {
             DailyDateNotification.start(this)
         }
     }
-}
-
-@Composable
-private fun AK1Theme(content: @Composable () -> Unit) {
-    val scheme = lightColorScheme(
-        primary = androidx.compose.ui.graphics.Color(0xFF087F8C),
-        onPrimary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        primaryContainer = androidx.compose.ui.graphics.Color(0xFFC9F0EE),
-        onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF073B40),
-        secondary = androidx.compose.ui.graphics.Color(0xFFCA5B3F),
-        onSecondary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        secondaryContainer = androidx.compose.ui.graphics.Color(0xFFFFE0D5),
-        onSecondaryContainer = androidx.compose.ui.graphics.Color(0xFF592014),
-        tertiary = androidx.compose.ui.graphics.Color(0xFF6554A4),
-        onTertiary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        background = androidx.compose.ui.graphics.Color(0xFFF6F7F3),
-        onBackground = androidx.compose.ui.graphics.Color(0xFF172D35),
-        surface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        onSurface = androidx.compose.ui.graphics.Color(0xFF172D35),
-        surfaceVariant = androidx.compose.ui.graphics.Color(0xFFE7F0EE),
-        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF52686C),
-        outline = androidx.compose.ui.graphics.Color(0xFF9CB3B2)
-    )
-    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 @Composable
@@ -446,8 +423,8 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(m.name.take(1), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                                        avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.fillMaxSize()) }
-                                        frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize()) }
+                                        avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(66.dp)) }
+                                        frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.size(82.dp)) }
                                     }
                                 }
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
