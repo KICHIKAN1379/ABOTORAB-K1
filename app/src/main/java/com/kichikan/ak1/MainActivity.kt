@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.kichikan.ak1.ui.theme.AK1Theme
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.notification.DailyDateNotification
@@ -58,30 +59,6 @@ class MainActivity : ComponentActivity() {
             DailyDateNotification.start(this)
         }
     }
-}
-
-@Composable
-private fun AK1Theme(content: @Composable () -> Unit) {
-    val scheme = lightColorScheme(
-        primary = androidx.compose.ui.graphics.Color(0xFF087F8C),
-        onPrimary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        primaryContainer = androidx.compose.ui.graphics.Color(0xFFC9F0EE),
-        onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFF073B40),
-        secondary = androidx.compose.ui.graphics.Color(0xFFCA5B3F),
-        onSecondary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        secondaryContainer = androidx.compose.ui.graphics.Color(0xFFFFE0D5),
-        onSecondaryContainer = androidx.compose.ui.graphics.Color(0xFF592014),
-        tertiary = androidx.compose.ui.graphics.Color(0xFF6554A4),
-        onTertiary = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        background = androidx.compose.ui.graphics.Color(0xFFF6F7F3),
-        onBackground = androidx.compose.ui.graphics.Color(0xFF172D35),
-        surface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
-        onSurface = androidx.compose.ui.graphics.Color(0xFF172D35),
-        surfaceVariant = androidx.compose.ui.graphics.Color(0xFFE7F0EE),
-        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFF52686C),
-        outline = androidx.compose.ui.graphics.Color(0xFF9CB3B2)
-    )
-    MaterialTheme(colorScheme = scheme, content = content)
 }
 
 @Composable
@@ -126,16 +103,16 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     )
     val icons = listOf("⚒", "▦", "🏆", "🎁")
     val cardTints = listOf(
-        androidx.compose.ui.graphics.Color(0xFFDDF4F0),
-        androidx.compose.ui.graphics.Color(0xFFFFE5D9),
-        androidx.compose.ui.graphics.Color(0xFFE9E3FB),
-        androidx.compose.ui.graphics.Color(0xFFFFF0C9)
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
+        MaterialTheme.colorScheme.surfaceVariant
     )
     val iconTints = listOf(
-        androidx.compose.ui.graphics.Color(0xFF087F8C),
-        androidx.compose.ui.graphics.Color(0xFFCA5B3F),
-        androidx.compose.ui.graphics.Color(0xFF6554A4),
-        androidx.compose.ui.graphics.Color(0xFF9A6A08)
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.onSurfaceVariant
     )
     Column(
         Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -161,7 +138,7 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
                                 Text(icons[index], Modifier.padding(horizontal = 14.dp, vertical = 11.dp), style = MaterialTheme.typography.headlineMedium, color = iconTints[index])
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = androidx.compose.ui.graphics.Color(0xFF172D35))
+                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                                 Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = iconTints[index])
@@ -252,14 +229,47 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
         Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(modifier = Modifier.size(64.dp), shape = androidx.compose.foundation.shape.CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)) {
-                if (ringPhoto != null) Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
-                else Box(contentAlignment = Alignment.Center) { Text("K1", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge) }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
-                Text("پنل مربی • حلقه تربیتی", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.titleSmall)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(64.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                ) {
+                    if (ringPhoto != null) {
+                        Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("K1", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge)
+                        }
+                    }
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
+                    Text("پنل مربی • مدیریت حلقه", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Text(
+                            "●  حالت آفلاین",
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
             }
         }
         Card(
@@ -291,21 +301,43 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
             Text("${visibleShortcuts.size} میانبر", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (visibleShortcuts.isEmpty()) {
-            Card(Modifier.fillMaxWidth()) {
+            Card(
+                        Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
                 Text("هنوز میانبری انتخاب نشده؛ از تنظیمات، میانبرهای خانه را فعال کن.", Modifier.padding(16.dp))
             }
         } else {
             visibleShortcuts.chunked(2).forEach { rowItems ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     rowItems.forEach { (label, key, icon) ->
-                        Card(onClick = { openShortcut(key) }, modifier = Modifier.weight(1f).heightIn(min = 112.dp)) {
+                        Card(
+                            onClick = { openShortcut(key) },
+                            modifier = Modifier.weight(1f).heightIn(min = 118.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
                             Column(
                                 Modifier.fillMaxSize().padding(12.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(icon, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.height(7.dp))
+                                Surface(
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        icon,
+                                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
                                 Text(label, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             }
                         }
@@ -446,8 +478,8 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(m.name.take(1), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                                        avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.fillMaxSize()) }
-                                        frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize()) }
+                                        avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(66.dp)) }
+                                        frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.size(82.dp)) }
                                     }
                                 }
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
