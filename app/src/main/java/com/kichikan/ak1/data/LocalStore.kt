@@ -145,12 +145,21 @@ class LocalStore(private val context: Context) {
 
     private fun restoreAssetIfNeeded(base64: String?, id: String, originalPath: String, mimeType: String): String {
         if (base64.isNullOrBlank()) return originalPath
-        val existing = runCatching { if (originalPath.startsWith("content://")) null else File(originalPath).takeIf { it.isFile }?.absolutePath }.getOrNull()
-        if (existing != null) return existing
         return runCatching {
             val dir = File(context.filesDir, "custom_assets").apply { mkdirs() }
-            val extension = when { mimeType.equals("image/jpeg", true) -> ".jpg"; mimeType.equals("image/webp", true) -> ".webp"; mimeType.equals("image/gif", true) -> ".gif"; else -> ".png" }
-            val target = File(dir, id + extension)
+            val extension = when {
+                mimeType.equals("image/jpeg", true) -> ".jpg"
+                mimeType.equals("image/webp", true) -> ".webp"
+                mimeType.equals("image/gif", true) -> ".gif"
+                else -> ".png"
+            }
+            // Never use an imported ID as a path: backups are user-selected files and IDs
+            // must not be able to escape the app's private asset directory.
+            val safeId = id.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80).ifBlank { "asset" }
+            val target = File(dir, "$safeId$extension").canonicalFile
+            require(target.parentFile == dir.canonicalFile) { "مسیر فایل دارایی نامعتبر است" }
+            // Prefer the bytes embedded in the backup even when a file already exists at
+            // the old absolute path; that path may refer to unrelated content on this device.
             target.writeBytes(Base64.decode(base64, Base64.DEFAULT))
             target.absolutePath
         }.getOrDefault(originalPath)
