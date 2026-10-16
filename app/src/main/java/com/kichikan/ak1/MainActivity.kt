@@ -1055,7 +1055,7 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
                             type=candidate
                             shopItemId=null
                             error=null
-                        }, label={Text(candidate.name)})
+                        }, label={Text(wheelRewardTypeLabel(candidate))})
                     }
                 }
                 if (type in listOf(WheelRewardType.AVATAR, WheelRewardType.FRAME, WheelRewardType.REWARD)) {
@@ -1193,7 +1193,7 @@ private fun AddWheelItemDialog(repo: AppRepository, changed: () -> Unit, close: 
             OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, singleLine = true)
             Text("نوع: " + wheelRewardTypeLabel(type))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                WheelRewardType.values().take(4).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t.name) }) }
+                WheelRewardType.values().take(4).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(wheelRewardTypeLabel(t)) }) }
             }
             OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مقدار") }, singleLine = true)
             OutlinedTextField(weight, { weight = it.filter(Char::isDigit) }, label = { Text("وزن/شانس") }, singleLine = true)
@@ -1668,7 +1668,7 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             if (mode == 0) {
                 val rows = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
                 exportTitle = "رتبه‌بندی اعضا"
-                exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | XP ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
+                exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | تجربه ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
             } else {
                 val rows = repo.groups.sortedByDescending { it.economy.spendablePoints }
                 exportTitle = "رتبه‌بندی گروه‌ها"
@@ -1712,7 +1712,6 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
     var memberId by remember(repo.members.size) { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
     var isSpinning by remember { mutableStateOf(false) }
-    var localRefresh by remember { mutableIntStateOf(0) }
     var spinningItems by remember { mutableStateOf<List<WheelItem>>(emptyList()) }
     val rotation = remember { Animatable(0f) }
     val member = repo.members.firstOrNull { it.id == memberId }
@@ -1744,7 +1743,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
         else {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 repo.members.forEach { m -> FilterChip(selected = memberId == m.id,
-                    onClick = { if (!isSpinning) { memberId = m.id; result = null; localRefresh++ } },
+                    onClick = { if (!isSpinning) { memberId = m.id; result = null } },
                     label = { Text(m.name) }, enabled = !isSpinning) }
             }
             member?.let { Text("سطح ${it.economy.level}  •  امتیاز ${it.economy.spendablePoints}  •  الماس ${it.economy.diamonds}", style = MaterialTheme.typography.labelLarge) }
@@ -1807,11 +1806,11 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                     result = e.message ?: "چرخاندن گردونه انجام نشد."; null
                 }
                 if (prize == null) {
-                    isSpinning = false; spinningItems = emptyList(); result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."; localRefresh++
+                    isSpinning = false; spinningItems = emptyList(); result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."
                 } else {
                     val index = wheelItems.indexOfFirst { it.id == prize.id }
                     if (index < 0) {
-                        isSpinning = false; spinningItems = emptyList(); result = "جایزه ثبت شد: ${prize.title}"; localRefresh++
+                        isSpinning = false; spinningItems = emptyList(); result = "جایزه ثبت شد: ${prize.title}"; 
                     } else {
                         var precedingWeight = 0L
                         for (i in 0 until index) precedingWeight += wheelItems[i].weight.toLong()
@@ -1862,7 +1861,7 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                         val previewAvatarPath = repo.shop.firstOrNull { it.id == "starter-avatar-1" }?.imagePath
                         val previewAvatar = remember(previewAvatarPath) { previewAvatarPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                         Box(Modifier.size(104.dp)) {
-                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.fillMaxSize()) }
+                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.size(68.dp).align(Alignment.Center).clip(CircleShape)) }
                             itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.fillMaxSize()) }
                         }
                     } else {
