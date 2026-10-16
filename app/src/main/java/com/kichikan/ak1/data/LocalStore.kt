@@ -191,7 +191,7 @@ class LocalStore(private val context: Context) {
             when {
                 key in setKeys && value is JSONArray -> {
                     val values = (0 until value.length()).map { value.getString(it) }.toSet()
-                    editor.putStringSet(key, values)
+                    editor.putStringSet(key, values.toMutableSet())
                 }
                 value is Boolean -> editor.putBoolean(key, value)
                 value is Number -> {
