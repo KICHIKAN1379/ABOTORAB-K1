@@ -1197,6 +1197,7 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
     var page by remember { mutableIntStateOf(0) }
     var add by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Session?>(null) }
+    var expandedSessionId by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("جلسات", style = MaterialTheme.typography.headlineMedium)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1212,15 +1213,23 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
             Text("ثبت و مدیریت جلسه‌ها مستقل از حضور و غیاب است.")
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth().clickable {
+                        expandedSessionId = if (expandedSessionId == session.id) null else session.id
+                    }) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.titleSmall)
-                            Text(session.title, style = MaterialTheme.typography.titleLarge)
-                            if (session.topic.isNotBlank()) Text("توضیحات: " + session.topic)
-                            Text(JalaliCalendar.formatDateTime(session.startsAt))
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                OutlinedButton(onClick = { editing = session }) { Text("ویرایش") }
-                                OutlinedButton(onClick = { repo.deleteSession(session.id); changed() }) { Text("حذف") }
+                            Text("موضوع: ${session.title}", style = MaterialTheme.typography.titleLarge)
+                            Text(JalaliCalendar.formatDateTime(session.startsAt), style = MaterialTheme.typography.bodyMedium)
+                            if (expandedSessionId == session.id) {
+                                HorizontalDivider()
+                                Text("توضیحات", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(session.topic.ifBlank { "توضیحی برای این جلسه ثبت نشده است." }, style = MaterialTheme.typography.bodyMedium)
+                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    OutlinedButton(onClick = { editing = session }) { Text("ویرایش") }
+                                    OutlinedButton(onClick = { repo.deleteSession(session.id); expandedSessionId = null; changed() }) { Text("حذف") }
+                                }
+                            } else {
+                                Text("برای دیدن توضیحات، روی جلسه بزن.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
