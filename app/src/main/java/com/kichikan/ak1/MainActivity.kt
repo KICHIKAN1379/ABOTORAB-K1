@@ -54,6 +54,62 @@ import com.kichikan.ak1.domain.service.HistoryService
 
 private enum class Tab { HOME, MEMBERS, SERVICES, WORKSHOP, WHEEL, SESSIONS, RANKING, STORE, SETTINGS }
 
+private fun currencyLabel(value: Currency): String = when (value) {
+    Currency.POINTS -> "امتیاز"
+    Currency.DIAMONDS -> "الماس"
+    Currency.NONE -> "رایگان"
+}
+
+private fun wheelModeLabel(value: WheelMode): String = when (value) {
+    WheelMode.FREE -> "رایگان"
+    WheelMode.POINTS -> "با امتیاز"
+    WheelMode.POINTS_AND_DIAMONDS -> "با امتیاز و الماس"
+}
+
+private fun wheelRewardTypeLabel(value: WheelRewardType): String = when (value) {
+    WheelRewardType.POINTS -> "امتیاز"
+    WheelRewardType.DIAMONDS -> "الماس"
+    WheelRewardType.AVATAR -> "آواتار"
+    WheelRewardType.FRAME -> "قاب"
+    WheelRewardType.REWARD -> "جایزه"
+    WheelRewardType.CUSTOM -> "جایزهٔ ویژه"
+}
+
+private fun shopTypeLabel(value: ShopItemType): String = when (value) {
+    ShopItemType.AVATAR -> "آواتار"
+    ShopItemType.FRAME -> "قاب"
+    ShopItemType.REWARD -> "جایزه"
+}
+
+private fun acquisitionMethodLabel(value: AcquisitionMethod): String = when (value) {
+    AcquisitionMethod.DIRECT_PURCHASE -> "خرید مستقیم"
+    AcquisitionMethod.LEVEL_UNLOCK -> "باز شدن با ارتقای سطح"
+    AcquisitionMethod.WHEEL_ONLY -> "فقط از گردونه"
+    AcquisitionMethod.MANUAL -> "هدیهٔ مربی"
+    AcquisitionMethod.EVENT -> "رویداد"
+    AcquisitionMethod.MISSION -> "مأموریت"
+}
+
+private fun historyTypeLabel(value: HistoryType): String = when (value) {
+    HistoryType.XP_EARNED -> "کسب تجربه"
+    HistoryType.XP_DECREASED -> "کاهش تجربه"
+    HistoryType.POINTS_EARNED -> "دریافت امتیاز"
+    HistoryType.POINTS_DECREASED -> "کاهش امتیاز"
+    HistoryType.POINTS_SPENT -> "خرج امتیاز"
+    HistoryType.DIAMONDS_EARNED -> "دریافت الماس"
+    HistoryType.DIAMONDS_DECREASED -> "کاهش الماس"
+    HistoryType.DIAMONDS_SPENT -> "خرج الماس"
+    HistoryType.LEVEL_CHANGED -> "تغییر سطح"
+    HistoryType.MISSION_COMPLETED -> "انجام مأموریت"
+    HistoryType.WHEEL_REWARD -> "جایزهٔ گردونه"
+    HistoryType.REWARD_RECEIVED -> "دریافت جایزه"
+    HistoryType.AVATAR_ACQUIRED -> "دریافت آواتار"
+    HistoryType.FRAME_ACQUIRED -> "دریافت قاب"
+    HistoryType.ATTENDANCE -> "حضور و غیاب"
+    HistoryType.SESSION_NOTE -> "یادداشت جلسه"
+    HistoryType.BIRTHDAY_REWARD -> "جایزهٔ تولد"
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -407,7 +463,7 @@ private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
 private fun SummaryCard(repo: AppRepository) {
     val metrics = listOf(
         Triple("اعضای حلقه", repo.members.size.toString(), "♙"),
-        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
+        Triple("تجربه اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
         Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }.toString(), "✦"),
         Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }.toString(), "◆")
     )
@@ -517,7 +573,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                                     Triple("سطح", m.economy.level.toString(), MaterialTheme.colorScheme.primaryContainer),
                                     Triple("تجربه", m.economy.xp.toString(), MaterialTheme.colorScheme.secondaryContainer),
                                     Triple("امتیاز", m.economy.spendablePoints.toString(), MaterialTheme.colorScheme.tertiary.copy(alpha = 0.13f)),
-                                    Triple("💎", m.economy.diamonds.toString(), MaterialTheme.colorScheme.surfaceVariant)
+                                    Triple("الماس", m.economy.diamonds.toString(), MaterialTheme.colorScheme.surfaceVariant)
                                 ).forEach { (label, value, tint) ->
                                     Surface(
                                         modifier = Modifier.weight(1f),
@@ -549,7 +605,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                             Text(g.name, style = MaterialTheme.typography.titleLarge)
                             Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
                             Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
-                            Text("امتیاز گروه ${g.economy.spendablePoints} • 💎 الماس ${g.economy.diamonds}")
+                            Text("امتیاز گروه ${g.economy.spendablePoints} • الماس ${g.economy.diamonds}")
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
                                 Button({ scoreGroup = g }) { Text("تغییر امتیاز") }
@@ -636,7 +692,7 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
                         Text("مسیر صعود به قله", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                         Text("$count از ${stages.size} مقام ثبت شده", style = MaterialTheme.typography.bodyMedium)
                         LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
-                        Text("سطح ${member.economy.level} • XP ${member.economy.xp}", style = MaterialTheme.typography.bodySmall)
+                        Text("سطح ${member.economy.level} • تجربه ${member.economy.xp}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (stages.isEmpty()) {
@@ -706,8 +762,8 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
         title = { Text("گنجینه — ${member.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("امتیاز: ${member.economy.spendablePoints}   •   💎 الماس: ${member.economy.diamonds}", style = MaterialTheme.typography.titleMedium)
-                Text("سطح ${member.economy.level} • XP ${member.economy.xp}")
+                Text("امتیاز: ${member.economy.spendablePoints}   •   الماس: ${member.economy.diamonds}", style = MaterialTheme.typography.titleMedium)
+                Text("سطح ${member.economy.level} • تجربه ${member.economy.xp}")
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(selected = category == 0, onClick = { category = 0 }, label = { Text("سوابق") })
                     FilterChip(selected = category == 1, onClick = { category = 1 }, label = { Text("آواتارها (${avatars.size})") })
@@ -723,7 +779,7 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                                         Text(event.title, style = MaterialTheme.typography.titleSmall)
                                         Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
                                         event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
-                                        Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                                        Text("نوع: ${historyTypeLabel(event.type)}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }
@@ -888,10 +944,10 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
         Text("تراشکاری",style=MaterialTheme.typography.headlineMedium)
         Text("ساخت و مدیریت مأموریت، جوایز، گردونه و شخصی‌سازی")
         OutlinedButton({addMission=true},Modifier.fillMaxWidth()){Text("+ مأموریت")}
-        repo.missions.forEach{m->Card(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(8.dp)){Text(m.title,style=MaterialTheme.typography.titleMedium);Text("XP ${m.xpReward} • امتیاز ${m.pointsReward} • 💎 ${m.diamondReward}");Text(if(m.active)"فعال" else "غیرفعال");Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)){Button({completeMission=m},enabled=m.active){Text("ثبت انجام")};TextButton({editMission=m}){Text("ویرایش")};TextButton({repo.deleteMission(m.id);changed()}){Text("حذف")}}}}}
+        repo.missions.forEach{m->Card(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(8.dp)){Text(m.title,style=MaterialTheme.typography.titleMedium);Text("تجربه ${m.xpReward} • امتیاز ${m.pointsReward} • الماس ${m.diamondReward}");Text(if(m.active)"فعال" else "غیرفعال");Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)){Button({completeMission=m},enabled=m.active){Text("ثبت انجام")};TextButton({editMission=m}){Text("ویرایش")};TextButton({repo.deleteMission(m.id);changed()}){Text("حذف")}}}}}
         HorizontalDivider(); Text("جوایز / فروشگاه",style=MaterialTheme.typography.titleLarge)
         OutlinedButton({addShop=true},Modifier.fillMaxWidth()){Text("+ ساخت جایزه / آواتار / قاب")}
-        repo.shop.forEach{item->Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(item.name);Text("${item.type.name} • ${item.price} ${item.currency.name}")};Row{TextButton({editShop=item}){Text("ویرایش")};TextButton({repo.deleteShopItem(item.id);changed()}){Text("حذف")}}}}}
+        repo.shop.forEach{item->Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(item.name);Text("${shopTypeLabel(item.type)} • ${item.price} ${currencyLabel(item.currency)}")};Row{TextButton({editShop=item}){Text("ویرایش")};TextButton({repo.deleteShopItem(item.id);changed()}){Text("حذف")}}}}}
         HorizontalDivider();Text("ساخت شخصی قاب و آواتار",style=MaterialTheme.typography.titleLarge);Text("آواتار 256×256 و قاب 288×288 — PNG/JPEG/WebP/GIF")
         Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedButton({assetKind="AVATAR";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ آواتار")};OutlinedButton({assetKind="FRAME";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ قاب")}}
         assetMessage?.let{Text(it)}
@@ -934,7 +990,7 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
                 OutlinedTextField(desc,{desc=it},label={Text("توضیحات")})
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(group,{group=it}); Text("مأموریت گروهی") }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(active,{active=it}); Text("مأموریت فعال است") }
-                OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("پاداش XP")},singleLine=true)
+                OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("پاداش تجربه")},singleLine=true)
                 OutlinedTextField(pts,{pts=it.filter(Char::isDigit)},label={Text("پاداش امتیاز")},singleLine=true)
                 OutlinedTextField(dia,{dia=it.filter(Char::isDigit)},label={Text("پاداش الماس")},singleLine=true)
                 Text("محدودیت زمانی (اختیاری)")
@@ -1095,7 +1151,7 @@ private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: (
     AlertDialog(onDismissRequest = close, title = { Text("آیتم فروشگاه") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState())) {
             OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(when(candidate){ ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" }) }) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(shopTypeLabel(candidate)) }) } }
             OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text(if (imagePath == null) "انتخاب تصویر برای نمایش در فروشگاه" else "تغییر تصویر انتخاب‌شده") }
             imagePath?.let { raw -> remember(raw) { BitmapFactory.decodeFile(raw)?.asImageBitmap() }?.let { Image(bitmap = it, contentDescription = "پیش‌نمایش تصویر آیتم", modifier = Modifier.size(104.dp).align(Alignment.CenterHorizontally)) } }
             if (compatibleAssets.isNotEmpty()) {
@@ -1135,7 +1191,7 @@ private fun AddWheelItemDialog(repo: AppRepository, changed: () -> Unit, close: 
         title = { Text("آیتم جدید گردونه") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, singleLine = true)
-            Text("نوع: " + type.name)
+            Text("نوع: " + wheelRewardTypeLabel(type))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 WheelRewardType.values().take(4).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t.name) }) }
             }
@@ -1606,7 +1662,7 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         Text("رقابت", style = MaterialTheme.typography.headlineMedium)
-        Text("رتبه اعضا بر اساس سطح و XP است؛ رتبه گروه‌ها فقط با امتیاز و الماس مستقل گروه محاسبه می‌شود.")
+        Text("رتبه اعضا بر اساس سطح و تجربه است؛ رتبه گروه‌ها بر اساس امتیاز و الماس مستقل گروه محاسبه می‌شود.")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(mode == 0, { mode = 0 }, label = { Text("اعضا") }); FilterChip(mode == 1, { mode = 1 }, label = { Text("گروه‌ها") }) }
         OutlinedButton(onClick = {
             if (mode == 0) {
@@ -1622,7 +1678,7 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
         if (mode == 0) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • XP ${m.economy.xp}") } } } }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • تجربه ${m.economy.xp}") } } } }
         } else {
             val rankedGroups = repo.groups.sortedByDescending { it.economy.spendablePoints }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
@@ -1657,10 +1713,11 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
     var result by remember { mutableStateOf<String?>(null) }
     var isSpinning by remember { mutableStateOf(false) }
     var localRefresh by remember { mutableIntStateOf(0) }
+    var spinningItems by remember { mutableStateOf<List<WheelItem>>(emptyList()) }
     val rotation = remember { Animatable(0f) }
     val member = repo.members.firstOrNull { it.id == memberId }
     val previousWinnerIds = repo.history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }.mapNotNull { it.metadata["itemId"] }.toSet()
-    val wheelItems = repo.wheel.items.filter { item ->
+    val eligibleWheelItems = repo.wheel.items.filter { item ->
         val linked = item.shopItemId?.let { id -> repo.shop.firstOrNull { it.id == id } }
         item.active && item.weight > 0 && (repo.wheel.allowRepeatAfterWin || item.id !in previousWinnerIds) &&
             when (item.type) {
@@ -1670,6 +1727,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 WheelRewardType.REWARD -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.REWARD } == true
             }
     }
+    val wheelItems = if (isSpinning && spinningItems.isNotEmpty()) spinningItems else eligibleWheelItems
     val totalWeight = wheelItems.sumOf { it.weight.toLong() }.coerceAtLeast(1L)
     val wheelColors = listOf(
         androidx.compose.ui.graphics.Color(0xFF173B63), androidx.compose.ui.graphics.Color(0xFF147D72),
@@ -1743,16 +1801,17 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
             Text(if (wheelItems.isEmpty()) "جایزهٔ قابل‌دریافت برای این عضو وجود ندارد." else "جایزه‌های قابل‌دریافت: ${wheelItems.size}", style = MaterialTheme.typography.bodySmall)
             Button(onClick = {
                 if (isSpinning || wheelItems.isEmpty()) return@Button
+                spinningItems = wheelItems
                 isSpinning = true; result = null
                 val prize = try { repo.spinWheel(memberId) } catch (e: Exception) {
                     result = e.message ?: "چرخاندن گردونه انجام نشد."; null
                 }
                 if (prize == null) {
-                    isSpinning = false; result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."; localRefresh++
+                    isSpinning = false; spinningItems = emptyList(); result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."; localRefresh++
                 } else {
                     val index = wheelItems.indexOfFirst { it.id == prize.id }
                     if (index < 0) {
-                        isSpinning = false; result = "جایزه ثبت شد: ${prize.title}"; localRefresh++
+                        isSpinning = false; spinningItems = emptyList(); result = "جایزه ثبت شد: ${prize.title}"; localRefresh++
                     } else {
                         var precedingWeight = 0L
                         for (i in 0 until index) precedingWeight += wheelItems[i].weight.toLong()
@@ -1763,7 +1822,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                         try {
                             rotation.animateTo(rotation.value + 2160f + delta,
                                 animationSpec = tween(4800 + phoneSecond * 450, easing = FastOutSlowInEasing))
-                        } finally { isSpinning = false }
+                        } finally { isSpinning = false; spinningItems = emptyList() }
                         result = "🎉 جایزه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
                         localRefresh++
                     }
@@ -1810,7 +1869,7 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                         itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(104.dp)) }
                     }
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
-                    Text(when (item.type) { ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" })
+                    Text(shopTypeLabel(item.type))
                     item.minimumLevel?.let { Text("حداقل سطح: $it") }
                     Text(if (item.methods.isEmpty()) "دریافت مستقیم" else item.methods.joinToString(" • ") { acquisitionMethodLabel(it) })
                     Text(if (owned) "قبلاً دریافت شده" else if (item.currency == Currency.NONE || item.price == 0) "رایگان" else "قیمت: ${item.price} ${currencyLabel(item.currency)}")
@@ -2199,7 +2258,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
                             Card(Modifier.fillMaxWidth()) {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(member.name, style = MaterialTheme.typography.titleMedium)
-                                    Text("سطح ${member.economy.level} • ${member.economy.xp} XP", style = MaterialTheme.typography.bodySmall)
+                                    Text("سطح ${member.economy.level} • ${member.economy.xp} تجربه", style = MaterialTheme.typography.bodySmall)
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Button(
                                             onClick = {
@@ -2339,8 +2398,8 @@ private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () 
 
 /** Manual mentor adjustments. Every operation requires a reason and is written to the member history. */
 private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = false) {
-    XP_ADD("XP +"),
-    XP_SUB("XP −"),
+    XP_ADD("تجربه +"),
+    XP_SUB("تجربه −"),
     POINTS_ADD("امتیاز +"),
     POINTS_SUB("امتیاز −"),
     DIAMONDS_ADD("الماس +"),
@@ -2353,7 +2412,7 @@ private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = fal
     fun submit(){val m=member?:run{error="عضو انتخاب نشده";return};val n=amount.toIntOrNull()?:run{error="مقدار را وارد کنید";return};if(n<=0){error="مقدار باید بیشتر از صفر باشد";return};if(op==EconomyOp.LEVEL_DOWN&&n>=m.economy.level){error="سطح مقصد باید کمتر از سطح فعلی باشد";return};if(reason.isBlank()){error="دلیل اجباری است";return};try{when(op){EconomyOp.XP_ADD->repo.recordXp(m.id,n,reason,"mentor");EconomyOp.XP_SUB->repo.decreaseXp(m.id,n,reason,"mentor");EconomyOp.POINTS_ADD->repo.recordPoints(m.id,n,reason,"mentor");EconomyOp.POINTS_SUB->repo.recordPoints(m.id,-n,reason,"mentor");EconomyOp.DIAMONDS_ADD->repo.recordDiamonds(m.id,n,reason,"mentor");EconomyOp.DIAMONDS_SUB->repo.recordDiamonds(m.id,-n,reason,"mentor");EconomyOp.LEVEL_DOWN->repo.decreaseLevel(m.id,n,reason,"mentor");null->Unit};changed();close()}catch(ex:IllegalArgumentException){error=ex.message}}
     AlertDialog(onDismissRequest=close,title={Text(if(step==0)"شناسنامه" else "ثبت ${op?.label}")},text={
         Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
-            if(step==0){Text("ابتدا نوع تغییر را انتخاب کنید");listOf(EconomyOp.POINTS_ADD to "امتیاز",EconomyOp.DIAMONDS_ADD to "الماس",EconomyOp.XP_ADD to "XP",EconomyOp.LEVEL_DOWN to "سطح").forEach{pair->Button({op=pair.first;step=1},Modifier.fillMaxWidth()){Text(pair.second)}}}
+            if(step==0){Text("ابتدا نوع تغییر را انتخاب کنید");listOf(EconomyOp.POINTS_ADD to "امتیاز",EconomyOp.DIAMONDS_ADD to "الماس",EconomyOp.XP_ADD to "تجربه",EconomyOp.LEVEL_DOWN to "سطح").forEach{pair->Button({op=pair.first;step=1},Modifier.fillMaxWidth()){Text(pair.second)}}}
             else { Text("عضو");Row(Modifier.horizontalScroll(rememberScrollState())){repo.members.forEach{m->FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)})}};Text("نوع عملیات");Row(Modifier.horizontalScroll(rememberScrollState())){op?.let{base->val options=when(base){EconomyOp.POINTS_ADD->listOf(EconomyOp.POINTS_ADD,EconomyOp.POINTS_SUB);EconomyOp.DIAMONDS_ADD->listOf(EconomyOp.DIAMONDS_ADD,EconomyOp.DIAMONDS_SUB);EconomyOp.XP_ADD->listOf(EconomyOp.XP_ADD,EconomyOp.XP_SUB);else->listOf(EconomyOp.LEVEL_DOWN)};options.forEach{o->FilterChip(op==o,{op=o},label={Text(o.label)})}}};OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text(if(op==EconomyOp.LEVEL_DOWN)"سطح مقصد" else "مقدار")},singleLine=true);OutlinedTextField(reason,{reason=it},label={Text("دلیل (اجباری)")},singleLine=true);error?.let{Text(it,color=MaterialTheme.colorScheme.error)}}
         } },confirmButton={if(step==0)TextButton(close){Text("انصراف")}else Row{TextButton({step=0;error=null}){Text("مرحله قبل")};TextButton({submit()}){Text("تأیید")}}},dismissButton={if(step==1)TextButton(close){Text("لغو")}})
 }@Composable private fun WheelConfigDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
