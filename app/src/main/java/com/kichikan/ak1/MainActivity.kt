@@ -948,7 +948,23 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
                         assetMessage?.let{Text(it)}
             }
             else -> {
+                Text("حالت: ${wheelModeLabel(repo.wheel.mode)}")
+                Text("هزینه امتیاز: ${repo.wheel.spinCostPoints} • هزینه الماس: ${repo.wheel.spinCostDiamonds}")
+                OutlinedButton(onClick = { editWheelConfig = true }, modifier = Modifier.fillMaxWidth()) { Text("تنظیمات گردونه") }
+                OutlinedButton(onClick = { addWheel = true }, modifier = Modifier.fillMaxWidth()) { Text("+ افزودن جایزه به گردونه") }
+                repo.wheel.items.forEach { item ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, style = MaterialTheme.typography.titleMedium)
+                                Text("وزن: ${item.weight}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = { editWheel = item }) { Text("ویرایش") }
+                            TextButton(onClick = { repo.deleteWheelItem(item.id); changed() }) { Text("حذف") }
+                        }
+                    }
                 }
+            }
             }
         }
     }
