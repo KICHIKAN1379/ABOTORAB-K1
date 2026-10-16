@@ -3,7 +3,6 @@ package com.kichikan.ak1.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,11 +16,8 @@ import java.time.LocalTime
 private enum class DayPhase { MORNING, DAY, SUNSET, NIGHT }
 
 /**
- * AK1's shared visual system.
- *
- * The palette follows the device's local time, without changing screen copy or
- * user data. The clock is refreshed once a minute so the theme changes naturally
- * when a phase boundary is crossed while the app remains open.
+ * Premium Abotorab visual system: deep navy surfaces, gold highlights and emerald
+ * accents. Time changes the accent subtly, not the entire layout or readability.
  */
 @Composable
 fun AK1Theme(content: @Composable () -> Unit) {
@@ -29,7 +25,6 @@ fun AK1Theme(content: @Composable () -> Unit) {
         val now = LocalTime.now()
         mutableIntStateOf(now.hour * 60 + now.minute)
     }
-
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000)
@@ -44,89 +39,36 @@ fun AK1Theme(content: @Composable () -> Unit) {
         in (16 * 60)..<(20 * 60) -> DayPhase.SUNSET
         else -> DayPhase.NIGHT
     }
-
-    val scheme = when (phase) {
-        DayPhase.MORNING -> lightColorScheme(
-            primary = Color(0xFF426B50),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFDDEBDD),
-            onPrimaryContainer = Color(0xFF183B27),
-            secondary = Color(0xFFB56A39),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFFBE7D7),
-            onSecondaryContainer = Color(0xFF512B12),
-            tertiary = Color(0xFF5977A6),
-            onTertiary = Color(0xFFFFFFFF),
-            background = Color(0xFFF6F8F1),
-            onBackground = Color(0xFF1D3024),
-            surface = Color(0xFFFFFFFF),
-            onSurface = Color(0xFF1D3024),
-            surfaceVariant = Color(0xFFE8EEE4),
-            onSurfaceVariant = Color(0xFF526458),
-            outline = Color(0xFF9CAD98)
-        )
-        DayPhase.DAY -> lightColorScheme(
-            primary = Color(0xFF087F8C),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFC9F0EE),
-            onPrimaryContainer = Color(0xFF073B40),
-            secondary = Color(0xFFCA5B3F),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFFFE0D5),
-            onSecondaryContainer = Color(0xFF592014),
-            tertiary = Color(0xFF6554A4),
-            onTertiary = Color(0xFFFFFFFF),
-            background = Color(0xFFF6F7F3),
-            onBackground = Color(0xFF172D35),
-            surface = Color(0xFFFFFFFF),
-            onSurface = Color(0xFF172D35),
-            surfaceVariant = Color(0xFFE7F0EE),
-            onSurfaceVariant = Color(0xFF52686C),
-            outline = Color(0xFF9CB3B2)
-        )
-        DayPhase.SUNSET -> lightColorScheme(
-            primary = Color(0xFF9B4F2F),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFFF6DDCE),
-            onPrimaryContainer = Color(0xFF512414),
-            secondary = Color(0xFF8A6416),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFF6E7B9),
-            onSecondaryContainer = Color(0xFF342500),
-            tertiary = Color(0xFF6554A4),
-            onTertiary = Color(0xFFFFFFFF),
-            background = Color(0xFFFBF6F0),
-            onBackground = Color(0xFF35251F),
-            surface = Color(0xFFFFFFFF),
-            onSurface = Color(0xFF35251F),
-            surfaceVariant = Color(0xFFF2E8DF),
-            onSurfaceVariant = Color(0xFF6B574C),
-            outline = Color(0xFFC8AA97)
-        )
-        DayPhase.NIGHT -> darkColorScheme(
-            primary = Color(0xFF8ED9D0),
-            onPrimary = Color(0xFF062B2D),
-            primaryContainer = Color(0xFF164B4A),
-            onPrimaryContainer = Color(0xFFD1F6F1),
-            secondary = Color(0xFFF4B08B),
-            onSecondary = Color(0xFF47200D),
-            secondaryContainer = Color(0xFF693B25),
-            onSecondaryContainer = Color(0xFFFFDBCA),
-            tertiary = Color(0xFFC7B8FF),
-            onTertiary = Color(0xFF30245C),
-            background = Color(0xFF0D1726),
-            onBackground = Color(0xFFE3EAF4),
-            surface = Color(0xFF152235),
-            onSurface = Color(0xFFE3EAF4),
-            surfaceVariant = Color(0xFF24354A),
-            onSurfaceVariant = Color(0xFFB6C5D8),
-            outline = Color(0xFF52677F)
-        )
+    val accent = when (phase) {
+        DayPhase.MORNING -> Color(0xFF38EF7D)
+        DayPhase.DAY -> Color(0xFFFFD166)
+        DayPhase.SUNSET -> Color(0xFFFFB36B)
+        DayPhase.NIGHT -> Color(0xFF9AA7FF)
     }
-
-    MaterialTheme(
-        colorScheme = scheme,
-        typography = Typography(),
-        content = content
+    val scheme = darkColorScheme(
+        primary = accent,
+        onPrimary = Color(0xFF101A2E),
+        primaryContainer = Color(0xFF263A50),
+        onPrimaryContainer = Color(0xFFF5F7FB),
+        secondary = Color(0xFFFFD166),
+        onSecondary = Color(0xFF28200A),
+        secondaryContainer = Color(0xFF4A3A19),
+        onSecondaryContainer = Color(0xFFFFE9A6),
+        tertiary = Color(0xFF38EF7D),
+        onTertiary = Color(0xFF092415),
+        tertiaryContainer = Color(0xFF174B35),
+        onTertiaryContainer = Color(0xFFB8FFD0),
+        background = Color(0xFF0B1323),
+        onBackground = Color(0xFFF2F5FA),
+        surface = Color(0xFF121F33),
+        onSurface = Color(0xFFF2F5FA),
+        surfaceVariant = Color(0xFF1C2B42),
+        onSurfaceVariant = Color(0xFFB7C5D9),
+        outline = Color(0xFF526781),
+        error = Color(0xFFFF6B75),
+        onError = Color(0xFF2A060A),
+        errorContainer = Color(0xFF5A1D28),
+        onErrorContainer = Color(0xFFFFD9DC)
     )
+    MaterialTheme(colorScheme = scheme, typography = Typography(), content = content)
 }
