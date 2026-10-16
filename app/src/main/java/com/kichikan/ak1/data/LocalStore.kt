@@ -72,14 +72,20 @@ class LocalStore(private val context: Context) {
         root.put("history", hs)
 
         val shopJson = JSONArray()
-        shop.forEach {
-            shopJson.put(JSONObject().put("id", it.id).put("name", it.name).put("type", it.type.name)
-                .put("imagePath", it.imagePath ?: JSONObject.NULL).put("price", it.price)
-                .put("currency", it.currency.name).put("minimumLevel", it.minimumLevel ?: JSONObject.NULL)
-                .put("methods", JSONArray(it.methods.map { method -> method.name }))
-                .put("eventStart", it.eventStartEpochMillis ?: JSONObject.NULL)
-                .put("eventEnd", it.eventEndEpochMillis ?: JSONObject.NULL)
-                .put("stock", it.stock ?: JSONObject.NULL).put("active", it.active).put("description", it.description))
+        shop.forEach { item ->
+            val itemJson = JSONObject().put("id", item.id).put("name", item.name).put("type", item.type.name)
+                .put("imagePath", item.imagePath ?: JSONObject.NULL).put("price", item.price)
+                .put("currency", item.currency.name).put("minimumLevel", item.minimumLevel ?: JSONObject.NULL)
+                .put("methods", JSONArray(item.methods.map { method -> method.name }))
+                .put("eventStart", item.eventStartEpochMillis ?: JSONObject.NULL)
+                .put("eventEnd", item.eventEndEpochMillis ?: JSONObject.NULL)
+                .put("stock", item.stock ?: JSONObject.NULL).put("active", item.active).put("description", item.description)
+            item.imagePath?.let { imagePath ->
+                readAssetBytes(imagePath)?.let { bytes ->
+                    if (bytes.size <= 10 * 1024 * 1024) itemJson.put("imageBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                }
+            }
+            shopJson.put(itemJson)
         }
         root.put("shop", shopJson)
 
@@ -174,7 +180,9 @@ class LocalStore(private val context: Context) {
         val setKeysJson = root.optJSONArray("appSettingsStringSets") ?: JSONArray()
         val setKeys = (0 until setKeysJson.length()).map { setKeysJson.getString(it) }.toSet()
         val prefs = context.getSharedPreferences("ak1_settings", Context.MODE_PRIVATE)
+        val existingProfileImage = prefs.getString("ring_profile_image", null)
         val editor = prefs.edit().clear()
+        if (existingProfileImage != null) editor.putString("ring_profile_image", existingProfileImage)
         val keys = settings.keys()
         while (keys.hasNext()) {
             val key = keys.next()
@@ -197,6 +205,21 @@ class LocalStore(private val context: Context) {
             }
         }
         check(editor.commit()) { "ذخیره تنظیمات بازیابی‌شده ناموفق بود" }
+    }
+
+    private fun restoreShopImageIfNeeded(base64: String?, id: String, originalPath: String?): String? {
+        if (base64.isNullOrBlank() || originalPath.isNullOrBlank()) return originalPath
+        return runCatching {
+            val bytes = Base64.decode(base64, Base64.DEFAULT)
+            val directory = File(context.filesDir, "custom_assets/backup_shop").apply { mkdirs() }
+            val extension = originalPath.substringAfterLast('.', "img")
+                .lowercase().takeIf { it.matches(Regex("[a-z0-9]{1,8}")) } ?: "img"
+            val safeId = id.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80).ifBlank { "shop" }
+            val target = File(directory, "$safeId.$extension").canonicalFile
+            require(target.parentFile == directory.canonicalFile) { "مسیر تصویر فروشگاه نامعتبر است" }
+            if (!target.isFile || !target.readBytes().contentEquals(bytes)) target.writeBytes(bytes)
+            target.absolutePath
+        }.getOrDefault(originalPath)
     }
 
     private fun readAssetBytes(path: String): ByteArray? = runCatching {
@@ -338,9 +361,13 @@ class LocalStore(private val context: Context) {
             val methods = mutableSetOf<AcquisitionMethod>()
             val methodsJson = o.optJSONArray("methods") ?: JSONArray()
             for (j in 0 until methodsJson.length()) methods += AcquisitionMethod.valueOf(methodsJson.getString(j))
+            val originalImagePath = o.optString("imagePath").takeIf { it.isNotEmpty() && it != "null" }
+            val restoredImagePath = if (restoreAssets) {
+                restoreShopImageIfNeeded(o.optString("imageBase64").takeIf { it.isNotBlank() }, o.getString("id"), originalImagePath)
+            } else originalImagePath
             shop += ShopItem(
                 o.getString("id"), o.getString("name"), ShopItemType.valueOf(o.getString("type")),
-                o.optString("imagePath").takeIf { it.isNotEmpty() && it != "null" }, o.optInt("price"),
+                restoredImagePath, o.optInt("price"),
                 Currency.valueOf(o.optString("currency", Currency.NONE.name)),
                 if (o.isNull("minimumLevel")) null else o.getInt("minimumLevel"), methods,
                 if (o.isNull("eventStart")) null else o.getLong("eventStart"),
