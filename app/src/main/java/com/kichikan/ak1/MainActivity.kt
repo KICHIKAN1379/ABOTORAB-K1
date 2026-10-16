@@ -165,7 +165,7 @@ private fun AK1App() {
 @Composable
 private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     val services = listOf(
-        Triple("تراشکاری", "مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
+        Triple("کارگاه", "مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
         Triple("جلسات", "جلسه‌ها و حضور و غیاب", Tab.SESSIONS),
         Triple("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Tab.RANKING),
         Triple("فروشگاه", "آواتارها، قاب‌ها و جوایز", Tab.STORE)
