@@ -851,7 +851,7 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         OutlinedTextField(responsibility, { responsibility = it }, label = { Text("مسئولیت در حلقه (نمایش در اعضا، نه رتبه‌بندی)") }, singleLine = true)
         OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات محرمانه تربیتی") })
     } }, confirmButton = { TextButton({ if (name.isNotBlank()) { repo.updateMember(member.copy(name = name.trim(), groupId = groupId, privateNotes = notes, responsibility = responsibility.trim())); changed(); close() } }) { Text("ذخیره") } },
-    dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("حذف عضو") }; TextButton(close) { Text("لغو") } } })
+    dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("انتقال به حذف‌شده‌ها") }; TextButton(close) { Text("لغو") } } })
 }
 @Composable private fun MemberNotesDialog(repo: AppRepository, member: Member, close: () -> Unit) {
     AlertDialog(onDismissRequest = close, title = { Text("توضیحات ${member.name}") }, text = { Text(if (member.privateNotes.isBlank()) "برای این عضو توضیحی ثبت نشده است." else member.privateNotes) }, confirmButton = { TextButton(close) { Text("بستن") } })
@@ -1789,6 +1789,8 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
     var shortcutsOpen by remember { mutableStateOf(false) }
     var profileOpen by remember { mutableStateOf(false) }
     var growthManagerOpen by remember { mutableStateOf(false) }
+    var trashOpen by remember { mutableStateOf(false) }
+    var permanentlyDeleteMemberId by remember { mutableStateOf<String?>(null) }
     var growthStageName by remember { mutableStateOf("") }
     val defaultGrowthStages = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
     val growthStages = remember { mutableStateListOf<String>().apply {
@@ -1842,6 +1844,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
+        OutlinedButton({ trashOpen = true }, Modifier.fillMaxWidth()) { Text("اعضای حذف‌شده (${repo.deletedMembers.size})") }
         OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { Text("ویرایش پروفایل") }
         OutlinedButton({ growthManagerOpen = true }, Modifier.fillMaxWidth()) { Text("مدیریت نقشه کمال") }
         OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
@@ -2055,6 +2058,70 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
                 }) { Text("ثبت بازه") }
             },
             dismissButton = { TextButton(onClick = { scheduleOpen = false }) { Text("بستن") } }
+        )
+    }
+
+    if (trashOpen) {
+        AlertDialog(
+            onDismissRequest = { trashOpen = false },
+            title = { Text("اعضای حذف‌شده") },
+            text = {
+                if (repo.deletedMembers.isEmpty()) {
+                    Text("سطل اعضای حذف‌شده خالی است.")
+                } else {
+                    Column(
+                        Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("حذف عضو در این بخش سابقه او را پاک نمی‌کند. برای پاک‌کردن دائمی، گزینه حذف دائمی را انتخاب کن.")
+                        repo.deletedMembers.toList().forEach { member ->
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(member.name, style = MaterialTheme.typography.titleMedium)
+                                    Text("سطح ${member.economy.level} • ${member.economy.xp} XP", style = MaterialTheme.typography.bodySmall)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = {
+                                                repo.restoreDeletedMember(member.id)
+                                                changed()
+                                                Toast.makeText(context, "عضو بازیابی شد", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        ) { Text("بازیابی") }
+                                        OutlinedButton(
+                                            onClick = { permanentlyDeleteMemberId = member.id },
+                                            modifier = Modifier.weight(1f)
+                                        ) { Text("حذف دائمی") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { trashOpen = false }) { Text("بستن") } }
+        )
+    }
+
+    permanentlyDeleteMemberId?.let { memberId ->
+        val member = repo.deletedMembers.firstOrNull { it.id == memberId }
+        AlertDialog(
+            onDismissRequest = { permanentlyDeleteMemberId = null },
+            title = { Text("حذف دائمی عضو") },
+            text = {
+                Text("آیا مطمئنی${member?.name?.let { " که «$it»" } ?: ""} برای همیشه حذف شود؟ تاریخچه، حضور و غیاب، جلسه‌ها و پیوندهای این عضو نیز پاک می‌شوند. این کار قابل بازگشت نیست.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    repo.permanentlyDeleteMember(memberId)
+                    permanentlyDeleteMemberId = null
+                    changed()
+                    Toast.makeText(context, "عضو و سوابق وابسته حذف شدند", Toast.LENGTH_SHORT).show()
+                }) { Text("حذف دائمی", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { permanentlyDeleteMemberId = null }) { Text("انصراف") }
+            }
         )
     }
 
