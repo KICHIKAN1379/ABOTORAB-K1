@@ -165,59 +165,43 @@ private fun AK1App() {
 @Composable
 private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     val services = listOf(
-        Triple("کارگاه", "مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
-        Triple("جلسات", "جلسه‌ها و حضور و غیاب", Tab.SESSIONS),
+        Triple("کارگاه", "جوایز، مأموریت‌ها، قاب و آواتار", Tab.WORKSHOP),
+        Triple("جلسات", "فهرست، ثبت جلسه و حضور و غیاب", Tab.SESSIONS),
         Triple("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Tab.RANKING),
-        Triple("فروشگاه", "آواتارها، قاب‌ها و جوایز", Tab.STORE)
+        Triple("فروشگاه", "آواتارها، قاب‌ها، جوایز و گردونه", Tab.STORE)
     )
-    val icons = listOf("⚒", "▦", "🏆", "🎁")
-    val cardTints = listOf(
-        MaterialTheme.colorScheme.primaryContainer,
-        MaterialTheme.colorScheme.secondaryContainer,
-        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-        MaterialTheme.colorScheme.surfaceVariant
-    )
-    val iconTints = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    Column(
-        Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text("خدمات", style = MaterialTheme.typography.headlineMedium)
-        Text("ابزارهای مدیریت حلقه در یک‌جا", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        services.chunked(2).forEachIndexed { rowIndex, rowItems ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                rowItems.forEachIndexed { colIndex, item ->
-                    val index = rowIndex * 2 + colIndex
-                    Card(
-                        onClick = { open(item.third) },
-                        modifier = Modifier.weight(1f).heightIn(min = 164.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardTints[index])
-                    ) {
-                        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                            Surface(
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.72f)
-                            ) {
-                                Text(icons[index], Modifier.padding(horizontal = 14.dp, vertical = 11.dp), style = MaterialTheme.typography.headlineMedium, color = iconTints[index])
-                            }
-                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = iconTints[index])
-                        }
+    val icons = listOf("⚒", "▦", "♛", "◇")
+    val accents = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.primary)
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Text("ع", Modifier.padding(horizontal = 18.dp, vertical = 10.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                Column {
+                    Text("ابوتراب علیه‌السلام", style = MaterialTheme.typography.titleLarge)
+                    Text("پنل مدیریت حلقه", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Text("خدمات", style = MaterialTheme.typography.headlineSmall)
+        services.forEachIndexed { index, item ->
+            Card(onClick = { open(item.third) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), color = accents[index].copy(alpha = 0.15f)) {
+                        Text(icons[index], Modifier.padding(horizontal = 13.dp, vertical = 9.dp), style = MaterialTheme.typography.titleLarge, color = accents[index])
                     }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(item.first, style = MaterialTheme.typography.titleMedium)
+                        Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("‹", style = MaterialTheme.typography.headlineMedium, color = accents[index])
                 }
             }
         }
     }
 }
+
 @Composable
 private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
     var ringName by remember { mutableStateOf("") }
@@ -235,9 +219,9 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
         Spacer(Modifier.height(24.dp))
         Text("در این مرحله هیچ اتصال آنلاین یا حساب ابری فعال نیست.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true)
+        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
-        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true)
+        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Spacer(Modifier.height(18.dp))
         Button({
@@ -247,7 +231,7 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
             } catch (e: IllegalArgumentException) {
                 error = e.message
             }
-        }, enabled = ringName.isNotBlank() && username.isNotBlank()) {
+        }, enabled = ringName.isNotBlank() && username.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             Text("شروع کار آفلاین")
         }
     }
@@ -928,7 +912,7 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true); Text("گروه")
         Row(Modifier.horizontalScroll(rememberScrollState())) { FilterChip(groupId == null, { groupId = null }, label = { Text("بدون گروه") }); repo.groups.forEach { g -> FilterChip(groupId == g.id, { groupId = g.id }, label = { Text(g.name) }) } }
         OutlinedTextField(responsibility, { responsibility = it }, label = { Text("مسئولیت در حلقه (نمایش در اعضا، نه رتبه‌بندی)") }, singleLine = true)
-        OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات محرمانه تربیتی") })
+        OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات خصوصی") })
     } }, confirmButton = { TextButton({ if (name.isNotBlank()) { repo.updateMember(member.copy(name = name.trim(), groupId = groupId, privateNotes = notes, responsibility = responsibility.trim())); changed(); close() } }) { Text("ذخیره") } },
     dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("انتقال به حذف‌شده‌ها") }; TextButton(close) { Text("لغو") } } })
 }
