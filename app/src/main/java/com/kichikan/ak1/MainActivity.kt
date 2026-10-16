@@ -1285,8 +1285,6 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
                                     OutlinedButton(onClick = { editing = session }) { Text("ویرایش") }
                                     OutlinedButton(onClick = { repo.deleteSession(session.id); expandedSessionId = null; changed() }) { Text("حذف") }
                                 }
-                            } else {
-                                Text("برای دیدن توضیحات، روی جلسه بزن.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
