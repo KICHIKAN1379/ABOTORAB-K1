@@ -1,6 +1,7 @@
 package com.kichikan.ak1.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -10,6 +11,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 
@@ -70,5 +75,18 @@ fun AK1Theme(content: @Composable () -> Unit) {
         errorContainer = Color(0xFF5A1D28),
         onErrorContainer = Color(0xFFFFD9DC)
     )
-    MaterialTheme(colorScheme = scheme, typography = Typography(), content = content)
+    val baseTypography = Typography()
+    val typography = baseTypography.copy(
+        headlineMedium = baseTypography.headlineMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp),
+        headlineSmall = baseTypography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+        titleLarge = baseTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
+        titleMedium = baseTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+        labelLarge = baseTypography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+    )
+    val shapes = Shapes(
+        small = RoundedCornerShape(12.dp),
+        medium = RoundedCornerShape(18.dp),
+        large = RoundedCornerShape(26.dp)
+    )
+    MaterialTheme(colorScheme = scheme, typography = typography, shapes = shapes, content = content)
 }
