@@ -795,10 +795,10 @@ class AppRepository(context: Context) {
     }
 
     fun exportBackup(): String {
-        return store.exportJson() ?: run {
-            persist()
-            store.exportJson() ?: "{}"
-        }
+        // Refresh the snapshot at export time so settings changed since the last data edit
+        // are included in the user's local backup.
+        persist()
+        return store.exportJson() ?: "{}"
     }
 
     fun importBackup(raw: String) {
