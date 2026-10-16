@@ -1823,7 +1823,6 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                                 animationSpec = tween(4800 + phoneSecond * 450, easing = FastOutSlowInEasing))
                         } finally { isSpinning = false; spinningItems = emptyList() }
                         result = "🎉 جایزه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
-                        localRefresh++
                     }
                 }
             }, enabled = member != null && wheelItems.isNotEmpty() && !isSpinning, modifier = Modifier.fillMaxWidth()) {
