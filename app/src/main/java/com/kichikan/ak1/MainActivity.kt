@@ -155,7 +155,7 @@ private fun AK1App() {
                 Tab.WHEEL -> WheelScreen(repo, padding, { changed() })
                 Tab.SESSIONS -> SessionsScreen(padding, repo, { changed() })
                 Tab.RANKING -> RankingScreen(repo, padding)
-                Tab.STORE -> StoreScreen(repo, padding) { changed() }
+                Tab.STORE -> StoreScreen(repo, padding, { changed() }) { tab = Tab.WHEEL }
                 Tab.SETTINGS -> SettingsScreen(repo, padding) { changed() }
             }
         }
@@ -1840,7 +1840,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
 }
 
 @Composable
-private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit, openWheel: () -> Unit) {
     var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
     var manualGrantItem by remember { mutableStateOf<ShopItem?>(null) }
@@ -1849,6 +1849,7 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("فروشگاه", style = MaterialTheme.typography.headlineMedium)
         Text("جوایز، آواتار و قاب")
+        OutlinedButton(onClick = openWheel, modifier = Modifier.fillMaxWidth()) { Text("ورود به صفحهٔ مستقل گردونهٔ شانس") }
         member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             repo.members.forEach { m -> FilterChip(selectedMemberId == m.id, { selectedMemberId = m.id; result = null }, label = { Text(m.name) }) }
