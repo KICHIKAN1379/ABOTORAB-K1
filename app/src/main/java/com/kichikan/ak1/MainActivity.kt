@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.launch
 import com.kichikan.ak1.ui.theme.AK1Theme
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
@@ -1735,6 +1736,7 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
         androidx.compose.ui.graphics.Color(0xFF5D7836), androidx.compose.ui.graphics.Color(0xFF98526D)
     )
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("گردونهٔ شانس", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
@@ -1801,16 +1803,24 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
             Button(onClick = {
                 if (isSpinning || wheelItems.isEmpty()) return@Button
                 spinningItems = wheelItems
-                isSpinning = true; result = null
-                val prize = try { repo.spinWheel(memberId) } catch (e: Exception) {
-                    result = e.message ?: "چرخاندن گردونه انجام نشد."; null
+                isSpinning = true
+                result = null
+                val prize = try {
+                    repo.spinWheel(memberId)
+                } catch (e: Exception) {
+                    result = e.message ?: "چرخاندن گردونه انجام نشد."
+                    null
                 }
                 if (prize == null) {
-                    isSpinning = false; spinningItems = emptyList(); result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."
+                    isSpinning = false
+                    spinningItems = emptyList()
+                    result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."
                 } else {
                     val index = wheelItems.indexOfFirst { it.id == prize.id }
                     if (index < 0) {
-                        isSpinning = false; spinningItems = emptyList(); result = "جایزه ثبت شد: ${prize.title}"; 
+                        isSpinning = false
+                        spinningItems = emptyList()
+                        result = "جایزه ثبت شد: ${prize.title}"
                     } else {
                         var precedingWeight = 0L
                         for (i in 0 until index) precedingWeight += wheelItems[i].weight.toLong()
@@ -1818,11 +1828,22 @@ private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                         val normalized = ((rotation.value % 360f) + 360f) % 360f
                         val delta = ((-90f - centerAngle - normalized) % 360f + 360f) % 360f
                         val phoneSecond = (System.currentTimeMillis() / 1000L % 3L).toInt()
-                        try {
-                            rotation.animateTo(rotation.value + 2160f + delta,
-                                animationSpec = tween(4800 + phoneSecond * 450, easing = FastOutSlowInEasing))
-                        } finally { isSpinning = false; spinningItems = emptyList() }
-                        result = "🎉 جایزه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
+                        val duration = 4800 + phoneSecond * 450
+                        scope.launch {
+                            try {
+                                rotation.animateTo(
+                                    rotation.value + 2160f + delta,
+                                    animationSpec = tween(duration, easing = FastOutSlowInEasing)
+                                )
+                            } catch (_: Exception) {
+                                // The prize has already been recorded; keep the result visible if animation is interrupted.
+                            } finally {
+                                isSpinning = false
+                                spinningItems = emptyList()
+                            }
+                            result = "🎉 جایزه: ${prize.title}" +
+                                (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
+                        }
                     }
                 }
             }, enabled = member != null && wheelItems.isNotEmpty() && !isSpinning, modifier = Modifier.fillMaxWidth()) {
