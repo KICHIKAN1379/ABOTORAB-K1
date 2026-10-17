@@ -38,6 +38,8 @@ import com.kichikan.ak1.ui.theme.ClayKind
 import com.kichikan.ak1.ui.theme.MinimalIcon
 import com.kichikan.ak1.ui.theme.MinimalKind
 import com.kichikan.ak1.ui.theme.Neon
+import com.kichikan.ak1.ui.theme.GlassIcon
+import com.kichikan.ak1.ui.theme.GlassKind
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.notification.DailyDateNotification
@@ -325,16 +327,15 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Surface(
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer
-                                ) {
-                                    Text(
-                                        icon,
-                                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
-                                        style = MaterialTheme.typography.headlineMedium,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                when (key) {
+                                    "home_workshop" -> ClayIcon(ClayKind.WORKSHOP, size = 52.dp)
+                                    "home_sessions" -> ClayIcon(ClayKind.SESSIONS, size = 52.dp)
+                                    "home_ranking" -> ClayIcon(ClayKind.RANKING, size = 52.dp)
+                                    "home_store" -> ClayIcon(ClayKind.STORE, size = 52.dp)
+                                    "home_identity" -> GlassIcon(GlassKind.IDENTITY, size = 52.dp)
+                                    "home_members" -> GlassIcon(GlassKind.MEMBERS, size = 52.dp, tint = Neon.Violet)
+                                    "home_assistant" -> GlassIcon(GlassKind.ASSISTANT, size = 52.dp, tint = Neon.Gold)
+                                    else -> GlassIcon(GlassKind.WHEEL, size = 52.dp, tint = Neon.Coral)
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(label, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -413,7 +414,11 @@ private fun SummaryCard(repo: AppRepository) {
                         ) {
                             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(icon, color = MaterialTheme.colorScheme.primary)
+                                    GlassIcon(
+                                        when (icon) { "♙" -> GlassKind.MEMBERS; "↗" -> GlassKind.XP; "✦" -> GlassKind.POINTS; else -> GlassKind.DIAMOND },
+                                        size = 28.dp,
+                                        tint = when (icon) { "♙" -> Neon.Violet; "↗" -> Neon.Green; "✦" -> Neon.Gold; else -> Neon.Cyan }
+                                    )
                                     Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
