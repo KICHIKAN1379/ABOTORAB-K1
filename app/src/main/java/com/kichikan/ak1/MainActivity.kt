@@ -9,7 +9,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -22,6 +27,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
@@ -29,7 +38,11 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlinx.coroutines.launch
 import com.kichikan.ak1.ui.theme.AK1Theme
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
@@ -41,6 +54,62 @@ import com.kichikan.ak1.domain.service.HistoryCategory
 import com.kichikan.ak1.domain.service.HistoryService
 
 private enum class Tab { HOME, MEMBERS, SERVICES, WORKSHOP, WHEEL, SESSIONS, RANKING, STORE, SETTINGS }
+
+private fun currencyLabel(value: Currency): String = when (value) {
+    Currency.POINTS -> "امتیاز"
+    Currency.DIAMONDS -> "الماس"
+    Currency.NONE -> "رایگان"
+}
+
+private fun wheelModeLabel(value: WheelMode): String = when (value) {
+    WheelMode.FREE -> "رایگان"
+    WheelMode.POINTS -> "با امتیاز"
+    WheelMode.POINTS_AND_DIAMONDS -> "با امتیاز و الماس"
+}
+
+private fun wheelRewardTypeLabel(value: WheelRewardType): String = when (value) {
+    WheelRewardType.POINTS -> "امتیاز"
+    WheelRewardType.DIAMONDS -> "الماس"
+    WheelRewardType.AVATAR -> "آواتار"
+    WheelRewardType.FRAME -> "قاب"
+    WheelRewardType.REWARD -> "جایزه"
+    WheelRewardType.CUSTOM -> "جایزهٔ ویژه"
+}
+
+private fun shopTypeLabel(value: ShopItemType): String = when (value) {
+    ShopItemType.AVATAR -> "آواتار"
+    ShopItemType.FRAME -> "قاب"
+    ShopItemType.REWARD -> "جایزه"
+}
+
+private fun acquisitionMethodLabel(value: AcquisitionMethod): String = when (value) {
+    AcquisitionMethod.DIRECT_PURCHASE -> "خرید مستقیم"
+    AcquisitionMethod.LEVEL_UNLOCK -> "باز شدن با ارتقای سطح"
+    AcquisitionMethod.WHEEL_ONLY -> "فقط از گردونه"
+    AcquisitionMethod.MANUAL -> "هدیهٔ مربی"
+    AcquisitionMethod.EVENT -> "رویداد"
+    AcquisitionMethod.MISSION -> "مأموریت"
+}
+
+private fun historyTypeLabel(value: HistoryType): String = when (value) {
+    HistoryType.XP_EARNED -> "کسب تجربه"
+    HistoryType.XP_DECREASED -> "کاهش تجربه"
+    HistoryType.POINTS_EARNED -> "دریافت امتیاز"
+    HistoryType.POINTS_DECREASED -> "کاهش امتیاز"
+    HistoryType.POINTS_SPENT -> "خرج امتیاز"
+    HistoryType.DIAMONDS_EARNED -> "دریافت الماس"
+    HistoryType.DIAMONDS_DECREASED -> "کاهش الماس"
+    HistoryType.DIAMONDS_SPENT -> "خرج الماس"
+    HistoryType.LEVEL_CHANGED -> "تغییر سطح"
+    HistoryType.MISSION_COMPLETED -> "انجام مأموریت"
+    HistoryType.WHEEL_REWARD -> "جایزهٔ گردونه"
+    HistoryType.REWARD_RECEIVED -> "دریافت جایزه"
+    HistoryType.AVATAR_ACQUIRED -> "دریافت آواتار"
+    HistoryType.FRAME_ACQUIRED -> "دریافت قاب"
+    HistoryType.ATTENDANCE -> "حضور و غیاب"
+    HistoryType.SESSION_NOTE -> "یادداشت جلسه"
+    HistoryType.BIRTHDAY_REWARD -> "جایزهٔ تولد"
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,7 +155,7 @@ private fun AK1App() {
                 Tab.WHEEL -> WheelScreen(repo, padding, { changed() })
                 Tab.SESSIONS -> SessionsScreen(padding, repo, { changed() })
                 Tab.RANKING -> RankingScreen(repo, padding)
-                Tab.STORE -> StoreScreen(repo, padding) { changed() }
+                Tab.STORE -> StoreScreen(repo, padding, { changed() }) { tab = Tab.WHEEL }
                 Tab.SETTINGS -> SettingsScreen(repo, padding) { changed() }
             }
         }
@@ -96,59 +165,43 @@ private fun AK1App() {
 @Composable
 private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     val services = listOf(
-        Triple("تراشکاری", "مأموریت‌ها، جوایز و گردونه", Tab.WORKSHOP),
-        Triple("جلسات", "جلسه‌ها و حضور و غیاب", Tab.SESSIONS),
+        Triple("کارگاه", "جوایز، مأموریت‌ها، قاب و آواتار", Tab.WORKSHOP),
+        Triple("جلسات", "فهرست، ثبت جلسه و حضور و غیاب", Tab.SESSIONS),
         Triple("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Tab.RANKING),
-        Triple("فروشگاه", "آواتارها، قاب‌ها و جوایز", Tab.STORE)
+        Triple("فروشگاه", "آواتارها، قاب‌ها، جوایز و گردونه", Tab.STORE)
     )
-    val icons = listOf("⚒", "▦", "🏆", "🎁")
-    val cardTints = listOf(
-        MaterialTheme.colorScheme.primaryContainer,
-        MaterialTheme.colorScheme.secondaryContainer,
-        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-        MaterialTheme.colorScheme.surfaceVariant
-    )
-    val iconTints = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.onSurfaceVariant
-    )
-    Column(
-        Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text("خدمات", style = MaterialTheme.typography.headlineMedium)
-        Text("ابزارهای مدیریت حلقه در یک‌جا", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        services.chunked(2).forEachIndexed { rowIndex, rowItems ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                rowItems.forEachIndexed { colIndex, item ->
-                    val index = rowIndex * 2 + colIndex
-                    Card(
-                        onClick = { open(item.third) },
-                        modifier = Modifier.weight(1f).heightIn(min = 164.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardTints[index])
-                    ) {
-                        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                            Surface(
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.72f)
-                            ) {
-                                Text(icons[index], Modifier.padding(horizontal = 14.dp, vertical = 11.dp), style = MaterialTheme.typography.headlineMedium, color = iconTints[index])
-                            }
-                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(item.first, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = iconTints[index])
-                        }
+    val icons = listOf("⚒", "▦", "♛", "◇")
+    val accents = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.primary)
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Text("ع", Modifier.padding(horizontal = 13.dp, vertical = 7.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                }
+                Column {
+                    Text("ابوتراب علیه‌السلام", style = MaterialTheme.typography.titleMedium)
+                    Text("پنل مدیریت حلقه", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Text("خدمات", style = MaterialTheme.typography.titleLarge)
+        services.forEachIndexed { index, item ->
+            Card(onClick = { open(item.third) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), color = accents[index].copy(alpha = 0.15f)) {
+                        Text(icons[index], Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.titleMedium, color = accents[index])
                     }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(item.first, style = MaterialTheme.typography.titleSmall)
+                        Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("‹", style = MaterialTheme.typography.titleLarge, color = accents[index])
                 }
             }
         }
     }
 }
+
 @Composable
 private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
     var ringName by remember { mutableStateOf("") }
@@ -166,9 +219,9 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
         Spacer(Modifier.height(24.dp))
         Text("در این مرحله هیچ اتصال آنلاین یا حساب ابری فعال نیست.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true)
+        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
-        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true)
+        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Spacer(Modifier.height(18.dp))
         Button({
@@ -178,7 +231,7 @@ private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
             } catch (e: IllegalArgumentException) {
                 error = e.message
             }
-        }, enabled = ringName.isNotBlank() && username.isNotBlank()) {
+        }, enabled = ringName.isNotBlank() && username.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
             Text("شروع کار آفلاین")
         }
     }
@@ -395,7 +448,7 @@ private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
 private fun SummaryCard(repo: AppRepository) {
     val metrics = listOf(
         Triple("اعضای حلقه", repo.members.size.toString(), "♙"),
-        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
+        Triple("تجربه اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
         Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }.toString(), "✦"),
         Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }.toString(), "◆")
     )
@@ -448,7 +501,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
         }
         exportMember = null
     }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.headlineMedium)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(page == 0, { page = 0 }, label = { Text("اعضا") })
@@ -468,18 +521,22 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Surface(
-                                    modifier = Modifier.size(82.dp),
+                                    modifier = Modifier.size(62.dp),
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer,
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(m.name.take(1), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                                        avatarBitmap?.let { Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(66.dp)) }
-                                        frameBitmap?.let { Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.size(82.dp)) }
+                                        avatarBitmap?.let {
+                                             Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(36.dp).clip(CircleShape))
+                                         }
+                                         frameBitmap?.let {
+                                             Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize())
+                                         }
                                     }
                                 }
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -499,18 +556,18 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf(
                                     Triple("سطح", m.economy.level.toString(), MaterialTheme.colorScheme.primaryContainer),
-                                    Triple("XP", m.economy.xp.toString(), MaterialTheme.colorScheme.secondaryContainer),
+                                    Triple("تجربه", m.economy.xp.toString(), MaterialTheme.colorScheme.secondaryContainer),
                                     Triple("امتیاز", m.economy.spendablePoints.toString(), MaterialTheme.colorScheme.tertiary.copy(alpha = 0.13f)),
-                                    Triple("💎", m.economy.diamonds.toString(), MaterialTheme.colorScheme.surfaceVariant)
+                                    Triple("الماس", m.economy.diamonds.toString(), MaterialTheme.colorScheme.surfaceVariant)
                                 ).forEach { (label, value, tint) ->
                                     Surface(
                                         modifier = Modifier.weight(1f),
                                         shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                                         color = tint
                                     ) {
-                                        Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Column(Modifier.padding(vertical = 5.dp, horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                            Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                                         }
                                     }
                                 }
@@ -533,7 +590,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                             Text(g.name, style = MaterialTheme.typography.titleLarge)
                             Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
                             Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
-                            Text("امتیاز گروه ${g.economy.spendablePoints} • 💎 الماس ${g.economy.diamonds}")
+                            Text("امتیاز گروه ${g.economy.spendablePoints} • الماس ${g.economy.diamonds}")
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
                                 Button({ scoreGroup = g }) { Text("تغییر امتیاز") }
@@ -549,7 +606,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     groupEditing?.let { GroupDialog(repo, it, changed) { groupEditing = null } }
     scoreGroup?.let { GroupScoreDialog(repo, it, changed) { scoreGroup = null } }
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
-    selected?.let { HistoryDialog(repo, it) { selected = null } }
+    selected?.let { HistoryDialog(repo, it, changed) { selected = null } }
     actionMember?.let { m ->
         AlertDialog(
             onDismissRequest = { actionMember = null },
@@ -565,15 +622,17 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
         )
     }
-    mapMember?.let { m -> GrowthMapDialog(repo, m) { mapMember = null } }
+    mapMember?.let { m ->
+        GrowthMapDialog(repo, m, changed) { mapMember = null }
+    }
 }
 
 @Composable
-private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+private fun GrowthMapDialog(repo: AppRepository, member: Member, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     val defaultStages = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
-    val stages = remember(member.id) {
+    val stages = run {
         val raw = prefs.getString("growth_stages", null)
         if (raw == null) defaultStages else runCatching {
             val arr = org.json.JSONArray(raw)
@@ -581,7 +640,7 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
         }.getOrDefault(defaultStages)
     }
     val reachedKey = "growth_reached_${member.id}"
-    var reached by remember(member.id, stages) {
+    var reached by remember(member.id) {
         mutableStateOf((prefs.getStringSet(reachedKey, emptySet()) ?: emptySet()).toSet())
     }
     val count = stages.count { it in reached }
@@ -620,31 +679,32 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
                         Text("مسیر صعود به قله", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                         Text("$count از ${stages.size} مقام ثبت شده", style = MaterialTheme.typography.bodyMedium)
                         LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
-                        Text("سطح ${member.economy.level} • XP ${member.economy.xp}", style = MaterialTheme.typography.bodySmall)
+                        Text("سطح ${member.economy.level} • تجربه ${member.economy.xp}", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 if (stages.isEmpty()) {
                     Text("هنوز مرحله‌ای تعریف نشده؛ از تنظیمات، مسیر نقشه کمال را بساز.")
                 } else {
-                    LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(stages.size) { index ->
-                            val stage = stages[index]
+                    Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        stages.forEachIndexed { index, stage ->
                             val isReached = stage in reached
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                     color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                     border = androidx.compose.foundation.BorderStroke(1.dp, if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                                 ) {
-                                    Text("${index + 1}", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = if (isReached) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
+                                    Text("${index + 1}", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = if (isReached) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
                                 }
                                 Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (isReached) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f) else MaterialTheme.colorScheme.surface)) {
-                                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(stage, style = MaterialTheme.typography.titleMedium)
-                                        Text(if (isReached) "مقام کسب‌شده" else "در انتظار صعود", color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                                    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(stage, style = MaterialTheme.typography.titleSmall)
+                                        Text(if (isReached) "مقام کسب‌شده" else "در انتظار صعود", color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                                         OutlinedButton(onClick = {
-                                            reached = if (isReached) reached - stage else reached + stage
-                                            prefs.edit().putStringSet(reachedKey, reached).apply()
+                                            val next = if (isReached) reached - stage else reached + stage
+                                            reached = next
+                                            prefs.edit().putStringSet(reachedKey, next).apply()
+                                            changed()
                                         }, modifier = Modifier.fillMaxWidth()) { Text(if (isReached) "لغو ثبت این مقام" else "ثبت رسیدن عضو به این مقام") }
                                     }
                                 }
@@ -663,15 +723,21 @@ private fun buildMemberCard(repo: AppRepository, member: Member): android.graphi
     val canvas = android.graphics.Canvas(bitmap); canvas.drawColor(android.graphics.Color.rgb(22, 33, 62))
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 34f }
     val small = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.LTGRAY; textSize = 25f }
-    repo.shop.firstOrNull { it.id == member.avatarItemId }?.imagePath?.let { android.graphics.BitmapFactory.decodeFile(it) }?.let { canvas.drawBitmap(it, null, android.graphics.Rect(390, 50, 610, 270), paint) }
+    repo.shop.firstOrNull { it.id == member.avatarItemId }?.imagePath?.let { android.graphics.BitmapFactory.decodeFile(it) }?.let { avatar ->
+        val save = canvas.save()
+        val clipPath = android.graphics.Path().apply { addCircle(500f, 160f, 82f, android.graphics.Path.Direction.CW) }
+        canvas.clipPath(clipPath)
+        canvas.drawBitmap(avatar, null, android.graphics.Rect(418, 78, 582, 242), paint)
+        canvas.restoreToCount(save)
+    }
     repo.shop.firstOrNull { it.id == member.frameItemId }?.imagePath?.let { android.graphics.BitmapFactory.decodeFile(it) }?.let { canvas.drawBitmap(it, null, android.graphics.Rect(370, 30, 630, 290), paint) }
     canvas.drawText(member.name, 50f, 360f, paint)
-    canvas.drawText("سطح ${member.economy.level}    XP ${member.economy.xp}", 50f, 415f, small)
+    canvas.drawText("سطح ${member.economy.level}    تجربه ${member.economy.xp}", 50f, 415f, small)
     canvas.drawText("امتیاز ${member.economy.spendablePoints}    الماس ${member.economy.diamonds}", 50f, 455f, small)
     canvas.drawText(repo.ring?.ringName ?: "ابوتراب K1", 50f, 535f, small)
     return bitmap
 }@Composable
-private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+private fun HistoryDialog(repo: AppRepository, member: Member, changed: () -> Unit, close: () -> Unit) {
     val events = repo.history.filter { it.memberId == member.id }.sortedByDescending { it.createdAtEpochMillis }
     var category by remember { mutableIntStateOf(0) }
     var selectedItem by remember { mutableStateOf<ShopItem?>(null) }
@@ -684,8 +750,8 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
         title = { Text("گنجینه — ${member.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("امتیاز: ${member.economy.spendablePoints}   •   💎 الماس: ${member.economy.diamonds}", style = MaterialTheme.typography.titleMedium)
-                Text("سطح ${member.economy.level} • XP ${member.economy.xp}")
+                Text("امتیاز: ${member.economy.spendablePoints}   •   الماس: ${member.economy.diamonds}", style = MaterialTheme.typography.titleMedium)
+                Text("سطح ${member.economy.level} • تجربه ${member.economy.xp}")
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(selected = category == 0, onClick = { category = 0 }, label = { Text("سوابق") })
                     FilterChip(selected = category == 1, onClick = { category = 1 }, label = { Text("آواتارها (${avatars.size})") })
@@ -701,7 +767,7 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                                         Text(event.title, style = MaterialTheme.typography.titleSmall)
                                         Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall)
                                         event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it") }
-                                        Text("نوع: ${event.type.name}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
+                                        Text("نوع: ${historyTypeLabel(event.type)}" + (event.amount?.let { " • مقدار: $it" } ?: ""), style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }
@@ -717,7 +783,20 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                                         itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(88.dp)) }
                                         Text(item.name, style = MaterialTheme.typography.titleMedium)
                                         Text(if (item.id == member.avatarItemId) "آواتار فعال" else if (item.id == member.frameItemId) "قاب فعال" else "دریافت‌شده")
-                                        Text("برای مشاهده روش دریافت لمس کن.", style = MaterialTheme.typography.bodySmall)
+                                        if (item.type == ShopItemType.AVATAR || item.type == ShopItemType.FRAME) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    try {
+                                                        repo.equipShopItem(member.id, item.id)
+                                                        changed()
+                                                        selectedItem = null
+                                                    } catch (_: Exception) { }
+                                                },
+                                                enabled = item.id != member.avatarItemId && item.id != member.frameItemId,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) { Text(if (item.type == ShopItemType.AVATAR) "استفاده از این آواتار" else "استفاده از این قاب") }
+                                        }
+                                        Text("برای مشاهده روش دریافت، کارت را لمس کن.", style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }
@@ -849,9 +928,9 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true); Text("گروه")
         Row(Modifier.horizontalScroll(rememberScrollState())) { FilterChip(groupId == null, { groupId = null }, label = { Text("بدون گروه") }); repo.groups.forEach { g -> FilterChip(groupId == g.id, { groupId = g.id }, label = { Text(g.name) }) } }
         OutlinedTextField(responsibility, { responsibility = it }, label = { Text("مسئولیت در حلقه (نمایش در اعضا، نه رتبه‌بندی)") }, singleLine = true)
-        OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات محرمانه تربیتی") })
+        OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات خصوصی") })
     } }, confirmButton = { TextButton({ if (name.isNotBlank()) { repo.updateMember(member.copy(name = name.trim(), groupId = groupId, privateNotes = notes, responsibility = responsibility.trim())); changed(); close() } }) { Text("ذخیره") } },
-    dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("حذف عضو") }; TextButton(close) { Text("لغو") } } })
+    dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("انتقال به حذف‌شده‌ها") }; TextButton(close) { Text("لغو") } } })
 }
 @Composable private fun MemberNotesDialog(repo: AppRepository, member: Member, close: () -> Unit) {
     AlertDialog(onDismissRequest = close, title = { Text("توضیحات ${member.name}") }, text = { Text(if (member.privateNotes.isBlank()) "برای این عضو توضیحی ثبت نشده است." else member.privateNotes) }, confirmButton = { TextButton(close) { Text("بستن") } })
@@ -862,19 +941,48 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
     var addMission by remember { mutableStateOf(false) }; var editMission by remember { mutableStateOf<Mission?>(null) }; var completeMission by remember { mutableStateOf<Mission?>(null) }; var addWheel by remember { mutableStateOf(false) }; var editWheelConfig by remember { mutableStateOf(false) }; var editWheel by remember { mutableStateOf<WheelItem?>(null) }; var addShop by remember { mutableStateOf(false) }; var editShop by remember { mutableStateOf<ShopItem?>(null) }
     var assetKind by remember { mutableStateOf<String?>(null) }; var assetMessage by remember { mutableStateOf<String?>(null) }
     val importAsset = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) try { val mime=context.contentResolver.getType(uri)?:"image/png"; require(mime.startsWith("image/")){"فقط فایل تصویری قابل ثبت است"}; val o=BitmapFactory.Options().also{it.inJustDecodeBounds=true}; context.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it,null,o)}; val frame=assetKind=="FRAME"; val size=if(frame)288 else 256; require(o.outWidth==size&&o.outHeight==size){"ابعاد ${if(frame)"قاب" else "آواتار"} باید ${size}×${size} باشد"}; val id="asset-"+System.currentTimeMillis(); val ext=when{mime.equals("image/jpeg",true)->".jpg";mime.equals("image/webp",true)->".webp";mime.equals("image/gif",true)->".gif";else->".png"}; val target=java.io.File(context.filesDir,"custom_assets/$id$ext");target.parentFile?.mkdirs();context.contentResolver.openInputStream(uri)?.use{input->target.outputStream().use{out->input.copyTo(out)}};val assetName=if(frame)"قاب سفارشی" else "آواتار سفارشی";repo.addAsset(CustomAsset(id,assetName,if(frame)AssetType.FRAME else AssetType.AVATAR,target.absolutePath,mime,size,size));repo.addShopItem(ShopItem(id=id,name=assetName,type=if(frame)ShopItemType.FRAME else ShopItemType.AVATAR,imagePath=target.absolutePath,currency=Currency.NONE,methods=setOf(AcquisitionMethod.MANUAL),description="دارایی سفارشی مربی؛ برای دریافت باید مربی آن را هدیه کند."));assetMessage="ثبت شد و به فهرست آواتار/قاب اضافه شد";changed()}catch(ex:Exception){assetMessage=ex.message} }
-    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-        Text("تراشکاری",style=MaterialTheme.typography.headlineMedium)
-        Text("ساخت و مدیریت مأموریت، جوایز، گردونه و شخصی‌سازی")
-        OutlinedButton({addMission=true},Modifier.fillMaxWidth()){Text("+ مأموریت")}
-        repo.missions.forEach{m->Card(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(8.dp)){Text(m.title,style=MaterialTheme.typography.titleMedium);Text("XP ${m.xpReward} • امتیاز ${m.pointsReward} • 💎 ${m.diamondReward}");Text(if(m.active)"فعال" else "غیرفعال");Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)){Button({completeMission=m},enabled=m.active){Text("ثبت انجام")};TextButton({editMission=m}){Text("ویرایش")};TextButton({repo.deleteMission(m.id);changed()}){Text("حذف")}}}}}
-        HorizontalDivider(); Text("جوایز / فروشگاه",style=MaterialTheme.typography.titleLarge)
-        OutlinedButton({addShop=true},Modifier.fillMaxWidth()){Text("+ ساخت جایزه / آواتار / قاب")}
-        repo.shop.forEach{item->Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(8.dp),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(item.name);Text("${item.type.name} • ${item.price} ${item.currency.name}")};Row{TextButton({editShop=item}){Text("ویرایش")};TextButton({repo.deleteShopItem(item.id);changed()}){Text("حذف")}}}}}
-        HorizontalDivider();Text("ساخت شخصی قاب و آواتار",style=MaterialTheme.typography.titleLarge);Text("آواتار 256×256 و قاب 288×288 — PNG/JPEG/WebP/GIF")
-        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedButton({assetKind="AVATAR";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ آواتار")};OutlinedButton({assetKind="FRAME";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ قاب")}}
-        assetMessage?.let{Text(it)}
-        HorizontalDivider();Text("گردونه",style=MaterialTheme.typography.titleLarge);Text("حالت: ${repo.wheel.mode.name} • هزینه امتیاز ${repo.wheel.spinCostPoints} • هزینه الماس ${repo.wheel.spinCostDiamonds}");OutlinedButton({editWheelConfig=true},Modifier.fillMaxWidth()){Text("ویرایش تنظیمات گردونه")};OutlinedButton({addWheel=true},Modifier.fillMaxWidth()){Text("+ آیتم گردونه")};repo.wheel.items.forEach{item->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("${item.title} • وزن ${item.weight}");Row{TextButton({editWheel=item}){Text("ویرایش")};TextButton({repo.deleteWheelItem(item.id);changed()}){Text("حذف")}}}}
-    }
+    var workshopPage by remember { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("کارگاه", style = MaterialTheme.typography.titleLarge)
+        Text("مدیریت هر بخش به‌صورت جداگانه", style = MaterialTheme.typography.bodySmall)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("مأموریت‌ها", "جوایز", "آواتار و قاب", "مدیریت گردونه").forEachIndexed { index, label ->
+                FilterChip(selected = workshopPage == index, onClick = { workshopPage = index }, label = { Text(label) })
+            }
+        }
+        when (workshopPage) {
+            0 -> {
+                OutlinedButton({addMission=true},Modifier.fillMaxWidth()){Text("+ مأموریت")}
+                        repo.missions.forEach{m->Card(Modifier.fillMaxWidth()){Column(Modifier.fillMaxWidth().padding(7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)){Text(m.title,style=MaterialTheme.typography.titleSmall);Text("تجربه ${m.xpReward} • امتیاز ${m.pointsReward} • الماس ${m.diamondReward}", style=MaterialTheme.typography.bodySmall);Text(if(m.active)"فعال" else "غیرفعال", style=MaterialTheme.typography.labelSmall);Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(3.dp)){TextButton({completeMission=m},enabled=m.active){Text("ثبت انجام")};TextButton({editMission=m}){Text("ویرایش")};TextButton({repo.deleteMission(m.id);changed()}){Text("حذف")}}}}}
+            }
+            1 -> {
+                OutlinedButton({addShop=true},Modifier.fillMaxWidth()){Text("+ ساخت جایزه / آواتار / قاب")}
+                        repo.shop.forEach{item->Card(Modifier.fillMaxWidth()){Row(Modifier.fillMaxWidth().padding(7.dp),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(item.name);Text("${shopTypeLabel(item.type)} • ${item.price} ${currencyLabel(item.currency)}")};Row{TextButton({editShop=item}){Text("ویرایش")};TextButton({repo.deleteShopItem(item.id);changed()}){Text("حذف")}}}}}
+            }
+            2 -> {
+                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedButton({assetKind="AVATAR";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ آواتار")};OutlinedButton({assetKind="FRAME";importAsset.launch(arrayOf("image/png","image/jpeg","image/webp","image/gif"))}){Text("+ قاب")}}
+                        assetMessage?.let{Text(it)}
+            }
+            else -> {
+                Text("حالت: ${wheelModeLabel(repo.wheel.mode)}")
+                Text("هزینه امتیاز: ${repo.wheel.spinCostPoints} • هزینه الماس: ${repo.wheel.spinCostDiamonds}")
+                OutlinedButton(onClick = { editWheelConfig = true }, modifier = Modifier.fillMaxWidth()) { Text("تنظیمات گردونه") }
+                OutlinedButton(onClick = { addWheel = true }, modifier = Modifier.fillMaxWidth()) { Text("+ افزودن جایزه به گردونه") }
+                repo.wheel.items.forEach { item ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, style = MaterialTheme.typography.titleMedium)
+                                Text("وزن: ${item.weight}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = { editWheel = item }) { Text("ویرایش") }
+                            TextButton(onClick = { repo.deleteWheelItem(item.id); changed() }) { Text("حذف") }
+                        }
+                    }
+                }
+            }
+            }
+        }
     if(editWheelConfig) WheelConfigDialog(repo,changed){editWheelConfig=false};if(addMission) MissionEditDialog(repo,null,changed){addMission=false};editMission?.let{MissionEditDialog(repo,it,changed){editMission=null}};completeMission?.let{CompleteMissionDialog(repo,it,changed){completeMission=null}};if(addWheel)WheelEditDialog(repo,null,changed){addWheel=false};editWheel?.let{WheelEditDialog(repo,it,changed){editWheel=null}};if(addShop)AddShopItemDialog(repo,changed){addShop=false};editShop?.let{ShopItemEditDialog(repo,it,changed){editShop=null}}
 }@Composable private fun MissionEditDialog(repo: AppRepository, item: Mission?, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
@@ -912,7 +1020,7 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
                 OutlinedTextField(desc,{desc=it},label={Text("توضیحات")})
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(group,{group=it}); Text("مأموریت گروهی") }
                 Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(active,{active=it}); Text("مأموریت فعال است") }
-                OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("پاداش XP")},singleLine=true)
+                OutlinedTextField(xp,{xp=it.filter(Char::isDigit)},label={Text("پاداش تجربه")},singleLine=true)
                 OutlinedTextField(pts,{pts=it.filter(Char::isDigit)},label={Text("پاداش امتیاز")},singleLine=true)
                 OutlinedTextField(dia,{dia=it.filter(Char::isDigit)},label={Text("پاداش الماس")},singleLine=true)
                 Text("محدودیت زمانی (اختیاری)")
@@ -977,7 +1085,7 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
                             type=candidate
                             shopItemId=null
                             error=null
-                        }, label={Text(candidate.name)})
+                        }, label={Text(wheelRewardTypeLabel(candidate))})
                     }
                 }
                 if (type in listOf(WheelRewardType.AVATAR, WheelRewardType.FRAME, WheelRewardType.REWARD)) {
@@ -1073,7 +1181,7 @@ private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: (
     AlertDialog(onDismissRequest = close, title = { Text("آیتم فروشگاه") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState())) {
             OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(when(candidate){ ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" }) }) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(shopTypeLabel(candidate)) }) } }
             OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text(if (imagePath == null) "انتخاب تصویر برای نمایش در فروشگاه" else "تغییر تصویر انتخاب‌شده") }
             imagePath?.let { raw -> remember(raw) { BitmapFactory.decodeFile(raw)?.asImageBitmap() }?.let { Image(bitmap = it, contentDescription = "پیش‌نمایش تصویر آیتم", modifier = Modifier.size(104.dp).align(Alignment.CenterHorizontally)) } }
             if (compatibleAssets.isNotEmpty()) {
@@ -1113,9 +1221,9 @@ private fun AddWheelItemDialog(repo: AppRepository, changed: () -> Unit, close: 
         title = { Text("آیتم جدید گردونه") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, singleLine = true)
-            Text("نوع: " + type.name)
+            Text("نوع: " + wheelRewardTypeLabel(type))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                WheelRewardType.values().take(4).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(t.name) }) }
+                WheelRewardType.values().take(4).forEach { t -> FilterChip(type == t, { type = t }, label = { Text(wheelRewardTypeLabel(t)) }) }
             }
             OutlinedTextField(amount, { amount = it.filter(Char::isDigit) }, label = { Text("مقدار") }, singleLine = true)
             OutlinedTextField(weight, { weight = it.filter(Char::isDigit) }, label = { Text("وزن/شانس") }, singleLine = true)
@@ -1175,32 +1283,53 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
     var page by remember { mutableIntStateOf(0) }
     var add by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Session?>(null) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("جلسات", style = MaterialTheme.typography.headlineMedium)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    var expandedSessionId by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("جلسات", style = MaterialTheme.typography.titleLarge)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = page == 0, onClick = { page = 0 }, label = { Text("حضور و غیاب") })
-            FilterChip(selected = page == 1, onClick = { page = 1 }, label = { Text("جلسه‌ها") })
+            FilterChip(selected = page == 1, onClick = { page = 1 }, label = { Text("فهرست جلسات") })
+            FilterChip(selected = page == 2, onClick = { page = 2 }, label = { Text("ثبت جلسه") })
         }
-        if (page == 0) AttendanceCalendarScreen(repo, changed)
-        else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("جلسات ثبت‌شده")
-                Button(onClick = { add = true }, enabled = repo.members.isNotEmpty()) { Text("+ جلسه") }
-            }
-            Text("ثبت و مدیریت جلسه‌ها مستقل از حضور و غیاب است.")
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.titleSmall)
-                            Text(session.title, style = MaterialTheme.typography.titleLarge)
-                            if (session.topic.isNotBlank()) Text("توضیحات: " + session.topic)
-                            Text(JalaliCalendar.formatDateTime(session.startsAt))
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                OutlinedButton(onClick = { editing = session }) { Text("ویرایش") }
-                                OutlinedButton(onClick = { repo.deleteSession(session.id); changed() }) { Text("حذف") }
+        when (page) {
+            0 -> AttendanceCalendarScreen(repo, changed)
+            1 -> {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text("جلسات ثبت‌شده", style = MaterialTheme.typography.titleMedium)
+                        Text("${repo.sessions.size} جلسه", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { page = 2 }, enabled = repo.members.isNotEmpty()) { Text("+ ثبت جلسه") }
+                }
+                if (repo.sessions.isEmpty()) {
+                    Card(Modifier.fillMaxWidth()) { Text("هنوز جلسه‌ای ثبت نشده است.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
+                } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
+                        Card(Modifier.fillMaxWidth().clickable { expandedSessionId = if (expandedSessionId == session.id) null else session.id }) {
+                            Column(Modifier.padding(horizontal = 9.dp, vertical = 7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(session.title, style = MaterialTheme.typography.titleMedium)
+                                Text(JalaliCalendar.formatDateTime(session.startsAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (expandedSessionId == session.id) {
+                                    HorizontalDivider(Modifier.padding(vertical = 5.dp))
+                                    Text(session.topic.ifBlank { "توضیحی ثبت نشده است." }, style = MaterialTheme.typography.bodyMedium)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        TextButton(onClick = { editing = session }) { Text("ویرایش") }
+                                        TextButton(onClick = { repo.deleteSession(session.id); expandedSessionId = null; changed() }) { Text("حذف جلسه") }
+                                    }
+                                }
                             }
                         }
+                    }
+                }
+            }
+            else -> {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("ثبت جلسه جدید", style = MaterialTheme.typography.titleMedium)
+                        Text("اطلاعات جلسه را در فرم جداگانه وارد کن.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = { add = true }, enabled = repo.members.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("باز کردن فرم ثبت جلسه") }
+                        if (repo.members.isEmpty()) Text("برای ثبت جلسه ابتدا یک عضو اضافه کن.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -1209,7 +1338,6 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
     if (add) SessionEditDialog(repo, null, changed) { add = false }
     editing?.let { SessionEditDialog(repo, it, changed) { editing = null } }
 }
-
 @Composable
 private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
     val context = LocalContext.current
@@ -1567,55 +1695,130 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     var mode by remember { mutableStateOf(0) }
     val context = LocalContext.current
     var exportRows by remember { mutableStateOf<List<String>>(emptyList()) }
+    var exportMembers by remember { mutableStateOf<List<Member>>(emptyList()) }
     var exportTitle by remember { mutableStateOf("رتبه‌بندی") }
     val rankingExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
-        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> buildRankingCard(exportTitle, exportRows).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> buildRankingCard(exportTitle, exportRows, repo, exportMembers).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
             .onSuccess { Toast.makeText(context, "تصویر رتبه‌بندی ذخیره شد", Toast.LENGTH_SHORT).show() }
             .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
     }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-        Text("رقابت", style = MaterialTheme.typography.headlineMedium)
-        Text("رتبه اعضا بر اساس سطح و XP است؛ رتبه گروه‌ها فقط با امتیاز و الماس مستقل گروه محاسبه می‌شود.")
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("رقابت", style = MaterialTheme.typography.titleLarge)
+        Text("رتبه اعضا بر اساس سطح و تجربه؛ رتبه گروه‌ها بر اساس امتیاز و الماس.", style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(mode == 0, { mode = 0 }, label = { Text("اعضا") }); FilterChip(mode == 1, { mode = 1 }, label = { Text("گروه‌ها") }) }
         OutlinedButton(onClick = {
             if (mode == 0) {
                 val rows = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
                 exportTitle = "رتبه‌بندی اعضا"
-                exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | XP ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
+                exportMembers = rows
+                exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | تجربه ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
             } else {
                 val rows = repo.groups.sortedByDescending { it.economy.spendablePoints }
                 exportTitle = "رتبه‌بندی گروه‌ها"
+                exportMembers = emptyList()
                 exportRows = rows.mapIndexed { i, group -> "${i + 1}. ${group.name} | امتیاز ${group.economy.spendablePoints} | الماس ${group.economy.diamonds}" }
             }
             rankingExporter.launch(if (mode == 0) "رتبه‌بندی-اعضا.jpg" else "رتبه‌بندی-گروه‌ها.jpg")
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
         if (mode == 0) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • XP ${m.economy.xp}") } } } }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(ranked, key = { it.id }) { m ->
+                    val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
+                    val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
+                    val avatar = remember(avatarPath) { avatarPath?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
+                    val frame = remember(framePath) { framePath?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                if (avatar != null) Image(avatar, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(42.dp).clip(CircleShape))
+                                else Surface(Modifier.size(42.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) { Box(contentAlignment = Alignment.Center) { Text(m.name.take(1)) } }
+                                if (frame != null) Image(frame, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize())
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("#${ranked.indexOf(m)+1} ${m.name}", style = MaterialTheme.typography.titleMedium)
+                                Text("سطح ${m.economy.level} • تجربه ${m.economy.xp}", style = MaterialTheme.typography.bodySmall)
+                                Text("امتیاز ${m.economy.spendablePoints} • الماس ${m.economy.diamonds}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
         } else {
             val rankedGroups = repo.groups.sortedByDescending { it.economy.spendablePoints }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
         }
     }
 }
 
-private fun buildRankingCard(title: String, rows: List<String>): android.graphics.Bitmap {
+private fun buildRankingCard(
+    title: String,
+    rows: List<String>,
+    repo: AppRepository,
+    members: List<Member>
+): android.graphics.Bitmap {
     val width = 1200
-    val lineHeight = 52
-    val height = (170 + rows.size.coerceAtLeast(1) * lineHeight).coerceAtMost(6000)
+    val headerHeight = 250
+    val rowHeight = if (members.isNotEmpty()) 154 else 72
+    val height = (headerHeight + rows.size.coerceAtLeast(1) * rowHeight + 70).coerceAtMost(7000)
     val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
-    canvas.drawColor(android.graphics.Color.rgb(22, 33, 62))
-    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(255, 215, 0); textSize = 42f; textAlign = android.graphics.Paint.Align.RIGHT; typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) }
-    val rowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 27f; textAlign = android.graphics.Paint.Align.RIGHT }
-    val dividerPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(56, 239, 125); strokeWidth = 2f }
-    canvas.drawText(title, width - 50f, 75f, titlePaint)
-    canvas.drawText("مجموعه فرهنگی تربیتی ابوتراب علیه السلام", width - 50f, 125f, rowPaint)
-    if (rows.isEmpty()) canvas.drawText("هنوز داده‌ای برای رتبه‌بندی وجود ندارد.", width - 50f, 205f, rowPaint)
+    canvas.drawColor(android.graphics.Color.rgb(13, 19, 32))
+    val gold = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(216, 181, 109) }
+    val panel = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(27, 36, 50) }
+    val green = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(57, 131, 106) }
+    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.rgb(245, 240, 230); textSize = 48f
+        textAlign = android.graphics.Paint.Align.RIGHT
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
+    val subtitlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.rgb(216, 181, 109); textSize = 27f
+        textAlign = android.graphics.Paint.Align.RIGHT
+    }
+    val rowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE; textSize = 27f
+        textAlign = android.graphics.Paint.Align.RIGHT
+    }
+    canvas.drawCircle(75f, 45f, 190f, green.apply { alpha = 65 })
+    canvas.drawCircle(width - 35f, 70f, 220f, gold.apply { alpha = 40 })
+    canvas.drawRoundRect(30f, 25f, width - 30f, 205f, 32f, 32f, panel)
+    canvas.drawRoundRect(30f, 25f, 43f, 205f, 6f, 6f, gold)
+    canvas.drawText(title, width - 65f, 95f, titlePaint)
+    canvas.drawText("مجموعه فرهنگی تربیتی ابوتراب علیه‌السلام", width - 65f, 148f, subtitlePaint)
+    canvas.drawText("گزارش رتبه‌بندی", width - 65f, 185f, rowPaint)
+    if (rows.isEmpty()) canvas.drawText("هنوز داده‌ای برای نمایش وجود ندارد.", width - 65f, 300f, rowPaint)
     rows.forEachIndexed { i, row ->
-        val y = 190f + i * lineHeight
-        canvas.drawText(row.take(85), width - 50f, y, rowPaint)
-        canvas.drawLine(45f, y + 15f, width - 45f, y + 15f, dividerPaint)
+        val top = headerHeight + i * rowHeight
+        canvas.drawRoundRect(30f, top.toFloat(), width - 30f, (top + rowHeight - 12).toFloat(), 22f, 22f, panel)
+        if (members.isNotEmpty()) {
+            val member = members.getOrNull(i)
+            val centerX = 105f
+            val centerY = top + (rowHeight - 12) / 2f
+            val avatarRect = android.graphics.RectF(centerX - 46f, centerY - 46f, centerX + 46f, centerY + 46f)
+            val avatarPath = member?.avatarItemId?.let { id -> repo.shop.firstOrNull { it.id == id }?.imagePath }
+            val framePath = member?.frameItemId?.let { id -> repo.shop.firstOrNull { it.id == id }?.imagePath }
+            val avatar = avatarPath?.let { runCatching { android.graphics.BitmapFactory.decodeFile(it) }.getOrNull() }
+            val frame = framePath?.let { runCatching { android.graphics.BitmapFactory.decodeFile(it) }.getOrNull() }
+            canvas.drawCircle(centerX, centerY, 52f, gold)
+            if (avatar != null) {
+                val save = canvas.save()
+                val clip = android.graphics.Path().apply { addCircle(centerX, centerY, 46f, android.graphics.Path.Direction.CW) }
+                canvas.clipPath(clip)
+                canvas.drawBitmap(avatar, null, avatarRect, null)
+                canvas.restoreToCount(save)
+            } else {
+                val fallback = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(57, 131, 106) }
+                canvas.drawCircle(centerX, centerY, 46f, fallback)
+            }
+            if (frame != null) canvas.drawBitmap(frame, null, android.graphics.RectF(centerX - 62f, centerY - 62f, centerX + 62f, centerY + 62f), null)
+            val rankPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.rgb(216, 181, 109); textSize = 25f; textAlign = android.graphics.Paint.Align.LEFT
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            canvas.drawText("#${i + 1}", 180f, centerY + 9f, rankPaint)
+        }
+        canvas.drawText(row.take(72), width - 65f, (top + rowHeight / 2f + 10f), rowPaint)
     }
     return bitmap
 }
@@ -1624,50 +1827,162 @@ private fun buildRankingCard(title: String, rows: List<String>): android.graphic
 private fun WheelScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     var memberId by remember(repo.members.size) { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
+    var isSpinning by remember { mutableStateOf(false) }
+    var spinningItems by remember { mutableStateOf<List<WheelItem>>(emptyList()) }
+    val rotation = remember { Animatable(0f) }
     val member = repo.members.firstOrNull { it.id == memberId }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("گردونه شانس", style = MaterialTheme.typography.headlineMedium)
-        Text("اول عضو را انتخاب کن؛ سپس گردونه را بچرخان. نتیجه و پاداش در سابقه عضو ثبت می‌شود.")
-        if (repo.members.isEmpty()) {
-            Text("برای استفاده از گردونه ابتدا یک عضو بساز.")
-        } else {
-            Text("انتخاب عضو", style = MaterialTheme.typography.titleMedium)
-            LazyColumn(Modifier.heightIn(max = 180.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(repo.members, key = { it.id }) { m ->
-                    FilterChip(selected = memberId == m.id, onClick = { memberId = m.id; result = null }, label = { Text(m.name) })
-                }
+    val previousWinnerIds = repo.history.filter { it.memberId == memberId && it.type == HistoryType.WHEEL_REWARD }.mapNotNull { it.metadata["itemId"] }.toSet()
+    val eligibleWheelItems = repo.wheel.items.filter { item ->
+        val linked = item.shopItemId?.let { id -> repo.shop.firstOrNull { it.id == id } }
+        item.active && item.weight > 0 && (repo.wheel.allowRepeatAfterWin || item.id !in previousWinnerIds) &&
+            when (item.type) {
+                WheelRewardType.POINTS, WheelRewardType.DIAMONDS, WheelRewardType.CUSTOM -> item.shopItemId == null
+                WheelRewardType.AVATAR -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.AVATAR } == true
+                WheelRewardType.FRAME -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.FRAME } == true
+                WheelRewardType.REWARD -> linked?.let { it.active && (it.stock == null || it.stock > 0) && it.type == ShopItemType.REWARD } == true
             }
-            member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
-            Text("جوایز فعال: ${repo.wheel.items.count { it.active }}")
-            Button(
-                onClick = {
-                    result = try {
-                        val prize = repo.spinWheel(memberId)
-                        if (prize == null) "جایزه قابل انتخابی وجود ندارد یا جوایز این عضو تمام شده‌اند؛ از کارگاه جایزه فعال تعریف کن."
-                        else "🎉 نتیجه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
-                    } catch (e: Exception) {
-                        e.message ?: "چرخاندن گردونه انجام نشد."
+    }
+    val wheelItems = if (isSpinning && spinningItems.isNotEmpty()) spinningItems else eligibleWheelItems
+    val totalWeight = wheelItems.sumOf { it.weight.toLong() }.coerceAtLeast(1L)
+    val wheelColors = listOf(
+        androidx.compose.ui.graphics.Color(0xFF173B63), androidx.compose.ui.graphics.Color(0xFF147D72),
+        androidx.compose.ui.graphics.Color(0xFFB77720), androidx.compose.ui.graphics.Color(0xFF6941A5),
+        androidx.compose.ui.graphics.Color(0xFFB94343), androidx.compose.ui.graphics.Color(0xFF246A91),
+        androidx.compose.ui.graphics.Color(0xFF5D7836), androidx.compose.ui.graphics.Color(0xFF98526D)
+    )
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("گردونهٔ شانس", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+        Text("عضو را انتخاب کن و گردونه را بچرخان؛ جایزه‌ای که نشانگر روی آن بایستد، ثبت می‌شود.", style = MaterialTheme.typography.bodyMedium)
+        if (repo.members.isEmpty()) Text("برای استفاده از گردونه ابتدا یک عضو بساز.")
+        else {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repo.members.forEach { m -> FilterChip(selected = memberId == m.id,
+                    onClick = { if (!isSpinning) { memberId = m.id; result = null } },
+                    label = { Text(m.name) }, enabled = !isSpinning) }
+            }
+            member?.let { Text("سطح ${it.economy.level}  •  امتیاز ${it.economy.spendablePoints}  •  الماس ${it.economy.diamonds}", style = MaterialTheme.typography.labelLarge) }
+            Box(Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val diameter = size.minDimension
+                    val radius = diameter / 2f
+                    val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                    if (wheelItems.isEmpty()) drawCircle(androidx.compose.ui.graphics.Color(0xFF24354A), radius, center)
+                    else {
+                        rotate(rotation.value, pivot = center) {
+                            var startAngle = -90f
+                            wheelItems.forEachIndexed { index, item ->
+                                val sweep = 360f * item.weight.toFloat() / totalWeight.toFloat()
+                                drawArc(wheelColors[index % wheelColors.size], startAngle, sweep, true,
+                                    androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius),
+                                    androidx.compose.ui.geometry.Size(diameter, diameter))
+                                val radians = Math.toRadians(startAngle.toDouble())
+                                drawLine(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.88f), center,
+                                    androidx.compose.ui.geometry.Offset(center.x + cos(radians).toFloat() * radius,
+                                        center.y + sin(radians).toFloat() * radius), strokeWidth = 2.dp.toPx())
+                                startAngle += sweep
+                            }
+                            drawCircle(androidx.compose.ui.graphics.Color(0xFFFFD166), radius * 0.12f, center)
+                            drawCircle(androidx.compose.ui.graphics.Color(0xFF101A2E), radius * 0.075f, center)
+                        }
+                        val native = drawContext.canvas.nativeCanvas
+                        val density = context.resources.displayMetrics.density
+                        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = android.graphics.Color.WHITE; textSize = 11.5f * density
+                            textAlign = android.graphics.Paint.Align.CENTER
+                            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                            setShadowLayer(2f * density, 0f, density, android.graphics.Color.BLACK)
+                        }
+                        native.save(); native.rotate(rotation.value, center.x, center.y)
+                        var startAngle = -90f
+                        wheelItems.forEach { item ->
+                            val sweep = 360f * item.weight.toFloat() / totalWeight.toFloat()
+                            val middle = startAngle + sweep / 2f
+                            val radians = Math.toRadians(middle.toDouble())
+                            val x = center.x + cos(radians).toFloat() * radius * 0.62f
+                            val y = center.y + sin(radians).toFloat() * radius * 0.62f
+                            native.save()
+                            native.rotate(middle + 90f + if (middle in 90f..270f) 180f else 0f, x, y)
+                            native.drawText(item.title.take(12), x, y, paint)
+                            native.restore(); startAngle += sweep
+                        }
+                        native.restore()
                     }
-                    changed()
-                },
-                enabled = member != null && repo.wheel.items.any { it.active },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("چرخاندن گردونه") }
-            result?.let { Card(Modifier.fillMaxWidth()) { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium) } }
+                }
+                Text("▼", Modifier.align(Alignment.TopCenter).offset(y = (-7).dp),
+                    color = androidx.compose.ui.graphics.Color(0xFFFFD166), style = MaterialTheme.typography.headlineLarge)
+            }
+            Text(if (wheelItems.isEmpty()) "جایزهٔ قابل‌دریافت برای این عضو وجود ندارد." else "جایزه‌های قابل‌دریافت: ${wheelItems.size}", style = MaterialTheme.typography.bodySmall)
+            Button(onClick = {
+                if (isSpinning || wheelItems.isEmpty()) return@Button
+                spinningItems = wheelItems
+                isSpinning = true
+                result = null
+                val prize = try {
+                    repo.spinWheel(memberId)
+                } catch (e: Exception) {
+                    result = e.message ?: "چرخاندن گردونه انجام نشد."
+                    null
+                }
+                if (prize == null) {
+                    isSpinning = false
+                    spinningItems = emptyList()
+                    result = result ?: "جایزه‌ای برای انتخاب وجود ندارد."
+                } else {
+                    val index = wheelItems.indexOfFirst { it.id == prize.id }
+                    if (index < 0) {
+                        isSpinning = false
+                        spinningItems = emptyList()
+                        result = "جایزه ثبت شد: ${prize.title}"
+                    } else {
+                        var precedingWeight = 0L
+                        for (i in 0 until index) precedingWeight += wheelItems[i].weight.toLong()
+                        val centerAngle = -90f + 360f * (precedingWeight + wheelItems[index].weight / 2.0).toFloat() / totalWeight.toFloat()
+                        val normalized = ((rotation.value % 360f) + 360f) % 360f
+                        val delta = ((-90f - centerAngle - normalized) % 360f + 360f) % 360f
+                        val phoneSecond = (System.currentTimeMillis() / 1000L % 3L).toInt()
+                        val duration = 4800 + phoneSecond * 450
+                        scope.launch {
+                            try {
+                                rotation.animateTo(
+                                    rotation.value + 2160f + delta,
+                                    animationSpec = tween(duration, easing = FastOutSlowInEasing)
+                                )
+                            } catch (_: Exception) {
+                                // The prize has already been recorded; keep the result visible if animation is interrupted.
+                            } finally {
+                                isSpinning = false
+                                spinningItems = emptyList()
+                            }
+                            result = "🎉 جایزه: ${prize.title}" +
+                                (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
+                        }
+                    }
+                }
+            }, enabled = member != null && wheelItems.isNotEmpty() && !isSpinning, modifier = Modifier.fillMaxWidth()) {
+                Text(if (isSpinning) "گردونه در حال چرخش است…" else "چرخاندن گردونه")
+            }
+            if (isSpinning) LinearProgressIndicator(Modifier.fillMaxWidth())
+            result?.let { Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.titleMedium)
+            } }
         }
     }
 }
 
 @Composable
-private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit, openWheel: () -> Unit) {
     var selectedMemberId by remember { mutableStateOf(repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
     var manualGrantItem by remember { mutableStateOf<ShopItem?>(null) }
     val member = repo.members.firstOrNull { it.id == selectedMemberId }
     val now = System.currentTimeMillis()
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("فروشگاه", style = MaterialTheme.typography.headlineMedium)
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("فروشگاه", style = MaterialTheme.typography.titleLarge)
         Text("جوایز، آواتار و قاب")
+        OutlinedButton(onClick = openWheel, modifier = Modifier.fillMaxWidth()) { Text("ورود به صفحهٔ مستقل گردونهٔ شانس") }
         member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             repo.members.forEach { m -> FilterChip(selectedMemberId == m.id, { selectedMemberId = m.id; result = null }, label = { Text(m.name) }) }
@@ -1677,22 +1992,22 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 val itemBitmap = remember(item.imagePath) { item.imagePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                 val reason = member?.let { com.kichikan.ak1.domain.service.ShopService.canAcquire(item, it, now) }
                 val owned = member?.let { m -> historyOwned(repo, m.id, item.id) } == true
-                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (item.type == ShopItemType.FRAME) {
                         val previewAvatarPath = repo.shop.firstOrNull { it.id == "starter-avatar-1" }?.imagePath
                         val previewAvatar = remember(previewAvatarPath) { previewAvatarPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
-                        Box(Modifier.size(104.dp)) {
-                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.fillMaxSize()) }
+                        Box(Modifier.size(76.dp)) {
+                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.size(50.dp).align(Alignment.Center).clip(CircleShape)) }
                             itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.fillMaxSize()) }
                         }
                     } else {
-                        itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(104.dp)) }
+                        itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(76.dp)) }
                     }
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
-                    Text(when (item.type) { ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" })
+                    Text(shopTypeLabel(item.type))
                     item.minimumLevel?.let { Text("حداقل سطح: $it") }
-                    Text(if (item.methods.isEmpty()) "دریافت مستقیم" else item.methods.joinToString(" • ") { it.name })
-                    Text(if (owned) "قبلاً دریافت شده" else if (item.currency == Currency.NONE || item.price == 0) "رایگان" else "قیمت: ${item.price} ${item.currency.name}")
+                    Text(if (item.methods.isEmpty()) "دریافت مستقیم" else item.methods.joinToString(" • ") { acquisitionMethodLabel(it) })
+                    Text(if (owned) "قبلاً دریافت شده" else if (item.currency == Currency.NONE || item.price == 0) "رایگان" else "قیمت: ${item.price} ${currencyLabel(item.currency)}")
                     val manualOnly = AcquisitionMethod.MANUAL in item.methods &&
                         AcquisitionMethod.DIRECT_PURCHASE !in item.methods &&
                         AcquisitionMethod.LEVEL_UNLOCK !in item.methods
@@ -1717,9 +2032,6 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 } }
             }
         }
-        Text("گردونه", style = MaterialTheme.typography.titleLarge)
-        Text("اقلام: ${repo.wheel.items.size} • تکرار بعد از برد: ${if (repo.wheel.allowRepeatAfterWin) "فعال" else "غیرفعال"}")
-        Button(onClick = { try { val winner = repo.spinWheel(selectedMemberId); result = winner?.title ?: "گردونه آیتم قابل دریافت ندارد."; changed() } catch (ex: IllegalArgumentException) { result = ex.message } }, enabled = member != null && repo.wheel.items.isNotEmpty()) { Text("چرخاندن گردونه") }
         result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
     manualGrantItem?.let { item ->
@@ -1789,6 +2101,8 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
     var shortcutsOpen by remember { mutableStateOf(false) }
     var profileOpen by remember { mutableStateOf(false) }
     var growthManagerOpen by remember { mutableStateOf(false) }
+    var trashOpen by remember { mutableStateOf(false) }
+    var permanentlyDeleteMemberId by remember { mutableStateOf<String?>(null) }
     var growthStageName by remember { mutableStateOf("") }
     val defaultGrowthStages = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
     val growthStages = remember { mutableStateListOf<String>().apply {
@@ -1836,12 +2150,13 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
             }
         }
     }
-    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
+        OutlinedButton({ trashOpen = true }, Modifier.fillMaxWidth()) { Text("اعضای حذف‌شده (${repo.deletedMembers.size})") }
         OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { Text("ویرایش پروفایل") }
         OutlinedButton({ growthManagerOpen = true }, Modifier.fillMaxWidth()) { Text("مدیریت نقشه کمال") }
         OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
@@ -1859,7 +2174,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
                 Text(label)
             }
         }
-        Text("این نسخه کاملاً آفلاین است. پشتیبان شامل حلقه، اعضا، اقتصاد، تاریخچه، فروشگاه، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و دارایی‌های ثبت‌شده است.")
+        Text("نسخه اول کاملاً آفلاین است. پشتیبان محلی شامل اطلاعات حلقه، اعضای فعال و حذف‌شده، سوابق، اقتصاد، فروشگاه و تصاویر، گردونه، مأموریت‌ها، جلسات، حضور و غیاب و تنظیمات برنامه است. تصویرهای بیش از ۱۰ مگابایت در فایل پشتیبان جاسازی نمی‌شوند.")
     }
     if (growthManagerOpen) {
         AlertDialog(
@@ -2058,6 +2373,70 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         )
     }
 
+    if (trashOpen) {
+        AlertDialog(
+            onDismissRequest = { trashOpen = false },
+            title = { Text("اعضای حذف‌شده") },
+            text = {
+                if (repo.deletedMembers.isEmpty()) {
+                    Text("سطل اعضای حذف‌شده خالی است.")
+                } else {
+                    Column(
+                        Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("حذف عضو در این بخش سابقه او را پاک نمی‌کند. برای پاک‌کردن دائمی، گزینه حذف دائمی را انتخاب کن.")
+                        repo.deletedMembers.toList().forEach { member ->
+                            Card(Modifier.fillMaxWidth()) {
+                                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(member.name, style = MaterialTheme.typography.titleMedium)
+                                    Text("سطح ${member.economy.level} • ${member.economy.xp} تجربه", style = MaterialTheme.typography.bodySmall)
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = {
+                                                repo.restoreDeletedMember(member.id)
+                                                changed()
+                                                Toast.makeText(context, "عضو بازیابی شد", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        ) { Text("بازیابی") }
+                                        OutlinedButton(
+                                            onClick = { permanentlyDeleteMemberId = member.id },
+                                            modifier = Modifier.weight(1f)
+                                        ) { Text("حذف دائمی") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { trashOpen = false }) { Text("بستن") } }
+        )
+    }
+
+    permanentlyDeleteMemberId?.let { memberId ->
+        val member = repo.deletedMembers.firstOrNull { it.id == memberId }
+        AlertDialog(
+            onDismissRequest = { permanentlyDeleteMemberId = null },
+            title = { Text("حذف دائمی عضو") },
+            text = {
+                Text("آیا مطمئنی${member?.name?.let { " که «$it»" } ?: ""} برای همیشه حذف شود؟ تاریخچه، حضور و غیاب، جلسه‌ها و پیوندهای این عضو نیز پاک می‌شوند. این کار قابل بازگشت نیست.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    repo.permanentlyDeleteMember(memberId)
+                    permanentlyDeleteMemberId = null
+                    changed()
+                    Toast.makeText(context, "عضو و سوابق وابسته حذف شدند", Toast.LENGTH_SHORT).show()
+                }) { Text("حذف دائمی", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { permanentlyDeleteMemberId = null }) { Text("انصراف") }
+            }
+        )
+    }
+
 }
 
 
@@ -2151,8 +2530,8 @@ private fun AddMemberDialog(repo: AppRepository, changed: () -> Unit, close: () 
 
 /** Manual mentor adjustments. Every operation requires a reason and is written to the member history. */
 private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = false) {
-    XP_ADD("XP +"),
-    XP_SUB("XP −"),
+    XP_ADD("تجربه +"),
+    XP_SUB("تجربه −"),
     POINTS_ADD("امتیاز +"),
     POINTS_SUB("امتیاز −"),
     DIAMONDS_ADD("الماس +"),
@@ -2165,12 +2544,12 @@ private enum class EconomyOp(val label: String, val isLevelTarget: Boolean = fal
     fun submit(){val m=member?:run{error="عضو انتخاب نشده";return};val n=amount.toIntOrNull()?:run{error="مقدار را وارد کنید";return};if(n<=0){error="مقدار باید بیشتر از صفر باشد";return};if(op==EconomyOp.LEVEL_DOWN&&n>=m.economy.level){error="سطح مقصد باید کمتر از سطح فعلی باشد";return};if(reason.isBlank()){error="دلیل اجباری است";return};try{when(op){EconomyOp.XP_ADD->repo.recordXp(m.id,n,reason,"mentor");EconomyOp.XP_SUB->repo.decreaseXp(m.id,n,reason,"mentor");EconomyOp.POINTS_ADD->repo.recordPoints(m.id,n,reason,"mentor");EconomyOp.POINTS_SUB->repo.recordPoints(m.id,-n,reason,"mentor");EconomyOp.DIAMONDS_ADD->repo.recordDiamonds(m.id,n,reason,"mentor");EconomyOp.DIAMONDS_SUB->repo.recordDiamonds(m.id,-n,reason,"mentor");EconomyOp.LEVEL_DOWN->repo.decreaseLevel(m.id,n,reason,"mentor");null->Unit};changed();close()}catch(ex:IllegalArgumentException){error=ex.message}}
     AlertDialog(onDismissRequest=close,title={Text(if(step==0)"شناسنامه" else "ثبت ${op?.label}")},text={
         Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
-            if(step==0){Text("ابتدا نوع تغییر را انتخاب کنید");listOf(EconomyOp.POINTS_ADD to "امتیاز",EconomyOp.DIAMONDS_ADD to "الماس",EconomyOp.XP_ADD to "XP",EconomyOp.LEVEL_DOWN to "سطح").forEach{pair->Button({op=pair.first;step=1},Modifier.fillMaxWidth()){Text(pair.second)}}}
+            if(step==0){Text("ابتدا نوع تغییر را انتخاب کنید");listOf(EconomyOp.POINTS_ADD to "امتیاز",EconomyOp.DIAMONDS_ADD to "الماس",EconomyOp.XP_ADD to "تجربه",EconomyOp.LEVEL_DOWN to "سطح").forEach{pair->Button({op=pair.first;step=1},Modifier.fillMaxWidth()){Text(pair.second)}}}
             else { Text("عضو");Row(Modifier.horizontalScroll(rememberScrollState())){repo.members.forEach{m->FilterChip(memberId==m.id,{memberId=m.id},label={Text(m.name)})}};Text("نوع عملیات");Row(Modifier.horizontalScroll(rememberScrollState())){op?.let{base->val options=when(base){EconomyOp.POINTS_ADD->listOf(EconomyOp.POINTS_ADD,EconomyOp.POINTS_SUB);EconomyOp.DIAMONDS_ADD->listOf(EconomyOp.DIAMONDS_ADD,EconomyOp.DIAMONDS_SUB);EconomyOp.XP_ADD->listOf(EconomyOp.XP_ADD,EconomyOp.XP_SUB);else->listOf(EconomyOp.LEVEL_DOWN)};options.forEach{o->FilterChip(op==o,{op=o},label={Text(o.label)})}}};OutlinedTextField(amount,{amount=it.filter(Char::isDigit)},label={Text(if(op==EconomyOp.LEVEL_DOWN)"سطح مقصد" else "مقدار")},singleLine=true);OutlinedTextField(reason,{reason=it},label={Text("دلیل (اجباری)")},singleLine=true);error?.let{Text(it,color=MaterialTheme.colorScheme.error)}}
         } },confirmButton={if(step==0)TextButton(close){Text("انصراف")}else Row{TextButton({step=0;error=null}){Text("مرحله قبل")};TextButton({submit()}){Text("تأیید")}}},dismissButton={if(step==1)TextButton(close){Text("لغو")}})
 }@Composable private fun WheelConfigDialog(repo: AppRepository, changed: () -> Unit, close: () -> Unit) {
     var mode by remember { mutableStateOf(repo.wheel.mode) }; var points by remember { mutableStateOf(repo.wheel.spinCostPoints.toString()) }; var diamonds by remember { mutableStateOf(repo.wheel.spinCostDiamonds.toString()) }; var repeat by remember { mutableStateOf(repo.wheel.allowRepeatAfterWin) }
-    AlertDialog(onDismissRequest=close,title={Text("تنظیمات گردونه")},text={Column(verticalArrangement=Arrangement.spacedBy(7.dp)){Row(Modifier.horizontalScroll(rememberScrollState())){WheelMode.values().forEach{m->FilterChip(mode==m,{mode=m},label={Text(m.name)})}};OutlinedTextField(points,{points=it.filter(Char::isDigit)},label={Text("هزینه امتیاز")});OutlinedTextField(diamonds,{diamonds=it.filter(Char::isDigit)},label={Text("هزینه الماس")});Row(verticalAlignment=Alignment.CenterVertically){Checkbox(repeat,{repeat=it});Text("تکرار جایزه بعد از برد")}}},confirmButton={TextButton({repo.setWheel(repo.wheel.copy(mode=mode,spinCostPoints=points.toIntOrNull()?:0,spinCostDiamonds=diamonds.toIntOrNull()?:0,freeSpin=mode==WheelMode.FREE,allowRepeatAfterWin=repeat));changed();close()}){Text("ذخیره")}},dismissButton={TextButton(close){Text("لغو")}})
+    AlertDialog(onDismissRequest=close,title={Text("تنظیمات گردونه")},text={Column(verticalArrangement=Arrangement.spacedBy(7.dp)){Row(Modifier.horizontalScroll(rememberScrollState())){WheelMode.values().forEach{m->FilterChip(mode==m,{mode=m},label={Text(wheelModeLabel(m))})}};OutlinedTextField(points,{points=it.filter(Char::isDigit)},label={Text("هزینه امتیاز")});OutlinedTextField(diamonds,{diamonds=it.filter(Char::isDigit)},label={Text("هزینه الماس")});Row(verticalAlignment=Alignment.CenterVertically){Checkbox(repeat,{repeat=it});Text("تکرار جایزه بعد از برد")}}},confirmButton={TextButton({repo.setWheel(repo.wheel.copy(mode=mode,spinCostPoints=points.toIntOrNull()?:0,spinCostDiamonds=diamonds.toIntOrNull()?:0,freeSpin=mode==WheelMode.FREE,allowRepeatAfterWin=repeat));changed();close()}){Text("ذخیره")}},dismissButton={TextButton(close){Text("لغو")}})
 }
 
 

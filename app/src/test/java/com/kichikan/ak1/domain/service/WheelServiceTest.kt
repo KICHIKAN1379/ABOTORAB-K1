@@ -37,6 +37,16 @@ class WheelServiceTest {
         assertNotNull(WheelService.spin(config, previousWinnerIds = setOf("first")))
     }
 
+    @Test fun totalWeightMayExceedIntRangeWithoutCrashing() {
+        val config = WheelConfig(
+            items = listOf(
+                item("first", weight = Int.MAX_VALUE),
+                item("second", weight = Int.MAX_VALUE)
+            )
+        )
+        assertNotNull(WheelService.spin(config))
+    }
+
     @Test fun nonPositiveWeightsAreIgnored() {
         val config = WheelConfig(items = listOf(item("bad", weight = 0), item("good", weight = 2)))
         assertEquals("good", WheelService.spin(config)?.id)

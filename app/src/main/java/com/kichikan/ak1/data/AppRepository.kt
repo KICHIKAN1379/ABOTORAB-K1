@@ -21,6 +21,8 @@ class AppRepository(context: Context) {
         private set
 
     val members = mutableListOf<Member>()
+    /** Soft-deleted members remain available for recovery; related history is preserved. */
+    val deletedMembers = mutableListOf<Member>()
     val history = mutableListOf<HistoryEvent>()
     val shop = mutableListOf<ShopItem>()
     val missions = mutableListOf<Mission>()
@@ -37,6 +39,7 @@ class AppRepository(context: Context) {
         store.load()?.let { state ->
             ring = state.ring
             members += state.members
+            deletedMembers += state.deletedMembers
             history += state.history
             shop += state.shop
             wheel = state.wheel
@@ -384,7 +387,34 @@ class AppRepository(context: Context) {
         persist()
     }
 
+    /**
+     * Moves a member to the recycle bin without destroying their history, attendance,
+     * sessions, mission records, or group links.
+     */
     fun deleteMember(memberId: String) {
+        val index = members.indexOfFirst { it.id == memberId }
+        if (index < 0) return
+        val member = members.removeAt(index)
+        if (deletedMembers.none { it.id == memberId }) deletedMembers += member
+        persist()
+    }
+
+    /** Restores a member from the recycle bin without changing their stable ID or history. */
+    fun restoreDeletedMember(memberId: String) {
+        val index = deletedMembers.indexOfFirst { it.id == memberId }
+        if (index < 0) return
+        val member = deletedMembers.removeAt(index)
+        members.removeAll { it.id == memberId }
+        members += member
+        persist()
+    }
+
+    /**
+     * Permanently removes the archived member and all records that are exclusively tied
+     * to them. This operation should only be exposed behind an explicit confirmation.
+     */
+    fun permanentlyDeleteMember(memberId: String) {
+        deletedMembers.removeAll { it.id == memberId }
         members.removeAll { it.id == memberId }
         history.removeAll { it.memberId == memberId }
         attendance.removeAll { it.memberId == memberId }
@@ -759,21 +789,23 @@ class AppRepository(context: Context) {
             sessions,
             attendance,
             assets,
-            groups
+            groups,
+            deletedMembers
         )
     }
 
     fun exportBackup(): String {
-        return store.exportJson() ?: run {
-            persist()
-            store.exportJson() ?: "{}"
-        }
+        // Refresh the snapshot at export time so settings changed since the last data edit
+        // are included in the user's local backup.
+        persist()
+        return store.exportJson() ?: "{}"
     }
 
     fun importBackup(raw: String) {
         store.importJson(raw)
 
         members.clear()
+        deletedMembers.clear()
         history.clear()
         shop.clear()
         missions.clear()
@@ -787,6 +819,7 @@ class AppRepository(context: Context) {
         store.load()?.let { state ->
             ring = state.ring
             members += state.members
+            deletedMembers += state.deletedMembers
             history += state.history
             shop += state.shop
             wheel = state.wheel

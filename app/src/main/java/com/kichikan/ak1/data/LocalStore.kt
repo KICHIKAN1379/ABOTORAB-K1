@@ -22,25 +22,34 @@ class LocalStore(private val context: Context) {
         sessions: List<Session>,
         attendance: List<Attendance>,
         assets: List<CustomAsset>,
-        groups: List<Group>
+        groups: List<Group>,
+        deletedMembers: List<Member> = emptyList()
     ) {
-        val root = JSONObject().put("schemaVersion", 5)
+        val root = JSONObject().put("schemaVersion", 6)
         ring?.let {
             root.put("ringId", it.ringId).put("ringName", it.ringName)
                 .put("ringUsername", it.ringUsername).put("passwordRequired", it.passwordRequired)
         }
 
+        fun memberJson(member: Member) = JSONObject()
+            .put("id", member.id).put("ringId", member.ringId).put("name", member.name)
+            .put("xp", member.economy.xp).put("points", member.economy.spendablePoints)
+            .put("diamonds", member.economy.diamonds)
+            .put("halfDiamondUnits", member.economy.halfDiamondUnits)
+            .put("avatar", member.avatarItemId ?: JSONObject.NULL)
+            .put("frame", member.frameItemId ?: JSONObject.NULL)
+            .put("birthDate", member.birthDate ?: JSONObject.NULL)
+            .put("groupId", member.groupId ?: JSONObject.NULL)
+            .put("privateNotes", member.privateNotes)
+            .put("responsibility", member.responsibility)
+
         val ms = JSONArray()
-        members.forEach {
-            ms.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)
-                .put("xp", it.economy.xp).put("points", it.economy.spendablePoints)
-                .put("diamonds", it.economy.diamonds)
-                .put("halfDiamondUnits", it.economy.halfDiamondUnits)
-                .put("avatar", it.avatarItemId ?: JSONObject.NULL)
-                .put("frame", it.frameItemId ?: JSONObject.NULL)
-                .put("birthDate", it.birthDate ?: JSONObject.NULL).put("groupId", it.groupId ?: JSONObject.NULL).put("privateNotes", it.privateNotes).put("responsibility", it.responsibility))
-        }
+        members.forEach { ms.put(memberJson(it)) }
         root.put("members", ms)
+        val deletedMembersJson = JSONArray()
+        deletedMembers.forEach { deletedMembersJson.put(memberJson(it)) }
+        root.put("deletedMembers", deletedMembersJson)
+        addAppSettingsToBackup(root)
         val groupsJson = JSONArray()
         groups.forEach {
             groupsJson.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)
@@ -63,14 +72,20 @@ class LocalStore(private val context: Context) {
         root.put("history", hs)
 
         val shopJson = JSONArray()
-        shop.forEach {
-            shopJson.put(JSONObject().put("id", it.id).put("name", it.name).put("type", it.type.name)
-                .put("imagePath", it.imagePath ?: JSONObject.NULL).put("price", it.price)
-                .put("currency", it.currency.name).put("minimumLevel", it.minimumLevel ?: JSONObject.NULL)
-                .put("methods", JSONArray(it.methods.map { method -> method.name }))
-                .put("eventStart", it.eventStartEpochMillis ?: JSONObject.NULL)
-                .put("eventEnd", it.eventEndEpochMillis ?: JSONObject.NULL)
-                .put("stock", it.stock ?: JSONObject.NULL).put("active", it.active).put("description", it.description))
+        shop.forEach { item ->
+            val itemJson = JSONObject().put("id", item.id).put("name", item.name).put("type", item.type.name)
+                .put("imagePath", item.imagePath ?: JSONObject.NULL).put("price", item.price)
+                .put("currency", item.currency.name).put("minimumLevel", item.minimumLevel ?: JSONObject.NULL)
+                .put("methods", JSONArray(item.methods.map { method -> method.name }))
+                .put("eventStart", item.eventStartEpochMillis ?: JSONObject.NULL)
+                .put("eventEnd", item.eventEndEpochMillis ?: JSONObject.NULL)
+                .put("stock", item.stock ?: JSONObject.NULL).put("active", item.active).put("description", item.description)
+            item.imagePath?.let { imagePath ->
+                readAssetBytes(imagePath)?.let { bytes ->
+                    if (bytes.size <= 10 * 1024 * 1024) itemJson.put("imageBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
+                }
+            }
+            shopJson.put(itemJson)
         }
         root.put("shop", shopJson)
 
@@ -138,6 +153,75 @@ class LocalStore(private val context: Context) {
         prefs.edit().putString("backup", root.toString()).apply()
     }
 
+    /**
+     * Settings are part of a complete local backup too. The ring profile URI is intentionally
+     * omitted because a content URI is device/provider-specific and may not work after restore.
+     */
+    private fun addAppSettingsToBackup(root: JSONObject) {
+        val all = context.getSharedPreferences("ak1_settings", Context.MODE_PRIVATE).all
+        val settings = JSONObject()
+        val stringSetKeys = JSONArray()
+        all.forEach { (key, value) ->
+            if (key == "ring_profile_image" || value == null) return@forEach
+            when (value) {
+                is Set<*> -> {
+                    settings.put(key, JSONArray(value.mapNotNull { it?.toString() }))
+                    stringSetKeys.put(key)
+                }
+                is String, is Boolean, is Int, is Long, is Float, is Double -> settings.put(key, value)
+            }
+        }
+        root.put("appSettings", settings)
+        root.put("appSettingsStringSets", stringSetKeys)
+    }
+
+    private fun restoreAppSettings(root: JSONObject) {
+        val settings = root.optJSONObject("appSettings") ?: return
+        val setKeysJson = root.optJSONArray("appSettingsStringSets") ?: JSONArray()
+        val setKeys = (0 until setKeysJson.length()).map { setKeysJson.getString(it) }.toSet()
+        val prefs = context.getSharedPreferences("ak1_settings", Context.MODE_PRIVATE)
+        val existingProfileImage = prefs.getString("ring_profile_image", null)
+        val editor = prefs.edit().clear()
+        if (existingProfileImage != null) editor.putString("ring_profile_image", existingProfileImage)
+        val keys = settings.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            if (key == "ring_profile_image") continue
+            val value = settings.get(key)
+            when {
+                key in setKeys && value is JSONArray -> {
+                    val values = (0 until value.length()).map { value.getString(it) }.toSet()
+                    editor.putStringSet(key, values.toMutableSet())
+                }
+                value is Boolean -> editor.putBoolean(key, value)
+                value is Number -> {
+                    val number = value.toDouble()
+                    if (number % 1.0 != 0.0) editor.putFloat(key, number.toFloat())
+                    else if (number in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()) editor.putInt(key, number.toInt())
+                    else editor.putLong(key, number.toLong())
+                }
+                value is String -> editor.putString(key, value)
+                value is JSONArray -> editor.putString(key, value.toString())
+            }
+        }
+        check(editor.commit()) { "ذخیره تنظیمات بازیابی‌شده ناموفق بود" }
+    }
+
+    private fun restoreShopImageIfNeeded(base64: String?, id: String, originalPath: String?): String? {
+        if (base64.isNullOrBlank() || originalPath.isNullOrBlank()) return originalPath
+        return runCatching {
+            val bytes = Base64.decode(base64, Base64.DEFAULT)
+            val directory = File(context.filesDir, "custom_assets/backup_shop").apply { mkdirs() }
+            val extension = originalPath.substringAfterLast('.', "img")
+                .lowercase().takeIf { it.matches(Regex("[a-z0-9]{1,8}")) } ?: "img"
+            val safeId = id.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80).ifBlank { "shop" }
+            val target = File(directory, "$safeId.$extension").canonicalFile
+            require(target.parentFile == directory.canonicalFile) { "مسیر تصویر فروشگاه نامعتبر است" }
+            if (!target.isFile || !target.readBytes().contentEquals(bytes)) target.writeBytes(bytes)
+            target.absolutePath
+        }.getOrDefault(originalPath)
+    }
+
     private fun readAssetBytes(path: String): ByteArray? = runCatching {
         if (path.startsWith("content://")) context.contentResolver.openInputStream(Uri.parse(path))?.use { it.readBytes() }
         else File(path).takeIf { it.isFile }?.readBytes()
@@ -145,12 +229,21 @@ class LocalStore(private val context: Context) {
 
     private fun restoreAssetIfNeeded(base64: String?, id: String, originalPath: String, mimeType: String): String {
         if (base64.isNullOrBlank()) return originalPath
-        val existing = runCatching { if (originalPath.startsWith("content://")) null else File(originalPath).takeIf { it.isFile }?.absolutePath }.getOrNull()
-        if (existing != null) return existing
         return runCatching {
             val dir = File(context.filesDir, "custom_assets").apply { mkdirs() }
-            val extension = when { mimeType.equals("image/jpeg", true) -> ".jpg"; mimeType.equals("image/webp", true) -> ".webp"; mimeType.equals("image/gif", true) -> ".gif"; else -> ".png" }
-            val target = File(dir, id + extension)
+            val extension = when {
+                mimeType.equals("image/jpeg", true) -> ".jpg"
+                mimeType.equals("image/webp", true) -> ".webp"
+                mimeType.equals("image/gif", true) -> ".gif"
+                else -> ".png"
+            }
+            // Never use an imported ID as a path: backups are user-selected files and IDs
+            // must not be able to escape the app's private asset directory.
+            val safeId = id.replace(Regex("[^A-Za-z0-9_-]"), "_").take(80).ifBlank { "asset" }
+            val target = File(dir, "$safeId$extension").canonicalFile
+            require(target.parentFile == dir.canonicalFile) { "مسیر فایل دارایی نامعتبر است" }
+            // Prefer the bytes embedded in the backup even when a file already exists at
+            // the old absolute path; that path may refer to unrelated content on this device.
             target.writeBytes(Base64.decode(base64, Base64.DEFAULT))
             target.absolutePath
         }.getOrDefault(originalPath)
@@ -164,14 +257,15 @@ class LocalStore(private val context: Context) {
             throw IllegalArgumentException("ساختار فایل پشتیبان معتبر نیست", e)
         }
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..6) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
 
-        // Validate the entire backup before accepting it. If parsing any nested record fails,
-        // restore the previous saved data instead of leaving the app with a broken backup.
+        // Validate before accepting the backup. Validation deliberately skips asset writes so
+        // malformed data later in the file cannot overwrite an existing image on this device.
         val previous = prefs.getString("backup", null)
         prefs.edit().putString("backup", raw).commit()
         try {
-            load()
+            load(restoreAssets = false)
+            restoreAppSettings(root)
         } catch (e: Exception) {
             val editor = prefs.edit()
             if (previous == null) editor.remove("backup") else editor.putString("backup", previous)
@@ -180,11 +274,11 @@ class LocalStore(private val context: Context) {
         }
     }
 
-    fun load(): LoadedState? {
+    fun load(restoreAssets: Boolean = true): LoadedState? {
         val raw = prefs.getString("backup", null) ?: return null
         val root = JSONObject(raw)
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..6) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
 
         val ring = if (root.has("ringId")) RingAccount(
             root.getString("ringId"), root.getString("ringName"),
@@ -198,6 +292,24 @@ class LocalStore(private val context: Context) {
             members += Member(
                 o.getString("id"), o.getString("ringId"), o.getString("name"),
                 // Older saves kept every half-diamond unit pending; carry pairs into whole diamonds.
+                o.optInt("halfDiamondUnits", 0).let { units ->
+                    MemberEconomy(o.optInt("xp"), o.optInt("points"), o.optInt("diamonds") + units / 2, units % 2)
+                },
+                o.optString("avatar").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("frame").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("groupId").takeIf { it.isNotEmpty() && it != "null" },
+                o.optString("privateNotes", ""),
+                o.optString("responsibility", "")
+            )
+        }
+
+        val deletedMembers = mutableListOf<Member>()
+        val deletedMembersJson = root.optJSONArray("deletedMembers") ?: JSONArray()
+        for (i in 0 until deletedMembersJson.length()) {
+            val o = deletedMembersJson.getJSONObject(i)
+            deletedMembers += Member(
+                o.getString("id"), o.getString("ringId"), o.getString("name"),
                 o.optInt("halfDiamondUnits", 0).let { units ->
                     MemberEconomy(o.optInt("xp"), o.optInt("points"), o.optInt("diamonds") + units / 2, units % 2)
                 },
@@ -249,9 +361,13 @@ class LocalStore(private val context: Context) {
             val methods = mutableSetOf<AcquisitionMethod>()
             val methodsJson = o.optJSONArray("methods") ?: JSONArray()
             for (j in 0 until methodsJson.length()) methods += AcquisitionMethod.valueOf(methodsJson.getString(j))
+            val originalImagePath = o.optString("imagePath").takeIf { it.isNotEmpty() && it != "null" }
+            val restoredImagePath = if (restoreAssets) {
+                restoreShopImageIfNeeded(o.optString("imageBase64").takeIf { it.isNotBlank() }, o.getString("id"), originalImagePath)
+            } else originalImagePath
             shop += ShopItem(
                 o.getString("id"), o.getString("name"), ShopItemType.valueOf(o.getString("type")),
-                o.optString("imagePath").takeIf { it.isNotEmpty() && it != "null" }, o.optInt("price"),
+                restoredImagePath, o.optInt("price"),
                 Currency.valueOf(o.optString("currency", Currency.NONE.name)),
                 if (o.isNull("minimumLevel")) null else o.getInt("minimumLevel"), methods,
                 if (o.isNull("eventStart")) null else o.getLong("eventStart"),
@@ -337,7 +453,9 @@ class LocalStore(private val context: Context) {
         for (i in 0 until assetsJson.length()) {
             val o = assetsJson.getJSONObject(i)
             val originalPath = o.getString("path")
-            val restoredPath = restoreAssetIfNeeded(o.optString("dataBase64").takeIf { it.isNotBlank() }, o.getString("id"), originalPath, o.optString("mimeType", "image/png"))
+            val restoredPath = if (restoreAssets) {
+                restoreAssetIfNeeded(o.optString("dataBase64").takeIf { it.isNotBlank() }, o.getString("id"), originalPath, o.optString("mimeType", "image/png"))
+            } else originalPath
             assets += CustomAsset(
                 o.getString("id"), o.getString("name"), AssetType.valueOf(o.getString("type")),
                 restoredPath, o.optString("mimeType", "image/png"),
@@ -346,7 +464,7 @@ class LocalStore(private val context: Context) {
             )
         }
 
-        return LoadedState(ring, members, history, shop, wheel, missions, completions, sessions, attendance, assets, groups)
+        return LoadedState(ring, members, history, shop, wheel, missions, completions, sessions, attendance, assets, groups, deletedMembers)
     }
 }
 
@@ -361,5 +479,6 @@ data class LoadedState(
     val sessions: List<Session> = emptyList(),
     val attendance: List<Attendance> = emptyList(),
     val assets: List<CustomAsset> = emptyList(),
-    val groups: List<Group> = emptyList()
+    val groups: List<Group> = emptyList(),
+    val deletedMembers: List<Member> = emptyList()
 )
