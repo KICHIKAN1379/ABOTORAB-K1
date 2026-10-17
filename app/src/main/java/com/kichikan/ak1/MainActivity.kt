@@ -1667,9 +1667,10 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     var mode by remember { mutableStateOf(0) }
     val context = LocalContext.current
     var exportRows by remember { mutableStateOf<List<String>>(emptyList()) }
+    var exportMembers by remember { mutableStateOf<List<Member>>(emptyList()) }
     var exportTitle by remember { mutableStateOf("رتبه‌بندی") }
     val rankingExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
-        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> buildRankingCard(exportTitle, exportRows).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> buildRankingCard(exportTitle, exportRows, repo, exportMembers).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
             .onSuccess { Toast.makeText(context, "تصویر رتبه‌بندی ذخیره شد", Toast.LENGTH_SHORT).show() }
             .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
     }
@@ -1681,10 +1682,12 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             if (mode == 0) {
                 val rows = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
                 exportTitle = "رتبه‌بندی اعضا"
+                exportMembers = rows
                 exportRows = rows.mapIndexed { i, m -> "${i + 1}. ${m.name} | سطح ${m.economy.level} | تجربه ${m.economy.xp} | امتیاز ${m.economy.spendablePoints} | الماس ${m.economy.diamonds}" }
             } else {
                 val rows = repo.groups.sortedByDescending { it.economy.spendablePoints }
                 exportTitle = "رتبه‌بندی گروه‌ها"
+                exportMembers = emptyList()
                 exportRows = rows.mapIndexed { i, group -> "${i + 1}. ${group.name} | امتیاز ${group.economy.spendablePoints} | الماس ${group.economy.diamonds}" }
             }
             rankingExporter.launch(if (mode == 0) "رتبه‌بندی-اعضا.jpg" else "رتبه‌بندی-گروه‌ها.jpg")
@@ -1699,23 +1702,74 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
     }
 }
 
-private fun buildRankingCard(title: String, rows: List<String>): android.graphics.Bitmap {
+private fun buildRankingCard(
+    title: String,
+    rows: List<String>,
+    repo: AppRepository,
+    members: List<Member>
+): android.graphics.Bitmap {
     val width = 1200
-    val lineHeight = 52
-    val height = (170 + rows.size.coerceAtLeast(1) * lineHeight).coerceAtMost(6000)
+    val headerHeight = 250
+    val rowHeight = if (members.isNotEmpty()) 154 else 72
+    val height = (headerHeight + rows.size.coerceAtLeast(1) * rowHeight + 70).coerceAtMost(7000)
     val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(bitmap)
-    canvas.drawColor(android.graphics.Color.rgb(22, 33, 62))
-    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(255, 215, 0); textSize = 42f; textAlign = android.graphics.Paint.Align.RIGHT; typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD) }
-    val rowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 27f; textAlign = android.graphics.Paint.Align.RIGHT }
-    val dividerPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(56, 239, 125); strokeWidth = 2f }
-    canvas.drawText(title, width - 50f, 75f, titlePaint)
-    canvas.drawText("مجموعه فرهنگی تربیتی ابوتراب علیه السلام", width - 50f, 125f, rowPaint)
-    if (rows.isEmpty()) canvas.drawText("هنوز داده‌ای برای رتبه‌بندی وجود ندارد.", width - 50f, 205f, rowPaint)
+    canvas.drawColor(android.graphics.Color.rgb(13, 19, 32))
+    val gold = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(216, 181, 109) }
+    val panel = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(27, 36, 50) }
+    val green = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(57, 131, 106) }
+    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.rgb(245, 240, 230); textSize = 48f
+        textAlign = android.graphics.Paint.Align.RIGHT
+        typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
+    val subtitlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.rgb(216, 181, 109); textSize = 27f
+        textAlign = android.graphics.Paint.Align.RIGHT
+    }
+    val rowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE; textSize = 27f
+        textAlign = android.graphics.Paint.Align.RIGHT
+    }
+    canvas.drawCircle(75f, 45f, 190f, green.apply { alpha = 65 })
+    canvas.drawCircle(width - 35f, 70f, 220f, gold.apply { alpha = 40 })
+    canvas.drawRoundRect(30f, 25f, width - 30f, 205f, 32f, 32f, panel)
+    canvas.drawRoundRect(30f, 25f, 43f, 205f, 6f, 6f, gold)
+    canvas.drawText(title, width - 65f, 95f, titlePaint)
+    canvas.drawText("مجموعه فرهنگی تربیتی ابوتراب علیه‌السلام", width - 65f, 148f, subtitlePaint)
+    canvas.drawText("گزارش رتبه‌بندی", width - 65f, 185f, rowPaint)
+    if (rows.isEmpty()) canvas.drawText("هنوز داده‌ای برای نمایش وجود ندارد.", width - 65f, 300f, rowPaint)
     rows.forEachIndexed { i, row ->
-        val y = 190f + i * lineHeight
-        canvas.drawText(row.take(85), width - 50f, y, rowPaint)
-        canvas.drawLine(45f, y + 15f, width - 45f, y + 15f, dividerPaint)
+        val top = headerHeight + i * rowHeight
+        canvas.drawRoundRect(30f, top.toFloat(), width - 30f, (top + rowHeight - 12).toFloat(), 22f, 22f, panel)
+        if (members.isNotEmpty()) {
+            val member = members.getOrNull(i)
+            val centerX = 105f
+            val centerY = top + (rowHeight - 12) / 2f
+            val avatarRect = android.graphics.RectF(centerX - 46f, centerY - 46f, centerX + 46f, centerY + 46f)
+            val avatarPath = member?.avatarItemId?.let { id -> repo.shop.firstOrNull { it.id == id }?.imagePath }
+            val framePath = member?.frameItemId?.let { id -> repo.shop.firstOrNull { it.id == id }?.imagePath }
+            val avatar = avatarPath?.let { runCatching { android.graphics.BitmapFactory.decodeFile(it) }.getOrNull() }
+            val frame = framePath?.let { runCatching { android.graphics.BitmapFactory.decodeFile(it) }.getOrNull() }
+            canvas.drawCircle(centerX, centerY, 52f, gold)
+            if (avatar != null) {
+                val save = canvas.save()
+                val clip = android.graphics.Path().apply { addCircle(centerX, centerY, 46f, android.graphics.Path.Direction.CW) }
+                canvas.clipPath(clip)
+                canvas.drawBitmap(avatar, null, avatarRect, null)
+                canvas.restoreToCount(save)
+            } else {
+                val fallback = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(57, 131, 106) }
+                canvas.drawCircle(centerX, centerY, 46f, fallback)
+            }
+            if (frame != null) canvas.drawBitmap(frame, null, android.graphics.RectF(centerX - 62f, centerY - 62f, centerX + 62f, centerY + 62f), null)
+            val rankPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.rgb(216, 181, 109); textSize = 25f; textAlign = android.graphics.Paint.Align.LEFT
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+            canvas.drawText("#${i + 1}", 180f, centerY + 9f, rankPaint)
+        }
+        canvas.drawText(row.take(72), width - 65f, (top + rowHeight / 2f + 10f), rowPaint)
     }
     return bitmap
 }
