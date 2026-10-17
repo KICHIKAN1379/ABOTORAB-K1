@@ -172,30 +172,30 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     )
     val icons = listOf("⚒", "▦", "♛", "◇")
     val accents = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.primary)
-    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                    Text("ع", Modifier.padding(horizontal = 18.dp, vertical = 10.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("ع", Modifier.padding(horizontal = 13.dp, vertical = 7.dp), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
                 }
                 Column {
-                    Text("ابوتراب علیه‌السلام", style = MaterialTheme.typography.titleLarge)
+                    Text("ابوتراب علیه‌السلام", style = MaterialTheme.typography.titleMedium)
                     Text("پنل مدیریت حلقه", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        Text("خدمات", style = MaterialTheme.typography.headlineSmall)
+        Text("خدمات", style = MaterialTheme.typography.titleLarge)
         services.forEachIndexed { index, item ->
             Card(onClick = { open(item.third) }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp), color = accents[index].copy(alpha = 0.15f)) {
-                        Text(icons[index], Modifier.padding(horizontal = 13.dp, vertical = 9.dp), style = MaterialTheme.typography.titleLarge, color = accents[index])
+                        Text(icons[index], Modifier.padding(horizontal = 10.dp, vertical = 7.dp), style = MaterialTheme.typography.titleMedium, color = accents[index])
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(item.first, style = MaterialTheme.typography.titleMedium)
+                        Text(item.first, style = MaterialTheme.typography.titleSmall)
                         Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text("‹", style = MaterialTheme.typography.headlineMedium, color = accents[index])
+                    Text("‹", style = MaterialTheme.typography.titleLarge, color = accents[index])
                 }
             }
         }
