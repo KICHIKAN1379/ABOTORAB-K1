@@ -630,7 +630,7 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     val defaultStages = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
-    val stages = remember(member.id) {
+    val stages = run {
         val raw = prefs.getString("growth_stages", null)
         if (raw == null) defaultStages else runCatching {
             val arr = org.json.JSONArray(raw)
@@ -638,7 +638,7 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
         }.getOrDefault(defaultStages)
     }
     val reachedKey = "growth_reached_${member.id}"
-    var reached by remember(member.id, stages) {
+    var reached by remember(member.id) {
         mutableStateOf((prefs.getStringSet(reachedKey, emptySet()) ?: emptySet()).toSet())
     }
     val count = stages.count { it in reached }
