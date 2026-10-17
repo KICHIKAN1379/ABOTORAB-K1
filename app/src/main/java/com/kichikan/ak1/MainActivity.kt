@@ -967,7 +967,6 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
             }
             }
         }
-    }
     if(editWheelConfig) WheelConfigDialog(repo,changed){editWheelConfig=false};if(addMission) MissionEditDialog(repo,null,changed){addMission=false};editMission?.let{MissionEditDialog(repo,it,changed){editMission=null}};completeMission?.let{CompleteMissionDialog(repo,it,changed){completeMission=null}};if(addWheel)WheelEditDialog(repo,null,changed){addWheel=false};editWheel?.let{WheelEditDialog(repo,it,changed){editWheel=null}};if(addShop)AddShopItemDialog(repo,changed){addShop=false};editShop?.let{ShopItemEditDialog(repo,it,changed){editShop=null}}
 }@Composable private fun MissionEditDialog(repo: AppRepository, item: Mission?, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
