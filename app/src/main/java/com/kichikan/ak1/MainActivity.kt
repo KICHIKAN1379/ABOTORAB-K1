@@ -532,7 +532,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(m.name.take(1), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
                                         avatarBitmap?.let {
-                                             Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(42.dp).clip(CircleShape))
+                                             Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(36.dp).clip(CircleShape))
                                          }
                                          frameBitmap?.let {
                                              Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize())
@@ -1702,9 +1702,9 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             .onSuccess { Toast.makeText(context, "تصویر رتبه‌بندی ذخیره شد", Toast.LENGTH_SHORT).show() }
             .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
     }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-        Text("رقابت", style = MaterialTheme.typography.headlineMedium)
-        Text("رتبه اعضا بر اساس سطح و تجربه است؛ رتبه گروه‌ها بر اساس امتیاز و الماس مستقل گروه محاسبه می‌شود.")
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("رقابت", style = MaterialTheme.typography.titleLarge)
+        Text("رتبه اعضا بر اساس سطح و تجربه؛ رتبه گروه‌ها بر اساس امتیاز و الماس.", style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(mode == 0, { mode = 0 }, label = { Text("اعضا") }); FilterChip(mode == 1, { mode = 1 }, label = { Text("گروه‌ها") }) }
         OutlinedButton(onClick = {
             if (mode == 0) {
@@ -1722,15 +1722,15 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
         if (mode == 0) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(ranked, key = { it.id }) { m ->
                     val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
                     val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
                     val avatar = remember(avatarPath) { avatarPath?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
                     val frame = remember(framePath) { framePath?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
                     Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                                 if (avatar != null) Image(avatar, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(42.dp).clip(CircleShape))
                                 else Surface(Modifier.size(42.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) { Box(contentAlignment = Alignment.Center) { Text(m.name.take(1)) } }
                                 if (frame != null) Image(frame, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize())
@@ -1746,7 +1746,7 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
             }
         } else {
             val rankedGroups = repo.groups.sortedByDescending { it.economy.spendablePoints }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
         }
     }
 }
@@ -1979,8 +1979,8 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
     var manualGrantItem by remember { mutableStateOf<ShopItem?>(null) }
     val member = repo.members.firstOrNull { it.id == selectedMemberId }
     val now = System.currentTimeMillis()
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("فروشگاه", style = MaterialTheme.typography.headlineMedium)
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("فروشگاه", style = MaterialTheme.typography.titleLarge)
         Text("جوایز، آواتار و قاب")
         OutlinedButton(onClick = openWheel, modifier = Modifier.fillMaxWidth()) { Text("ورود به صفحهٔ مستقل گردونهٔ شانس") }
         member?.let { Text("سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}") }
@@ -1992,16 +1992,16 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 val itemBitmap = remember(item.imagePath) { item.imagePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
                 val reason = member?.let { com.kichikan.ak1.domain.service.ShopService.canAcquire(item, it, now) }
                 val owned = member?.let { m -> historyOwned(repo, m.id, item.id) } == true
-                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (item.type == ShopItemType.FRAME) {
                         val previewAvatarPath = repo.shop.firstOrNull { it.id == "starter-avatar-1" }?.imagePath
                         val previewAvatar = remember(previewAvatarPath) { previewAvatarPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
-                        Box(Modifier.size(104.dp)) {
-                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.size(68.dp).align(Alignment.Center).clip(CircleShape)) }
+                        Box(Modifier.size(76.dp)) {
+                            previewAvatar?.let { Image(bitmap = it, contentDescription = "نمونه آواتار برای قاب", modifier = Modifier.size(50.dp).align(Alignment.Center).clip(CircleShape)) }
                             itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.fillMaxSize()) }
                         }
                     } else {
-                        itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(104.dp)) }
+                        itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(76.dp)) }
                     }
                     Text(item.name, style = MaterialTheme.typography.titleMedium)
                     Text(shopTypeLabel(item.type))
