@@ -1694,7 +1694,28 @@ private fun RankingScreen(repo: AppRepository, padding: PaddingValues) {
         }, modifier = Modifier.fillMaxWidth()) { Text("خروجی JPEG رتبه‌بندی") }
         if (mode == 0) {
             val ranked = repo.members.sortedWith(compareByDescending<Member> { it.economy.level }.thenByDescending { it.economy.xp })
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ranked, key = { it.id }) { m -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${ranked.indexOf(m)+1} ${m.name}"); Text("سطح ${m.economy.level} • تجربه ${m.economy.xp}") } } } }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(ranked, key = { it.id }) { m ->
+                    val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
+                    val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
+                    val avatar = remember(avatarPath) { avatarPath?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
+                    val frame = remember(framePath) { framePath?.let { runCatching { BitmapFactory.decodeFile(it)?.asImageBitmap() }.getOrNull() } }
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+                                if (avatar != null) Image(avatar, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(42.dp).clip(CircleShape))
+                                else Surface(Modifier.size(42.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) { Box(contentAlignment = Alignment.Center) { Text(m.name.take(1)) } }
+                                if (frame != null) Image(frame, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize())
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("#${ranked.indexOf(m)+1} ${m.name}", style = MaterialTheme.typography.titleMedium)
+                                Text("سطح ${m.economy.level} • تجربه ${m.economy.xp}", style = MaterialTheme.typography.bodySmall)
+                                Text("امتیاز ${m.economy.spendablePoints} • الماس ${m.economy.diamonds}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
         } else {
             val rankedGroups = repo.groups.sortedByDescending { it.economy.spendablePoints }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(rankedGroups, key = { it.id }) { group -> Card(Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("#${rankedGroups.indexOfFirst { it.id == group.id }+1} ${group.name}"); Text("امتیاز ${group.economy.spendablePoints} • الماس ${group.economy.diamonds}") } } } }
