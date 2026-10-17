@@ -622,11 +622,13 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
         )
     }
-    mapMember?.let { m -> GrowthMapDialog(repo, m) { mapMember = null } }
+    mapMember?.let { m ->
+        GrowthMapDialog(repo, m, changed) { mapMember = null }
+    }
 }
 
 @Composable
-private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+private fun GrowthMapDialog(repo: AppRepository, member: Member, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     val defaultStages = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
@@ -683,25 +685,26 @@ private fun GrowthMapDialog(repo: AppRepository, member: Member, close: () -> Un
                 if (stages.isEmpty()) {
                     Text("هنوز مرحله‌ای تعریف نشده؛ از تنظیمات، مسیر نقشه کمال را بساز.")
                 } else {
-                    LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(stages.size) { index ->
-                            val stage = stages[index]
+                    Column(Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        stages.forEachIndexed { index, stage ->
                             val isReached = stage in reached
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Surface(
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                     color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                     border = androidx.compose.foundation.BorderStroke(1.dp, if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                                 ) {
-                                    Text("${index + 1}", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = if (isReached) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
+                                    Text("${index + 1}", Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = if (isReached) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleSmall)
                                 }
                                 Card(Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = if (isReached) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f) else MaterialTheme.colorScheme.surface)) {
-                                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(stage, style = MaterialTheme.typography.titleMedium)
-                                        Text(if (isReached) "مقام کسب‌شده" else "در انتظار صعود", color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                                    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(stage, style = MaterialTheme.typography.titleSmall)
+                                        Text(if (isReached) "مقام کسب‌شده" else "در انتظار صعود", color = if (isReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
                                         OutlinedButton(onClick = {
-                                            reached = if (isReached) reached - stage else reached + stage
-                                            prefs.edit().putStringSet(reachedKey, reached).apply()
+                                            val next = if (isReached) reached - stage else reached + stage
+                                            reached = next
+                                            prefs.edit().putStringSet(reachedKey, next).apply()
+                                            changed()
                                         }, modifier = Modifier.fillMaxWidth()) { Text(if (isReached) "لغو ثبت این مقام" else "ثبت رسیدن عضو به این مقام") }
                                     }
                                 }
