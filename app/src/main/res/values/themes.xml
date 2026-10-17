@@ -3,7 +3,8 @@
     <style name="Theme.AK1" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#16213E</item>
-        <item name="android:navigationBarColor">#101827</item>
+        <item name="android:statusBarColor">#021E43</item>
+        <item name="android:windowBackground">#021E43</item>
+        <item name="android:navigationBarColor">#021E43</item>
     </style>
 </resources>

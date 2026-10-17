@@ -31,6 +31,13 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.ui.theme.AK1Theme
+import com.kichikan.ak1.ui.theme.Button
+import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.ClayIcon
+import com.kichikan.ak1.ui.theme.ClayKind
+import com.kichikan.ak1.ui.theme.MinimalIcon
+import com.kichikan.ak1.ui.theme.MinimalKind
+import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.notification.DailyDateNotification
@@ -69,11 +76,19 @@ private fun AK1App() {
     var refresh by remember { mutableIntStateOf(0) }
     fun changed() { refresh++ }
     if (repo.ring == null) { SetupScreen(repo) { refresh++ }; return }
-    Scaffold(bottomBar = {
-        NavigationBar {
+    Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent, bottomBar = {
+        NavigationBar(containerColor = Neon.Navy.copy(alpha = 0.88f)) {
             listOf(Tab.HOME to "خانه", Tab.MEMBERS to "اعضا", Tab.SERVICES to "خدمات", Tab.SETTINGS to "تنظیمات").forEach { (t, label) ->
-                NavigationBarItem(selected = tab == t || (tab in listOf(Tab.WORKSHOP, Tab.SESSIONS, Tab.RANKING, Tab.STORE) && t == Tab.SERVICES),
-                    onClick = { tab = t }, icon = { Text(when(t) { Tab.HOME -> "⌂"; Tab.MEMBERS -> "♙"; Tab.SERVICES -> "▦"; else -> "⚙" }) }, label = { Text(label) })
+                val selected = tab == t || (tab in listOf(Tab.WORKSHOP, Tab.SESSIONS, Tab.RANKING, Tab.STORE) && t == Tab.SERVICES)
+                NavigationBarItem(selected = selected,
+                    onClick = { tab = t },
+                    icon = { MinimalIcon(when (t) { Tab.HOME -> MinimalKind.HOME; Tab.MEMBERS -> MinimalKind.MEMBERS; Tab.SERVICES -> MinimalKind.SERVICES; else -> MinimalKind.SETTINGS }, selected) },
+                    label = { Text(label) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedTextColor = Neon.Cyan,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        indicatorColor = Neon.Cyan.copy(alpha = 0.16f)
+                    ))
             }
         }
     }) { padding ->
@@ -101,19 +116,8 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
         Triple("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Tab.RANKING),
         Triple("فروشگاه", "آواتارها، قاب‌ها و جوایز", Tab.STORE)
     )
-    val icons = listOf("⚒", "▦", "🏆", "🎁")
-    val cardTints = listOf(
-        MaterialTheme.colorScheme.primaryContainer,
-        MaterialTheme.colorScheme.secondaryContainer,
-        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
-        MaterialTheme.colorScheme.surfaceVariant
-    )
-    val iconTints = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.onSurfaceVariant
-    )
+    val kinds = listOf(ClayKind.WORKSHOP, ClayKind.SESSIONS, ClayKind.RANKING, ClayKind.STORE)
+    val accents = listOf(Neon.Cyan, Neon.Coral, Neon.Violet, Neon.Gold)
     Column(
         Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -126,22 +130,17 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
                     val index = rowIndex * 2 + colIndex
                     Card(
                         onClick = { open(item.third) },
-                        modifier = Modifier.weight(1f).heightIn(min = 164.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 176.dp),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardTints[index])
+                        accent = accents[index]
                     ) {
                         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                            Surface(
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.72f)
-                            ) {
-                                Text(icons[index], Modifier.padding(horizontal = 14.dp, vertical = 11.dp), style = MaterialTheme.typography.headlineMedium, color = iconTints[index])
-                            }
+                            ClayIcon(kinds[index], size = 62.dp)
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text(item.first, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                                 Text(item.second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = iconTints[index])
+                            Text("ورود به بخش  ←", style = MaterialTheme.typography.labelMedium, color = accents[index])
                         }
                     }
                 }
@@ -1316,10 +1315,10 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = when (current?.status) {
-                                            AttendanceStatus.PRESENT -> androidx.compose.ui.graphics.Color(0xFFD9F4E5)
-                                            AttendanceStatus.EXCUSED -> androidx.compose.ui.graphics.Color(0xFFFFE8C7)
-                                            AttendanceStatus.ABSENT -> androidx.compose.ui.graphics.Color(0xFFFFDAD6)
-                                            AttendanceStatus.LATE -> androidx.compose.ui.graphics.Color(0xFFE5DEFF)
+                                            AttendanceStatus.PRESENT -> androidx.compose.ui.graphics.Color(0xFF3CAEA3).copy(alpha = 0.28f)
+                                            AttendanceStatus.EXCUSED -> androidx.compose.ui.graphics.Color(0xFFFEC856).copy(alpha = 0.28f)
+                                            AttendanceStatus.ABSENT -> androidx.compose.ui.graphics.Color(0xFFFF8A80).copy(alpha = 0.28f)
+                                            AttendanceStatus.LATE -> androidx.compose.ui.graphics.Color(0xFFB197FF).copy(alpha = 0.28f)
                                             else -> MaterialTheme.colorScheme.surface
                                         }
                                     )
