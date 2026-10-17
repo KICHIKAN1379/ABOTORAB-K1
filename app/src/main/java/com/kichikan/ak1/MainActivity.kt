@@ -501,7 +501,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
         }
         exportMember = null
     }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.headlineMedium)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(page == 0, { page = 0 }, label = { Text("اعضا") })
@@ -521,10 +521,10 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Surface(
-                                    modifier = Modifier.size(82.dp),
+                                    modifier = Modifier.size(62.dp),
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer,
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
@@ -532,7 +532,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(m.name.take(1), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
                                         avatarBitmap?.let {
-                                             Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(54.dp).clip(CircleShape))
+                                             Image(bitmap = it, contentDescription = "آواتار ${m.name}", modifier = Modifier.size(42.dp).clip(CircleShape))
                                          }
                                          frameBitmap?.let {
                                              Image(bitmap = it, contentDescription = "قاب ${m.name}", modifier = Modifier.fillMaxSize())
@@ -565,9 +565,9 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                                         shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                                         color = tint
                                     ) {
-                                        Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Column(Modifier.padding(vertical = 5.dp, horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                            Text(value, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                                         }
                                     }
                                 }
@@ -606,7 +606,7 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     groupEditing?.let { GroupDialog(repo, it, changed) { groupEditing = null } }
     scoreGroup?.let { GroupScoreDialog(repo, it, changed) { scoreGroup = null } }
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
-    selected?.let { HistoryDialog(repo, it) { selected = null } }
+    selected?.let { HistoryDialog(repo, it, changed) { selected = null } }
     actionMember?.let { m ->
         AlertDialog(
             onDismissRequest = { actionMember = null },
@@ -734,7 +734,7 @@ private fun buildMemberCard(repo: AppRepository, member: Member): android.graphi
     canvas.drawText(repo.ring?.ringName ?: "ابوتراب K1", 50f, 535f, small)
     return bitmap
 }@Composable
-private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit) {
+private fun HistoryDialog(repo: AppRepository, member: Member, changed: () -> Unit, close: () -> Unit) {
     val events = repo.history.filter { it.memberId == member.id }.sortedByDescending { it.createdAtEpochMillis }
     var category by remember { mutableIntStateOf(0) }
     var selectedItem by remember { mutableStateOf<ShopItem?>(null) }
@@ -780,7 +780,20 @@ private fun HistoryDialog(repo: AppRepository, member: Member, close: () -> Unit
                                         itemBitmap?.let { Image(bitmap = it, contentDescription = item.name, modifier = Modifier.size(88.dp)) }
                                         Text(item.name, style = MaterialTheme.typography.titleMedium)
                                         Text(if (item.id == member.avatarItemId) "آواتار فعال" else if (item.id == member.frameItemId) "قاب فعال" else "دریافت‌شده")
-                                        Text("برای مشاهده روش دریافت لمس کن.", style = MaterialTheme.typography.bodySmall)
+                                        if (item.type == ShopItemType.AVATAR || item.type == ShopItemType.FRAME) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    try {
+                                                        repo.equipShopItem(member.id, item.id)
+                                                        changed()
+                                                        selectedItem = null
+                                                    } catch (_: Exception) { }
+                                                },
+                                                enabled = item.id != member.avatarItemId && item.id != member.frameItemId,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) { Text(if (item.type == ShopItemType.AVATAR) "استفاده از این آواتار" else "استفاده از این قاب") }
+                                        }
+                                        Text("برای مشاهده روش دریافت، کارت را لمس کن.", style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }
@@ -2016,9 +2029,6 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, changed: ()
                 } }
             }
         }
-        Text("گردونه", style = MaterialTheme.typography.titleLarge)
-        Text("اقلام: ${repo.wheel.items.size} • تکرار بعد از برد: ${if (repo.wheel.allowRepeatAfterWin) "فعال" else "غیرفعال"}")
-        Button(onClick = { try { val winner = repo.spinWheel(selectedMemberId); result = winner?.title ?: "گردونه آیتم قابل دریافت ندارد."; changed() } catch (ex: IllegalArgumentException) { result = ex.message } }, enabled = member != null && repo.wheel.items.isNotEmpty()) { Text("چرخاندن گردونه") }
         result?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
     manualGrantItem?.let { item ->
