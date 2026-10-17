@@ -1269,38 +1269,52 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
     var add by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Session?>(null) }
     var expandedSessionId by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("جلسات", style = MaterialTheme.typography.headlineMedium)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = page == 0, onClick = { page = 0 }, label = { Text("حضور و غیاب") })
-            FilterChip(selected = page == 1, onClick = { page = 1 }, label = { Text("جلسه‌ها") })
+            FilterChip(selected = page == 1, onClick = { page = 1 }, label = { Text("فهرست جلسات") })
+            FilterChip(selected = page == 2, onClick = { page = 2 }, label = { Text("ثبت جلسه") })
         }
-        if (page == 0) AttendanceCalendarScreen(repo, changed)
-        else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("جلسات ثبت‌شده")
-                Button(onClick = { add = true }, enabled = repo.members.isNotEmpty()) { Text("+ جلسه") }
-            }
-            Text("ثبت و مدیریت جلسه‌ها مستقل از حضور و غیاب است.")
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
-                    Card(Modifier.fillMaxWidth().clickable {
-                        expandedSessionId = if (expandedSessionId == session.id) null else session.id
-                    }) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.titleSmall)
-                            Text("موضوع: ${session.title}", style = MaterialTheme.typography.titleLarge)
-                            Text(JalaliCalendar.formatDateTime(session.startsAt), style = MaterialTheme.typography.bodyMedium)
-                            if (expandedSessionId == session.id) {
-                                HorizontalDivider()
-                                Text("توضیحات", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                Text(session.topic.ifBlank { "توضیحی برای این جلسه ثبت نشده است." }, style = MaterialTheme.typography.bodyMedium)
-                                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    OutlinedButton(onClick = { editing = session }) { Text("ویرایش") }
-                                    OutlinedButton(onClick = { repo.deleteSession(session.id); expandedSessionId = null; changed() }) { Text("حذف") }
+        when (page) {
+            0 -> AttendanceCalendarScreen(repo, changed)
+            1 -> {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text("جلسات ثبت‌شده", style = MaterialTheme.typography.titleMedium)
+                        Text("${repo.sessions.size} جلسه", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { page = 2 }, enabled = repo.members.isNotEmpty()) { Text("+ ثبت جلسه") }
+                }
+                if (repo.sessions.isEmpty()) {
+                    Card(Modifier.fillMaxWidth()) { Text("هنوز جلسه‌ای ثبت نشده است.", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium) }
+                } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
+                        Card(Modifier.fillMaxWidth().clickable { expandedSessionId = if (expandedSessionId == session.id) null else session.id }) {
+                            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(session.title, style = MaterialTheme.typography.titleMedium)
+                                Text(JalaliCalendar.formatDateTime(session.startsAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (expandedSessionId == session.id) {
+                                    HorizontalDivider(Modifier.padding(vertical = 5.dp))
+                                    Text(session.topic.ifBlank { "توضیحی ثبت نشده است." }, style = MaterialTheme.typography.bodyMedium)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        TextButton(onClick = { editing = session }) { Text("ویرایش") }
+                                        TextButton(onClick = { repo.deleteSession(session.id); expandedSessionId = null; changed() }) { Text("حذف جلسه") }
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+            }
+            else -> {
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("ثبت جلسه جدید", style = MaterialTheme.typography.titleMedium)
+                        Text("اطلاعات جلسه را در فرم جداگانه وارد کن.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = { add = true }, enabled = repo.members.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("باز کردن فرم ثبت جلسه") }
+                        if (repo.members.isEmpty()) Text("برای ثبت جلسه ابتدا یک عضو اضافه کن.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -1309,7 +1323,6 @@ private fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed:
     if (add) SessionEditDialog(repo, null, changed) { add = false }
     editing?.let { SessionEditDialog(repo, it, changed) { editing = null } }
 }
-
 @Composable
 private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
     val context = LocalContext.current
