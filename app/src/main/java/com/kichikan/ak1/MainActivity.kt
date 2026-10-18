@@ -31,13 +31,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.kichikan.ak1.R
 import com.kichikan.ak1.ui.theme.AK1Theme
+import com.kichikan.ak1.ui.theme.AppIcon
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
-import com.kichikan.ak1.ui.theme.ClayIcon
-import com.kichikan.ak1.ui.theme.ClayKind
-import com.kichikan.ak1.ui.theme.MinimalIcon
-import com.kichikan.ak1.ui.theme.MinimalKind
 import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.GrowthMapDialog
@@ -110,7 +108,17 @@ private fun AK1App() {
                 val selected = tab == t || (t == Tab.SERVICES && tab !in listOf(Tab.HOME, Tab.MEMBERS, Tab.SETTINGS))
                 NavigationBarItem(selected = selected,
                     onClick = { tab = t },
-                    icon = { MinimalIcon(when (t) { Tab.HOME -> MinimalKind.HOME; Tab.MEMBERS -> MinimalKind.MEMBERS; Tab.SERVICES -> MinimalKind.SERVICES; else -> MinimalKind.SETTINGS }, selected) },
+                    icon = {
+                        AppIcon(
+                            when (t) {
+                                Tab.HOME -> R.drawable.icon_nav_home
+                                Tab.MEMBERS -> R.drawable.icon_nav_members
+                                Tab.SERVICES -> R.drawable.icon_nav_services
+                                else -> R.drawable.icon_nav_settings
+                            },
+                            28.dp
+                        )
+                    },
                     label = { Text(label) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedTextColor = Neon.Cyan,
@@ -125,7 +133,7 @@ private fun AK1App() {
                 Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() }) { tab = it }
                 Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
                 Tab.SERVICES -> ServicesScreen(padding) { tab = it }
-                Tab.WORKSHOP -> WorkshopHub(padding, { tab = it }) { tab = Tab.SERVICES }
+                Tab.WORKSHOP -> WorkshopHub(padding, repo, { changed() }, { tab = it }) { tab = Tab.SERVICES }
                 Tab.RANKING -> RankingHub(padding, { tab = it }) { tab = Tab.SERVICES }
                 Tab.STORE -> StoreHub(padding, { tab = it }) { tab = Tab.SERVICES }
                 Tab.SESSIONS -> SessionsHub(padding, { tab = it }) { tab = Tab.SERVICES }
@@ -152,27 +160,36 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
     HubScreen(
         padding, "خدمات", "ابزارهای مدیریت حلقه در یک‌جا",
         listOf(
-            HubEntry("تراشکاری", "مأموریت‌ها، جوایز، آواتار و قاب", Neon.Cyan, { ClayIcon(ClayKind.WORKSHOP, size = 62.dp) }) { open(Tab.WORKSHOP) },
-            HubEntry("جلسات", "فهرست جلسه‌ها و حضور و غیاب", Neon.Coral, { ClayIcon(ClayKind.SESSIONS, size = 62.dp) }) { open(Tab.SESSIONS) },
-            HubEntry("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Neon.Violet, { ClayIcon(ClayKind.RANKING, size = 62.dp) }) { open(Tab.RANKING) },
-            HubEntry("فروشگاه", "آواتارها، قاب‌ها و جوایز", Neon.Gold, { ClayIcon(ClayKind.STORE, size = 62.dp) }) { open(Tab.STORE) },
-            HubEntry("گردونه", "گردونه‌ی شانس و جایزه", Neon.Sky, { ClayIcon(ClayKind.WHEEL, size = 62.dp) }) { open(Tab.WHEEL) }
+            HubEntry("تراشکاری", "مأموریت‌ها، جوایز، آواتار و قاب", Neon.Cyan, { AppIcon(R.drawable.icon_services_workshop, 62.dp) }) { open(Tab.WORKSHOP) },
+            HubEntry("جلسات", "فهرست جلسه‌ها و حضور و غیاب", Neon.Coral, { AppIcon(R.drawable.icon_services_sessions, 62.dp) }) { open(Tab.SESSIONS) },
+            HubEntry("رقابت", "رتبه‌بندی اعضا و گروه‌ها", Neon.Violet, { AppIcon(R.drawable.icon_services_competition, 62.dp) }) { open(Tab.RANKING) },
+            HubEntry("فروشگاه", "آواتارها، قاب‌ها و جوایز", Neon.Gold, { AppIcon(R.drawable.icon_services_store, 62.dp) }) { open(Tab.STORE) },
+            HubEntry("گردونه", "گردونه‌ی شانس و جایزه", Neon.Sky, { AppIcon(R.drawable.icon_services_wheel, 62.dp) }) { open(Tab.WHEEL) }
         )
     )
 }
 
 @Composable
-private fun WorkshopHub(padding: PaddingValues, open: (Tab) -> Unit, back: () -> Unit) {
+private fun WorkshopHub(
+    padding: PaddingValues,
+    repo: AppRepository,
+    changed: () -> Unit,
+    open: (Tab) -> Unit,
+    back: () -> Unit
+) {
+    var identityOpen by remember { mutableStateOf(false) }
     HubScreen(
         padding, "تراشکاری", "ساخت و مدیریت مأموریت، جوایز و شخصی‌سازی",
         listOf(
-            HubEntry("مأموریت‌ها", "ساخت و ثبت انجام مأموریت", Neon.Cyan, { ClayIcon(ClayKind.MISSION, size = 62.dp) }) { open(Tab.WORKSHOP_MISSIONS) },
-            HubEntry("جوایز فروشگاه", "ساخت و ویرایش آیتم‌ها", Neon.Gold, { ClayIcon(ClayKind.PRIZE, size = 62.dp) }) { open(Tab.WORKSHOP_PRIZES) },
-            HubEntry("آواتار و قاب", "افزودن تصویر سفارشی", Neon.Violet, { ClayIcon(ClayKind.FRAME, size = 62.dp) }) { open(Tab.WORKSHOP_ASSETS) },
-            HubEntry("تنظیم گردونه", "جوایز، وزن و هزینه", Neon.Sky, { ClayIcon(ClayKind.WHEEL, size = 62.dp) }) { open(Tab.WORKSHOP_WHEEL) }
+            HubEntry("شناسنامه", "ثبت امتیاز، الماس، XP و سطح", Neon.Green, { AppIcon(R.drawable.icon_workshop_identity, 62.dp) }) { identityOpen = true },
+            HubEntry("مأموریت‌ها", "ساخت و ثبت انجام مأموریت", Neon.Cyan, { AppIcon(R.drawable.icon_workshop_missions, 62.dp) }) { open(Tab.WORKSHOP_MISSIONS) },
+            HubEntry("جوایز فروشگاه", "ساخت و ویرایش آیتم‌ها", Neon.Gold, { AppIcon(R.drawable.icon_workshop_store_rewards, 62.dp) }) { open(Tab.WORKSHOP_PRIZES) },
+            HubEntry("آواتار و قاب", "افزودن تصویر سفارشی", Neon.Violet, { AppIcon(R.drawable.icon_workshop_avatar_frame, 62.dp) }) { open(Tab.WORKSHOP_ASSETS) },
+            HubEntry("تنظیم گردونه", "جوایز، وزن و هزینه", Neon.Sky, { AppIcon(R.drawable.icon_workshop_wheel_settings, 62.dp) }) { open(Tab.WORKSHOP_WHEEL) }
         ),
         back
     )
+    if (identityOpen) EconomyDialog(repo, changed) { identityOpen = false }
 }
 
 @Composable
@@ -180,8 +197,8 @@ private fun RankingHub(padding: PaddingValues, open: (Tab) -> Unit, back: () -> 
     HubScreen(
         padding, "رقابت", "رتبه‌ی اعضا بر اساس سطح و XP؛ رتبه‌ی گروه‌ها با امتیاز مستقل گروه",
         listOf(
-            HubEntry("رتبه اعضا", "با آواتار و قاب هر عضو", Neon.Gold, { ClayIcon(ClayKind.PODIUM, size = 62.dp) }) { open(Tab.RANK_MEMBERS) },
-            HubEntry("رتبه گروه‌ها", "امتیاز و الماس گروه", Neon.Violet, { ClayIcon(ClayKind.GROUPS, size = 62.dp) }) { open(Tab.RANK_GROUPS) }
+            HubEntry("رتبه اعضا", "با آواتار و قاب هر عضو", Neon.Gold, { AppIcon(R.drawable.icon_competition_member_ranking, 62.dp) }) { open(Tab.RANK_MEMBERS) },
+            HubEntry("رتبه گروه‌ها", "امتیاز و الماس گروه", Neon.Violet, { AppIcon(R.drawable.icon_competition_group_ranking, 62.dp) }) { open(Tab.RANK_GROUPS) }
         ),
         back
     )
@@ -192,9 +209,9 @@ private fun StoreHub(padding: PaddingValues, open: (Tab) -> Unit, back: () -> Un
     HubScreen(
         padding, "فروشگاه", "آواتار، قاب و جایزه",
         listOf(
-            HubEntry("آواتارها", "دریافت و فعال‌سازی آواتار", Neon.Cyan, { ClayIcon(ClayKind.AVATAR, size = 62.dp) }) { open(Tab.STORE_AVATARS) },
-            HubEntry("قاب‌ها", "دریافت و فعال‌سازی قاب", Neon.Violet, { ClayIcon(ClayKind.FRAME, size = 62.dp) }) { open(Tab.STORE_FRAMES) },
-            HubEntry("جوایز", "جوایز قابل دریافت", Neon.Gold, { ClayIcon(ClayKind.STORE, size = 62.dp) }) { open(Tab.STORE_REWARDS) }
+            HubEntry("آواتارها", "دریافت و فعال‌سازی آواتار", Neon.Cyan, { AppIcon(R.drawable.icon_store_avatars, 62.dp) }) { open(Tab.STORE_AVATARS) },
+            HubEntry("قاب‌ها", "دریافت و فعال‌سازی قاب", Neon.Violet, { AppIcon(R.drawable.icon_store_frames, 62.dp) }) { open(Tab.STORE_FRAMES) },
+            HubEntry("جوایز", "جوایز قابل دریافت", Neon.Gold, { AppIcon(R.drawable.icon_store_rewards, 62.dp) }) { open(Tab.STORE_REWARDS) }
         ),
         back
     )
@@ -205,8 +222,8 @@ private fun SessionsHub(padding: PaddingValues, open: (Tab) -> Unit, back: () ->
     HubScreen(
         padding, "جلسات", "جلسه‌ها و حضور و غیاب مستقل از هم‌اند",
         listOf(
-            HubEntry("فهرست جلسات", "ثبت و مشاهده جلسه‌ها", Neon.Coral, { ClayIcon(ClayKind.CLIPBOARD, size = 62.dp) }) { open(Tab.SESSIONS_LIST) },
-            HubEntry("حضور و غیاب", "تقویم هفتگی و ماهانه", Neon.Green, { ClayIcon(ClayKind.SESSIONS, size = 62.dp) }) { open(Tab.SESSIONS_ATTENDANCE) }
+            HubEntry("فهرست جلسات", "ثبت و مشاهده جلسه‌ها", Neon.Coral, { AppIcon(R.drawable.icon_sessions_list, 62.dp) }) { open(Tab.SESSIONS_LIST) },
+            HubEntry("حضور و غیاب", "تقویم هفتگی و ماهانه", Neon.Green, { AppIcon(R.drawable.icon_sessions_attendance, 62.dp) }) { open(Tab.SESSIONS_ATTENDANCE) }
         ),
         back
     )
@@ -390,14 +407,14 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 when (key) {
-                                    "home_workshop" -> ClayIcon(ClayKind.WORKSHOP, size = 52.dp)
-                                    "home_sessions" -> ClayIcon(ClayKind.SESSIONS, size = 52.dp)
-                                    "home_ranking" -> ClayIcon(ClayKind.RANKING, size = 52.dp)
-                                    "home_store" -> ClayIcon(ClayKind.STORE, size = 52.dp)
-                                    "home_identity" -> GlassIcon(GlassKind.IDENTITY, size = 52.dp)
-                                    "home_members" -> GlassIcon(GlassKind.MEMBERS, size = 52.dp, tint = Neon.Violet)
-                                    "home_assistant" -> GlassIcon(GlassKind.ASSISTANT, size = 52.dp, tint = Neon.Gold)
-                                    else -> GlassIcon(GlassKind.WHEEL, size = 52.dp, tint = Neon.Coral)
+                                    "home_workshop" -> AppIcon(R.drawable.icon_services_workshop, 52.dp)
+                                    "home_sessions" -> AppIcon(R.drawable.icon_services_sessions, 52.dp)
+                                    "home_ranking" -> AppIcon(R.drawable.icon_services_competition, 52.dp)
+                                    "home_store" -> AppIcon(R.drawable.icon_services_store, 52.dp)
+                                    "home_identity" -> AppIcon(R.drawable.icon_home_identity, 52.dp)
+                                    "home_members" -> AppIcon(R.drawable.icon_home_member_management, 52.dp)
+                                    "home_assistant" -> AppIcon(R.drawable.icon_home_assistant, 52.dp)
+                                    else -> AppIcon(R.drawable.icon_services_wheel, 52.dp)
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(label, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -1614,6 +1631,15 @@ private fun ManualGrantDialog(repo: AppRepository, memberId: String, item: ShopI
 }
 
 private fun historyOwned(repo: AppRepository, memberId: String, itemId: String): Boolean = repo.history.any { it.memberId == memberId && it.type == HistoryType.REWARD_RECEIVED && it.metadata["itemId"] == itemId }
+/** Icon + label used inside the wide settings buttons. */
+@Composable
+private fun ActionLabel(icon: Int, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppIcon(icon, 22.dp)
+        Text(text)
+    }
+}
+
 @Composable
 private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
@@ -1699,11 +1725,11 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
-        OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { Text("خروجی کامل اطلاعات") }
-        OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { Text("ورود اطلاعات پشتیبان") }
-        OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { Text("ویرایش پروفایل") }
-        OutlinedButton({ growthManagerOpen = true }, Modifier.fillMaxWidth()) { Text("مدیریت نقشه کمال") }
-        OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { Text("تنظیم میانبرهای خانه") }
+        OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_backup, "خروجی کامل اطلاعات") }
+        OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_restore, "ورود اطلاعات پشتیبان") }
+        OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_edit_profile, "ویرایش پروفایل") }
+        OutlinedButton({ growthManagerOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_growth_map, "مدیریت نقشه کمال") }
+        OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_shortcuts, "تنظیم میانبرهای خانه") }
         HorizontalDivider()
         Text("روزهای برگزاری کلاس", style = MaterialTheme.typography.titleMedium)
         Text("هر زمان برنامه تغییر کرد، روزهای کلاس را از اینجا به‌روزرسانی کن. روز حذف‌شده در حضور و غیاب هفتگی نمایش داده نمی‌شود.")
