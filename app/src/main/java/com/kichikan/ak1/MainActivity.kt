@@ -36,8 +36,6 @@ import com.kichikan.ak1.ui.theme.AK1Theme
 import com.kichikan.ak1.ui.theme.AppIcon
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
-import com.kichikan.ak1.ui.theme.MinimalIcon
-import com.kichikan.ak1.ui.theme.MinimalKind
 import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.GrowthMapDialog
@@ -111,14 +109,15 @@ private fun AK1App() {
                 NavigationBarItem(selected = selected,
                     onClick = { tab = t },
                     icon = {
-                        val navIcon = when (t) {
-                            Tab.HOME -> R.drawable.icon_nav_home
-                            Tab.MEMBERS -> R.drawable.icon_nav_members
-                            Tab.SETTINGS -> R.drawable.icon_nav_settings
-                            else -> null
-                        }
-                        if (navIcon != null) AppIcon(navIcon, 28.dp)
-                        else MinimalIcon(MinimalKind.SERVICES, selected, size = 28.dp)
+                        AppIcon(
+                            when (t) {
+                                Tab.HOME -> R.drawable.icon_nav_home
+                                Tab.MEMBERS -> R.drawable.icon_nav_members
+                                Tab.SERVICES -> R.drawable.icon_nav_services
+                                else -> R.drawable.icon_nav_settings
+                            },
+                            28.dp
+                        )
                     },
                     label = { Text(label) },
                     colors = NavigationBarItemDefaults.colors(
