@@ -134,7 +134,7 @@ private fun AK1App() {
                 Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() }) { tab = it }
                 Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
                 Tab.SERVICES -> ServicesScreen(padding) { tab = it }
-                Tab.WORKSHOP -> WorkshopHub(padding, { tab = it }) { tab = Tab.SERVICES }
+                Tab.WORKSHOP -> WorkshopHub(padding, repo, { changed() }, { tab = it }) { tab = Tab.SERVICES }
                 Tab.RANKING -> RankingHub(padding, { tab = it }) { tab = Tab.SERVICES }
                 Tab.STORE -> StoreHub(padding, { tab = it }) { tab = Tab.SERVICES }
                 Tab.SESSIONS -> SessionsHub(padding, { tab = it }) { tab = Tab.SERVICES }
@@ -171,10 +171,18 @@ private fun ServicesScreen(padding: PaddingValues, open: (Tab) -> Unit) {
 }
 
 @Composable
-private fun WorkshopHub(padding: PaddingValues, open: (Tab) -> Unit, back: () -> Unit) {
+private fun WorkshopHub(
+    padding: PaddingValues,
+    repo: AppRepository,
+    changed: () -> Unit,
+    open: (Tab) -> Unit,
+    back: () -> Unit
+) {
+    var identityOpen by remember { mutableStateOf(false) }
     HubScreen(
         padding, "تراشکاری", "ساخت و مدیریت مأموریت، جوایز و شخصی‌سازی",
         listOf(
+            HubEntry("شناسنامه", "ثبت امتیاز، الماس، XP و سطح", Neon.Green, { AppIcon(R.drawable.icon_workshop_identity, 62.dp) }) { identityOpen = true },
             HubEntry("مأموریت‌ها", "ساخت و ثبت انجام مأموریت", Neon.Cyan, { AppIcon(R.drawable.icon_workshop_missions, 62.dp) }) { open(Tab.WORKSHOP_MISSIONS) },
             HubEntry("جوایز فروشگاه", "ساخت و ویرایش آیتم‌ها", Neon.Gold, { AppIcon(R.drawable.icon_workshop_store_rewards, 62.dp) }) { open(Tab.WORKSHOP_PRIZES) },
             HubEntry("آواتار و قاب", "افزودن تصویر سفارشی", Neon.Violet, { AppIcon(R.drawable.icon_workshop_avatar_frame, 62.dp) }) { open(Tab.WORKSHOP_ASSETS) },
@@ -182,6 +190,7 @@ private fun WorkshopHub(padding: PaddingValues, open: (Tab) -> Unit, back: () ->
         ),
         back
     )
+    if (identityOpen) EconomyDialog(repo, changed) { identityOpen = false }
 }
 
 @Composable
