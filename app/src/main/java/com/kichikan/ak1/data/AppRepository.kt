@@ -7,6 +7,7 @@ import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
 import com.kichikan.ak1.domain.service.MissionService
+import com.kichikan.ak1.domain.service.AssetArt
 import com.kichikan.ak1.domain.service.ShopService
 import com.kichikan.ak1.domain.service.WheelService
 import java.time.Instant
@@ -49,8 +50,12 @@ class AppRepository(context: Context) {
         }
         val catalogPrefs = appContext.getSharedPreferences("ak1_settings", Context.MODE_PRIVATE)
         if (!catalogPrefs.getBoolean("starter_catalog_created", false)) {
-            seedStarterCatalog()
-            catalogPrefs.edit().putBoolean("starter_catalog_created", true).apply()
+            seedStarterCatalog(regenerate = false)
+            catalogPrefs.edit().putBoolean("starter_catalog_created", true).putInt("starter_art_version", AssetArt.ART_VERSION).apply()
+        } else if (catalogPrefs.getInt("starter_art_version", 0) < AssetArt.ART_VERSION) {
+            seedStarterCatalog(regenerate = true)
+            regenerateLevelAvatars()
+            catalogPrefs.edit().putInt("starter_art_version", AssetArt.ART_VERSION).apply()
         }
         members.toList().forEach { member ->
             val updated = grantLevelAvatars(member, (5..member.economy.level step 5).toList())
@@ -62,102 +67,51 @@ class AppRepository(context: Context) {
         persist()
     }
 
-    private fun seedStarterCatalog() {
+    private fun seedStarterCatalog(regenerate: Boolean) {
         val directory = java.io.File(appContext.filesDir, "custom_assets/starter_catalog")
         if (!directory.exists() && !directory.mkdirs()) return
-        val avatarStyles = listOf(
-            Triple("رهرو", android.graphics.Color.rgb(8, 127, 140), android.graphics.Color.rgb(39, 49, 67)),
-            Triple("پیش‌قدم", android.graphics.Color.rgb(202, 91, 63), android.graphics.Color.rgb(42, 48, 62)),
-            Triple("پژوهشگر", android.graphics.Color.rgb(101, 84, 164), android.graphics.Color.rgb(35, 43, 61)),
-            Triple("قله‌نورد", android.graphics.Color.rgb(43, 132, 88), android.graphics.Color.rgb(42, 54, 59))
-        )
-        avatarStyles.forEachIndexed { index, style ->
+        AssetArt.avatarNames.forEachIndexed { index, name ->
             val id = "starter-avatar-${index + 1}"
-            if (shop.none { it.id == id }) {
-                val file = java.io.File(directory, "$id.png")
-                if (!file.exists()) file.outputStream().use { createStarterAvatarBitmap(style.second, style.third, index).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            val file = java.io.File(directory, "$id.png")
+            val existing = shop.firstOrNull { it.id == id }
+            if (existing == null || regenerate || !file.exists()) {
+                file.outputStream().use { AssetArt.avatarBitmap(index).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            if (existing == null) {
                 shop += ShopItem(
-                    id = id, name = "آواتار ${style.first}", type = ShopItemType.AVATAR,
+                    id = id, name = "آواتار $name", type = ShopItemType.AVATAR,
                     imagePath = file.absolutePath, price = 0, currency = Currency.NONE,
                     methods = setOf(AcquisitionMethod.DIRECT_PURCHASE), active = true,
                     description = "آواتار نمونه رایگان؛ عضو می‌تواند آن را برای پروفایل خود انتخاب کند."
                 )
             }
         }
-        val frameStyles = listOf(
-            Triple("فیروزه‌ای", android.graphics.Color.rgb(8, 127, 140), android.graphics.Color.rgb(190, 242, 231)),
-            Triple("طلایی", android.graphics.Color.rgb(190, 137, 39), android.graphics.Color.rgb(255, 225, 145)),
-            Triple("ارغوانی", android.graphics.Color.rgb(101, 84, 164), android.graphics.Color.rgb(210, 198, 255)),
-            Triple("مرجانی", android.graphics.Color.rgb(202, 91, 63), android.graphics.Color.rgb(255, 196, 175))
-        )
-        frameStyles.forEachIndexed { index, style ->
+        AssetArt.frameNames.forEachIndexed { index, name ->
             val id = "starter-frame-${index + 1}"
-            if (shop.none { it.id == id }) {
-                val file = java.io.File(directory, "$id.png")
-                if (!file.exists()) file.outputStream().use { createStarterFrameBitmap(style.second, style.third).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            val file = java.io.File(directory, "$id.png")
+            val existing = shop.firstOrNull { it.id == id }
+            if (existing == null || regenerate || !file.exists()) {
+                file.outputStream().use { AssetArt.frameBitmap(index).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            if (existing == null) {
                 shop += ShopItem(
-                    id = id, name = "قاب ${style.first}", type = ShopItemType.FRAME,
+                    id = id, name = "قاب $name", type = ShopItemType.FRAME,
                     imagePath = file.absolutePath, price = 0, currency = Currency.NONE,
                     methods = setOf(AcquisitionMethod.DIRECT_PURCHASE), active = true,
-                    description = "قاب نمونه رایگان؛ روی آواتار عضو قرار می‌گیرد."
+                    description = "قاب نمونه رایگان؛ آواتار عضو داخل آن قرار می‌گیرد."
                 )
             }
         }
     }
 
-    private fun createStarterAvatarBitmap(background: Int, clothing: Int, variant: Int): android.graphics.Bitmap {
-        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        p.color = background
-        canvas.drawRoundRect(0f, 0f, 256f, 256f, 54f, 54f, p)
-        p.color = android.graphics.Color.argb(45, 255, 255, 255)
-        canvas.drawCircle(42f, 42f, 22f, p)
-        canvas.drawCircle(216f, 68f, 13f, p)
-        p.color = android.graphics.Color.rgb(225, 184, 145)
-        canvas.drawCircle(128f, 94f, 42f, p)
-        p.color = clothing
-        canvas.drawRoundRect(54f, 137f, 202f, 274f, 62f, 62f, p)
-        p.color = android.graphics.Color.rgb(35, 39, 49)
-        when (variant % 4) {
-            0 -> canvas.drawArc(86f, 46f, 170f, 117f, 180f, 180f, true, p)
-            1 -> canvas.drawRoundRect(84f, 42f, 172f, 78f, 25f, 25f, p)
-            2 -> { canvas.drawCircle(95f, 65f, 16f, p); canvas.drawCircle(145f, 61f, 20f, p) }
-            else -> canvas.drawArc(78f, 43f, 178f, 105f, 185f, 170f, true, p)
+    private fun regenerateLevelAvatars() {
+        shop.filter { it.id.startsWith("level-avatar-") }.forEach { item ->
+            val level = item.id.removePrefix("level-avatar-").toIntOrNull() ?: return@forEach
+            val path = item.imagePath ?: return@forEach
+            runCatching {
+                java.io.File(path).outputStream().use { AssetArt.levelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
         }
-        p.color = android.graphics.Color.rgb(39, 45, 51)
-        canvas.drawCircle(114f, 96f, 4f, p)
-        canvas.drawCircle(142f, 96f, 4f, p)
-        p.color = android.graphics.Color.rgb(151, 85, 70)
-        p.style = android.graphics.Paint.Style.STROKE
-        p.strokeWidth = 4f
-        canvas.drawArc(111f, 104f, 145f, 128f, 15f, 150f, false, p)
-        return bitmap
-    }
-
-    private fun createStarterFrameBitmap(primary: Int, highlight: Int): android.graphics.Bitmap {
-        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = 12f; color = primary }
-        canvas.drawCircle(128f, 128f, 112f, p)
-        p.strokeWidth = 4f
-        p.color = highlight
-        canvas.drawCircle(128f, 128f, 96f, p)
-        p.style = android.graphics.Paint.Style.FILL
-        p.color = primary
-        val path = android.graphics.Path().apply {
-            moveTo(128f, 5f); lineTo(143f, 23f); lineTo(128f, 41f); lineTo(113f, 23f); close()
-        }
-        canvas.drawPath(path, p)
-        p.color = highlight
-        canvas.drawCircle(24f, 128f, 7f, p)
-        canvas.drawCircle(232f, 128f, 7f, p)
-        canvas.drawCircle(128f, 232f, 7f, p)
-        p.style = android.graphics.Paint.Style.STROKE
-        p.strokeWidth = 3f
-        canvas.drawArc(34f, 34f, 222f, 222f, 215f, 110f, false, p)
-        canvas.drawArc(34f, 34f, 222f, 222f, 35f, 110f, false, p)
-        return bitmap
     }
 
     private fun grantLevelAvatars(member: Member, levels: List<Int>): Member {
@@ -190,7 +144,7 @@ class AppRepository(context: Context) {
         val directory = java.io.File(appContext.filesDir, "custom_assets/level_avatars")
         directory.mkdirs()
         val file = java.io.File(directory, "$id.png")
-        if (!file.exists()) file.outputStream().use { output -> createLevelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output) }
+        if (!file.exists()) file.outputStream().use { output -> AssetArt.levelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output) }
         val item = ShopItem(
             id = id,
             name = "آواتار ویژه سطح $level",
@@ -205,51 +159,6 @@ class AppRepository(context: Context) {
         )
         shop += item
         return item
-    }
-
-    private fun createLevelAvatarBitmap(level: Int): android.graphics.Bitmap {
-        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        val palette = listOf(
-            android.graphics.Color.rgb(48, 145, 160),
-            android.graphics.Color.rgb(55, 105, 190),
-            android.graphics.Color.rgb(120, 76, 180),
-            android.graphics.Color.rgb(190, 125, 35),
-            android.graphics.Color.rgb(45, 145, 90)
-        )
-        val tier = (level / 5 - 1).coerceAtLeast(0)
-        val accent = palette[tier % palette.size]
-        fun paint(color: Int, style: android.graphics.Paint.Style = android.graphics.Paint.Style.FILL, width: Float = 1f) =
-            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color; this.style = style; strokeWidth = width }
-        canvas.drawCircle(128f, 128f, 120f, paint(android.graphics.Color.rgb(22, 33, 62)))
-        canvas.drawCircle(128f, 128f, 111f, paint(accent, android.graphics.Paint.Style.STROKE, if (level >= 20) 9f else 5f))
-        if (level >= 15) {
-            canvas.drawCircle(128f, 128f, 98f, paint(android.graphics.Color.rgb(255, 215, 0), android.graphics.Paint.Style.STROKE, 3f))
-        }
-        canvas.drawOval(48f, 150f, 208f, 255f, paint(accent))
-        canvas.drawRoundRect(108f, 135f, 148f, 180f, 14f, 14f, paint(android.graphics.Color.rgb(190, 125, 92)))
-        canvas.drawCircle(128f, 100f, 53f, paint(android.graphics.Color.rgb(218, 166, 128)))
-        canvas.drawArc(74f, 42f, 182f, 128f, 180f, 180f, true, paint(android.graphics.Color.rgb(35, 30, 32)))
-        canvas.drawCircle(108f, 103f, 5f, paint(android.graphics.Color.rgb(25, 25, 25)))
-        canvas.drawCircle(148f, 103f, 5f, paint(android.graphics.Color.rgb(25, 25, 25)))
-        canvas.drawArc(104f, 112f, 152f, 139f, 10f, 160f, false, paint(android.graphics.Color.rgb(90, 45, 40), android.graphics.Paint.Style.STROKE, 4f))
-        if (level >= 25) {
-            val gold = paint(android.graphics.Color.rgb(255, 215, 0))
-            val path = android.graphics.Path().apply {
-                moveTo(90f, 48f); lineTo(80f, 18f); lineTo(112f, 37f); lineTo(128f, 8f)
-                lineTo(145f, 37f); lineTo(176f, 18f); lineTo(166f, 48f); close()
-            }
-            canvas.drawPath(path, gold)
-        } else if (level >= 10) {
-            canvas.drawCircle(128f, 43f, 11f, paint(android.graphics.Color.rgb(255, 215, 0)))
-        }
-        val badge = paint(android.graphics.Color.rgb(255, 215, 0))
-        canvas.drawCircle(190f, 190f, 24f, badge)
-        val textPaint = paint(android.graphics.Color.rgb(22, 33, 62)).apply {
-            textSize = 20f; textAlign = android.graphics.Paint.Align.CENTER; typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
-        }
-        canvas.drawText(level.toString(), 190f, 197f, textPaint)
-        return bitmap
     }
 
     fun createRing(name: String, username: String): RingAccount {
@@ -664,6 +573,35 @@ class AppRepository(context: Context) {
             System.currentTimeMillis(), "mentor", mapOf("itemId" to item.id, "type" to item.type.name))
         persist()
     }
+    /**
+     * Lets the mentor pick any avatar/frame the member already owns (or any free one),
+     * or clear the choice with [itemId] = null. Receiving an item never locks the choice.
+     */
+    fun chooseLook(memberId: String, type: ShopItemType, itemId: String?) {
+        require(type == ShopItemType.AVATAR || type == ShopItemType.FRAME) { "نوع آیتم قابل انتخاب نیست" }
+        val index = members.indexOfFirst { it.id == memberId }
+        require(index >= 0) { "عضو نامعتبر است" }
+        val member = members[index]
+        val now = System.currentTimeMillis()
+        if (itemId != null) {
+            val item = shop.firstOrNull { it.id == itemId && it.active } ?: error("آیتم پیدا نشد")
+            require(item.type == type) { "نوع آیتم با انتخاب سازگار نیست" }
+            val owned = history.any { it.memberId == memberId && it.metadata["itemId"] == itemId } ||
+                member.avatarItemId == itemId || member.frameItemId == itemId
+            val free = item.price == 0 && ShopService.hasDirectPurchase(item) && ShopService.canAcquire(item, member, now) == null
+            require(owned || free) { "این آیتم هنوز برای این عضو باز نشده است" }
+            if (!owned) {
+                history += HistoryEvent(
+                    "free-item-$now-$memberId-$itemId", memberId, HistoryType.REWARD_RECEIVED, null,
+                    "دریافت: ${item.name}", "آیتم رایگان", now, "mentor",
+                    mapOf("itemId" to item.id, "type" to item.type.name, "acquisition" to "FREE")
+                )
+            }
+        }
+        members[index] = if (type == ShopItemType.AVATAR) member.copy(avatarItemId = itemId) else member.copy(frameItemId = itemId)
+        persist()
+    }
+
     fun spinWheel(memberId: String): WheelItem? {
         val member = members.firstOrNull { it.id == memberId } ?: error("عضو نامعتبر است")
         require(wheel.spinCostPoints >= 0 && wheel.spinCostDiamonds >= 0) { "هزینه گردونه نمی‌تواند منفی باشد" }

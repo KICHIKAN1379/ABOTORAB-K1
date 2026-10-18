@@ -77,7 +77,7 @@ fun MinimalIcon(kind: MinimalKind, selected: Boolean, modifier: Modifier = Modif
 
 // ───────────────────────── Style 3: clay 3D (services) ─────────────────────────
 
-enum class ClayKind { WORKSHOP, SESSIONS, RANKING, STORE }
+enum class ClayKind { WORKSHOP, SESSIONS, RANKING, STORE, MISSION, PRIZE, FRAME, WHEEL, PODIUM, GROUPS, AVATAR, CLIPBOARD }
 
 private fun clay(light: Color, base: Color, dark: Color, center: Offset, radius: Float) =
     Brush.radialGradient(listOf(light, base, dark), center = center, radius = radius)
@@ -124,6 +124,14 @@ fun ClayIcon(kind: ClayKind, modifier: Modifier = Modifier, size: Dp = 60.dp) {
                     ClayKind.SESSIONS -> drawCalendar()
                     ClayKind.RANKING -> drawTrophy()
                     ClayKind.STORE -> drawGift()
+                    ClayKind.MISSION -> drawMission()
+                    ClayKind.PRIZE -> drawPrize()
+                    ClayKind.FRAME -> drawFrameIcon()
+                    ClayKind.WHEEL -> drawWheelIcon()
+                    ClayKind.PODIUM -> drawPodium()
+                    ClayKind.GROUPS -> drawGroups()
+                    ClayKind.AVATAR -> drawAvatarIcon()
+                    ClayKind.CLIPBOARD -> drawClipboard()
                 }
             }
         }
@@ -208,6 +216,89 @@ private fun DrawScope.drawGift() {
     rotate(28f, pivot = Offset(58f, 26f)) { drawOval(ribbon, Offset(56f, 14f), Size(20f, 26f)) }
     drawCircle(clay(Color(0xFFFFE9A8), Color(0xFFFEC856), Color(0xFFD99A1E), Offset(47f, 26f), 14f), 8f, Offset(50f, 30f))
     gloss(22f, 52f, 10f, 18f, 0.35f)
+}
+
+private val goldClay get() = clay(Color(0xFFFFE08A), Color(0xFFFEC856), Color(0xFFD99A1E), Offset(38f, 30f), 60f)
+
+private fun DrawScope.drawMission() {
+    contactShadow(50f, 87f, 66f, 9f)
+    val mountain = Path().apply { moveTo(8f, 84f); lineTo(44f, 30f); lineTo(58f, 50f); lineTo(70f, 38f); lineTo(94f, 84f); close() }
+    drawPath(mountain, clay(Color(0xFF7DB8E6), Color(0xFF2B74AC), Color(0xFF186AA4), Offset(40f, 42f), 72f))
+    val snow = Path().apply { moveTo(44f, 30f); lineTo(35f, 45f); lineTo(41f, 43f); lineTo(46f, 49f); lineTo(51f, 42f); lineTo(55f, 46f); close() }
+    drawPath(snow, Color(0xFFFDFDFD))
+    val route = Path().apply { moveTo(52f, 82f); cubicTo(26f, 74f, 72f, 64f, 46f, 52f) }
+    drawPath(route, Color(0xFFFEC856), style = Stroke(6.5f, cap = StrokeCap.Round))
+    drawRoundRect(Color(0xFF8D6E63), Offset(43.2f, 12f), Size(2.8f, 20f), CornerRadius(1.4f))
+    drawPath(Path().apply { moveTo(46f, 12.5f); lineTo(63f, 17.5f); lineTo(46f, 23f); close() }, clay(Color(0xFFFF9A78), Color(0xFFE0684F), Color(0xFFB4452F), Offset(52f, 16f), 14f))
+}
+
+private fun DrawScope.drawPrize() {
+    contactShadow(50f, 89f, 44f, 7f)
+    rotate(-14f, pivot = Offset(50f, 30f)) { drawRoundRect(clay(Color(0xFF6FB0E0), Color(0xFF2B74AC), Color(0xFF186AA4), Offset(40f, 20f), 40f), Offset(31f, 8f), Size(17f, 44f), CornerRadius(4f)) }
+    rotate(14f, pivot = Offset(50f, 30f)) { drawRoundRect(clay(Color(0xFFFF9A78), Color(0xFFE0684F), Color(0xFFB4452F), Offset(60f, 20f), 40f), Offset(52f, 8f), Size(17f, 44f), CornerRadius(4f)) }
+    drawCircle(goldClay, 30f, Offset(50f, 62f))
+    drawCircle(Color(0xFFFFE9A8), 21f, Offset(50f, 62f))
+    drawPath(starPath(50f, 62f, 15f, 6.5f), clay(Color(0xFFFFC94D), Color(0xFFFEC856), Color(0xFFD99A1E), Offset(46f, 56f), 20f))
+    gloss(32f, 42f, 18f, 8f, 0.55f)
+}
+
+private fun DrawScope.drawFrameIcon() {
+    contactShadow(50f, 88f, 60f, 8f)
+    drawRoundRect(goldClay, Offset(13f, 13f), Size(74f, 74f), CornerRadius(20f))
+    drawRoundRect(clay(Color(0xFFB34A2B), Color(0xFFF3E7DF), Color(0xFFFFFFFF), Offset(52f, 56f), 44f), Offset(24f, 24f), Size(52f, 52f), CornerRadius(13f))
+    drawCircle(Color(0xFFFFD0AE), 9f, Offset(50f, 44f))
+    drawArc(Color(0xFF2B74AC), 180f, 180f, true, Offset(32f, 52f), Size(36f, 40f))
+    gloss(20f, 17f, 26f, 8f, 0.5f)
+}
+
+private fun DrawScope.drawWheelIcon() {
+    contactShadow(50f, 90f, 54f, 7f)
+    val colors = listOf(0xFFE0684F, 0xFFFEC856, 0xFF3CAEA3, 0xFF2B74AC, 0xFFB197FF, 0xFFFF9A78).map { Color(it) }
+    for (i in colors.indices) drawArc(colors[i], -90f + i * 60f, 60f, true, Offset(14f, 14f), Size(72f, 72f))
+    drawCircle(Color.White.copy(alpha = 0.22f), 36f, Offset(50f, 50f), style = Stroke(5f))
+    drawCircle(goldClay, 11f, Offset(50f, 50f))
+    drawPath(Path().apply { moveTo(43f, 6f); lineTo(57f, 6f); lineTo(50f, 22f); close() }, Color(0xFFB4452F))
+    gloss(24f, 20f, 22f, 9f, 0.4f)
+}
+
+private fun DrawScope.drawPodium() {
+    contactShadow(50f, 88f, 70f, 8f)
+    drawRoundRect(clay(Color(0xFF6FB0E0), Color(0xFF2B74AC), Color(0xFF186AA4), Offset(24f, 60f), 40f), Offset(12f, 56f), Size(26f, 32f), CornerRadius(7f))
+    drawRoundRect(clay(Color(0xFFFF9A78), Color(0xFFE0684F), Color(0xFFB4452F), Offset(76f, 66f), 36f), Offset(62f, 66f), Size(26f, 22f), CornerRadius(7f))
+    drawRoundRect(goldClay, Offset(37f, 40f), Size(26f, 48f), CornerRadius(7f))
+    drawPath(starPath(50f, 24f, 13f, 5.6f), goldClay)
+    gloss(41f, 44f, 8f, 18f, 0.4f)
+}
+
+private fun DrawScope.drawGroups() {
+    contactShadow(50f, 88f, 66f, 8f)
+    fun person(cx: Float, top: Float, r: Float, body: Color, bodyDark: Color) {
+        drawCircle(clay(Color(0xFFFFE2C8), Color(0xFFFFC9A0), Color(0xFFE5A67C), Offset(cx - r * 0.3f, top - r * 0.3f), r * 2f), r, Offset(cx, top))
+        drawArc(clay(Color.White, body, bodyDark, Offset(cx - r, top + r * 2f), r * 5f), 180f, 180f, true, Offset(cx - r * 1.9f, top + r * 1.3f), Size(r * 3.8f, r * 3.6f))
+    }
+    person(24f, 46f, 9f, Color(0xFFB197FF), Color(0xFF7B64C3))
+    person(76f, 46f, 9f, Color(0xFFE0684F), Color(0xFFB4452F))
+    person(50f, 38f, 12f, Color(0xFF2B74AC), Color(0xFF186AA4))
+}
+
+private fun DrawScope.drawAvatarIcon() {
+    contactShadow(50f, 89f, 56f, 8f)
+    drawArc(clay(Color(0xFF7DB8E6), Color(0xFF2B74AC), Color(0xFF186AA4), Offset(40f, 70f), 50f), 180f, 180f, true, Offset(16f, 58f), Size(68f, 62f))
+    drawCircle(clay(Color(0xFFFFE2C8), Color(0xFFFFC9A0), Color(0xFFE5A67C), Offset(42f, 30f), 36f), 21f, Offset(50f, 40f))
+    drawArc(Color(0xFF5D4037), 180f, 180f, true, Offset(28f, 18f), Size(44f, 36f))
+    drawOval(Color(0xFFFFC9A0), Offset(32f, 36f), Size(36f, 26f))
+    gloss(36f, 22f, 12f, 6f, 0.5f)
+}
+
+private fun DrawScope.drawClipboard() {
+    contactShadow(50f, 89f, 56f, 8f)
+    drawRoundRect(clay(Color(0xFFD9976A), Color(0xFFB8744B), Color(0xFF8D5535), Offset(36f, 28f), 80f), Offset(18f, 12f), Size(64f, 76f), CornerRadius(14f))
+    drawRoundRect(clay(Color.White, Color(0xFFF7EEE6), Color(0xFFD9C9BC), Offset(40f, 36f), 70f), Offset(25f, 24f), Size(50f, 58f), CornerRadius(8f))
+    for ((i, w) in listOf(34f, 28f, 34f).withIndex()) {
+        drawCircle(Color(0xFF3CAEA3), 3.4f, Offset(33f, 40f + i * 14f))
+        drawRoundRect(Color(0xFFBFB3A9), Offset(41f, 38f + i * 14f), Size(w, 5f), CornerRadius(2.5f))
+    }
+    drawRoundRect(goldClay, Offset(36f, 6f), Size(28f, 14f), CornerRadius(7f))
 }
 
 // ───────────────────────── Style 4: layered glass (everything else) ─────────────────────────
