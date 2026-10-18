@@ -897,6 +897,21 @@ private fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed:
     )
 }
 @Composable
+private fun ItemPreview(repo: AppRepository, type: ShopItemType, path: String) {
+    // Frames are always previewed with an avatar inside, avatars inside a frame: nothing sticks out.
+    val sampleAvatar = repo.shop.firstOrNull { it.type == ShopItemType.AVATAR && it.imagePath != null }?.imagePath
+    val sampleFrame = repo.shop.firstOrNull { it.type == ShopItemType.FRAME && it.imagePath != null }?.imagePath
+    when (type) {
+        ShopItemType.AVATAR -> MemberAvatar(path, sampleFrame, 112.dp)
+        ShopItemType.FRAME -> MemberAvatar(sampleAvatar, path, 112.dp)
+        ShopItemType.REWARD -> {
+            val bitmap = remember(path) { BitmapFactory.decodeFile(path)?.asImageBitmap() }
+            bitmap?.let { Image(bitmap = it, contentDescription = "تصویر آیتم فروشگاه", modifier = Modifier.size(112.dp)) }
+        }
+    }
+}
+
+@Composable
 private fun ShopItemEditDialog(repo: AppRepository, item: ShopItem, changed: () -> Unit, close: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(item.name) }
@@ -914,7 +929,7 @@ private fun ShopItemEditDialog(repo: AppRepository, item: ShopItem, changed: () 
         Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text(if (imagePath == null) "افزودن تصویر" else "تغییر تصویر") }
-            imagePath?.let { raw -> remember(raw) { BitmapFactory.decodeFile(raw)?.asImageBitmap() }?.let { Image(bitmap = it, contentDescription = "تصویر آیتم فروشگاه", modifier = Modifier.size(112.dp).align(Alignment.CenterHorizontally)) } }
+            imagePath?.let { raw -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { ItemPreview(repo, item.type, raw) } }
             OutlinedTextField(description, { description = it }, label = { Text("توضیحات جایزه") }, minLines = 2, maxLines = 4, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(price, { price = it.filter(Char::isDigit) }, label = { Text("قیمت") }, singleLine = true)
             OutlinedTextField(level, { level = it.filter(Char::isDigit) }, label = { Text("حداقل سطح") }, singleLine = true)
@@ -950,7 +965,7 @@ private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: (
             OutlinedTextField(name, { name = it }, label = { Text("نام") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { ShopItemType.entries.forEach { candidate -> FilterChip(type == candidate, { type = candidate; assetId = null }, label = { Text(when(candidate){ ShopItemType.AVATAR -> "آواتار"; ShopItemType.FRAME -> "قاب"; ShopItemType.REWARD -> "جایزه" }) }) } }
             OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) { Text(if (imagePath == null) "انتخاب تصویر برای نمایش در فروشگاه" else "تغییر تصویر انتخاب‌شده") }
-            imagePath?.let { raw -> remember(raw) { BitmapFactory.decodeFile(raw)?.asImageBitmap() }?.let { Image(bitmap = it, contentDescription = "پیش‌نمایش تصویر آیتم", modifier = Modifier.size(104.dp).align(Alignment.CenterHorizontally)) } }
+            imagePath?.let { raw -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { ItemPreview(repo, type, raw) } }
             if (compatibleAssets.isNotEmpty()) {
                 Text("یا از دارایی‌های ثبت‌شده انتخاب کن")
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { compatibleAssets.forEach { asset ->
