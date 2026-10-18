@@ -75,7 +75,7 @@ class AppRepository(context: Context) {
             val file = java.io.File(directory, "$id.png")
             val existing = shop.firstOrNull { it.id == id }
             if (existing == null || regenerate || !file.exists()) {
-                file.outputStream().use { AssetArt.avatarBitmap(index).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                file.outputStream().use { (artBitmap("avatar_$index") ?: AssetArt.avatarBitmap(index)).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             }
             if (existing == null) {
                 shop += ShopItem(
@@ -91,7 +91,7 @@ class AppRepository(context: Context) {
             val file = java.io.File(directory, "$id.png")
             val existing = shop.firstOrNull { it.id == id }
             if (existing == null || regenerate || !file.exists()) {
-                file.outputStream().use { AssetArt.frameBitmap(index).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                file.outputStream().use { (artBitmap("frame_$index") ?: AssetArt.frameBitmap(index)).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             }
             if (existing == null) {
                 shop += ShopItem(
@@ -104,12 +104,21 @@ class AppRepository(context: Context) {
         }
     }
 
+    /** Hand-illustrated artwork bundled in the APK (assets/art); the code-drawn art is only a fallback. */
+    private fun artBitmap(name: String): android.graphics.Bitmap? =
+        runCatching { appContext.assets.open("art/$name.png").use { android.graphics.BitmapFactory.decodeStream(it) } }.getOrNull()
+
+    private fun levelArt(level: Int): android.graphics.Bitmap {
+        val tier = (level / 5 - 1).coerceAtLeast(0)
+        return AssetArt.levelAvatarBitmap(level, 512, artBitmap("avatar_${tier % AssetArt.avatarNames.size}"))
+    }
+
     private fun regenerateLevelAvatars() {
         shop.filter { it.id.startsWith("level-avatar-") }.forEach { item ->
             val level = item.id.removePrefix("level-avatar-").toIntOrNull() ?: return@forEach
             val path = item.imagePath ?: return@forEach
             runCatching {
-                java.io.File(path).outputStream().use { AssetArt.levelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                java.io.File(path).outputStream().use { levelArt(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             }
         }
     }
@@ -144,7 +153,7 @@ class AppRepository(context: Context) {
         val directory = java.io.File(appContext.filesDir, "custom_assets/level_avatars")
         directory.mkdirs()
         val file = java.io.File(directory, "$id.png")
-        if (!file.exists()) file.outputStream().use { output -> AssetArt.levelAvatarBitmap(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output) }
+        if (!file.exists()) file.outputStream().use { output -> levelArt(level).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output) }
         val item = ShopItem(
             id = id,
             name = "آواتار ویژه سطح $level",

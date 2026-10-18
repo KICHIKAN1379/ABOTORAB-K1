@@ -23,7 +23,7 @@ import kotlin.math.sin
  * automatically by [com.kichikan.ak1.ui.AvatarRender], so any avatar is clipped *inside* any frame.
  */
 object AssetArt {
-    const val ART_VERSION = 2
+    const val ART_VERSION = 3
     val avatarNames = listOf("رهرو", "پیش‌قدم", "پژوهشگر", "قله‌نورد", "ستاره", "سفیر")
     val frameNames = listOf("فیروزه‌ای", "طلایی", "ارغوانی", "مرجانی", "زمردی", "ستاره‌ای", "الماسی", "قله")
 
@@ -174,27 +174,29 @@ object AssetArt {
     }
 
     /** Level avatar: the matching character plus tier colour, crown and level badge. */
-    fun levelAvatarBitmap(level: Int, size: Int = 512): Bitmap {
+    fun levelAvatarBitmap(level: Int, size: Int = 512, base: Bitmap? = null): Bitmap {
         val tier = (level / 5 - 1).coerceAtLeast(0)
-        val bmp = avatarBitmap(tier, size)
+        val bmp = if (base != null) Bitmap.createScaledBitmap(base, size, size, true).copy(Bitmap.Config.ARGB_8888, true) else avatarBitmap(tier, size)
         val c = Canvas(bmp)
         c.scale(size / 512f, size / 512f)
         val tierColors = listOf(0xFF3DF6E6.toInt(), 0xFF5B9CFF.toInt(), 0xFFB197FF.toInt(), 0xFFFFC857.toInt(), 0xFF58E39A.toInt())
         val accent = tierColors[tier % tierColors.size]
-        c.drawRoundRect(RectF(10f, 10f, 502f, 502f), 112f, 112f, stroke(accent, if (level >= 20) 20f else 12f))
+        // Everything stays inside the inscribed circle, because avatars are shown cropped in a round frame.
+        c.drawCircle(256f, 256f, 238f, stroke(a(70, accent), if (level >= 20) 34f else 26f))
+        c.drawCircle(256f, 256f, 238f, stroke(accent, if (level >= 20) 14f else 9f))
         if (level >= 25) {
             val crown = Path().apply {
-                moveTo(176f, 112f); lineTo(160f, 40f); lineTo(214f, 80f); lineTo(256f, 22f)
-                lineTo(298f, 80f); lineTo(352f, 40f); lineTo(336f, 112f); close()
+                moveTo(186f, 104f); lineTo(172f, 44f); lineTo(218f, 76f); lineTo(256f, 28f)
+                lineTo(294f, 76f); lineTo(340f, 44f); lineTo(326f, 104f); close()
             }
-            c.drawPath(crown, shaded(lin(0f, 22f, 0f, 112f, 0xFFFFE9A0.toInt(), 0xFFD9A12E.toInt())))
+            c.drawPath(crown, shaded(lin(0f, 28f, 0f, 104f, 0xFFFFE9A0.toInt(), 0xFFD9A12E.toInt())))
         } else if (level >= 10) {
-            c.drawPath(star(256f, 62f, 30f, 13f), shaded(lin(0f, 30f, 0f, 90f, 0xFFFFE9A0.toInt(), 0xFFD9A12E.toInt())))
+            c.drawPath(star(256f, 58f, 28f, 12f), shaded(lin(0f, 30f, 0f, 86f, 0xFFFFE9A0.toInt(), 0xFFD9A12E.toInt())))
         }
-        c.drawCircle(420f, 420f, 66f, shaded(lin(0f, 354f, 0f, 486f, 0xFFFFE9A0.toInt(), 0xFFD9A12E.toInt())))
-        c.drawCircle(420f, 420f, 66f, stroke(0xFF8B5E10.toInt(), 6f))
-        val t = fill(0xFF3A2A06.toInt()).apply { textSize = 60f; textAlign = Paint.Align.CENTER; typeface = Typeface.create("sans-serif", Typeface.BOLD) }
-        c.drawText(level.toString(), 420f, 442f, t)
+        c.drawCircle(388f, 388f, 60f, shaded(lin(0f, 328f, 0f, 448f, 0xFFFFE9A0.toInt(), 0xFFD9A12E.toInt())))
+        c.drawCircle(388f, 388f, 60f, stroke(0xFF8B5E10.toInt(), 6f))
+        val t = fill(0xFF3A2A06.toInt()).apply { textSize = if (level >= 100) 42f else 54f; textAlign = Paint.Align.CENTER; typeface = Typeface.create("sans-serif", Typeface.BOLD) }
+        c.drawText(level.toString(), 388f, 388f + t.textSize * 0.35f, t)
         return bmp
     }
 

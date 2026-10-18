@@ -75,7 +75,7 @@ object AvatarRender {
         val canvas = Canvas(out)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         val ratio = if (frame != null) holeRatio(frame, frameKey) else 0.94f
-        val diameter = size * ratio * 0.985f
+        val diameter = if (frame != null) min(size * ratio * 1.035f, size * 0.99f) else size * ratio * 0.985f
         val c = size / 2f
         val dst = RectF(c - diameter / 2f, c - diameter / 2f, c + diameter / 2f, c + diameter / 2f)
         canvas.save()
