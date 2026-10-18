@@ -6,6 +6,7 @@ import com.kichikan.ak1.domain.calendar.JalaliCalendar
 import com.kichikan.ak1.domain.model.*
 import com.kichikan.ak1.domain.service.EconomyChange
 import com.kichikan.ak1.domain.service.EconomyService
+import com.kichikan.ak1.domain.service.HistoryEvents
 import com.kichikan.ak1.domain.service.MissionService
 import com.kichikan.ak1.domain.service.AssetArt
 import com.kichikan.ak1.domain.service.ShopService
@@ -38,7 +39,7 @@ class AppRepository(context: Context) {
         store.load()?.let { state ->
             ring = state.ring
             members += state.members
-            history += state.history
+            history += HistoryEvents.dedupeNewest(state.history)
             shop += state.shop
             wheel = state.wheel
             missions += state.missions
@@ -65,6 +66,10 @@ class AppRepository(context: Context) {
             }
         }
         persist()
+        // The 09:00 alarm used to be the only caller, so a birthday that fell on a day the phone
+        // was off was never rewarded. processBirthdayRewards() is idempotent per Jalali year,
+        // which makes this catch-up safe to run on every start.
+        runCatching { processBirthdayRewards() }
     }
 
     private fun seedStarterCatalog(regenerate: Boolean) {
@@ -478,7 +483,11 @@ class AppRepository(context: Context) {
         check(members.any { it.id == item.memberId }) { "عضو نامعتبر است" }
         attendance.removeAll { it.memberId == item.memberId && it.dateEpochMillis == item.dateEpochMillis }
         attendance += item
-        history += HistoryEvent("attendance-" + item.id, item.memberId, HistoryType.ATTENDANCE, null,
+        // One ledger row per member and class day: re-marking the same day updates that row instead
+        // of appending a second event with the same id, which used to break the history list.
+        val eventId = "attendance-${item.memberId}-${item.dateEpochMillis}"
+        history.removeAll { it.id == eventId || it.id == "attendance-" + item.id }
+        history += HistoryEvent(eventId, item.memberId, HistoryType.ATTENDANCE, null,
             "حضور و غیاب", item.note, item.createdAt, "mentor",
             mapOf("status" to item.status.name, "date" to item.dateEpochMillis.toString()))
         persist()
@@ -695,6 +704,7 @@ class AppRepository(context: Context) {
     }
 
     fun persist() {
+        normaliseHistoryIds()
         store.save(
             ring,
             members,
@@ -708,6 +718,19 @@ class AppRepository(context: Context) {
             assets,
             groups
         )
+    }
+
+    /**
+     * Guarantees a unique id per event before writing. The member ledger uses ids as list keys,
+     * so two events sharing one (same-millisecond XP, the same attendance day) would crash it.
+     */
+    private fun normaliseHistoryIds() {
+        val used = mutableSetOf<String>()
+        for (index in history.indices) {
+            val event = history[index]
+            val unique = HistoryEvents.unique(event, used)
+            if (unique !== event) history[index] = unique
+        }
     }
 
     fun exportBackup(): String {
@@ -734,7 +757,7 @@ class AppRepository(context: Context) {
         store.load()?.let { state ->
             ring = state.ring
             members += state.members
-            history += state.history
+            history += HistoryEvents.dedupeNewest(state.history)
             shop += state.shop
             wheel = state.wheel
             missions += state.missions

@@ -39,6 +39,7 @@ import com.kichikan.ak1.ui.theme.ClayKind
 import com.kichikan.ak1.ui.theme.MinimalIcon
 import com.kichikan.ak1.ui.theme.MinimalKind
 import com.kichikan.ak1.ui.theme.Neon
+import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.GrowthMapDialog
 import com.kichikan.ak1.ui.HubEntry
@@ -253,9 +254,9 @@ private fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers:
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     val ringPhotoUri = remember { prefs.getString("ring_profile_image", null) }
     val ringPhoto = remember(ringPhotoUri) {
-        ringPhotoUri?.let { raw -> runCatching {
-            context.contentResolver.openInputStream(android.net.Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
-        }.getOrNull() }
+        ringPhotoUri?.let { raw ->
+            AvatarRender.decodeSampled(context, android.net.Uri.parse(raw), 256)?.asImageBitmap()
+        }
     }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); tick++ } }
@@ -905,7 +906,7 @@ private fun ItemPreview(repo: AppRepository, type: ShopItemType, path: String) {
         ShopItemType.AVATAR -> MemberAvatar(path, sampleFrame, 112.dp)
         ShopItemType.FRAME -> MemberAvatar(sampleAvatar, path, 112.dp)
         ShopItemType.REWARD -> {
-            val bitmap = remember(path) { BitmapFactory.decodeFile(path)?.asImageBitmap() }
+            val bitmap = remember(path) { AvatarRender.decodeSampled(path, 384)?.asImageBitmap() }
             bitmap?.let { Image(bitmap = it, contentDescription = "تصویر آیتم فروشگاه", modifier = Modifier.size(112.dp)) }
         }
     }
@@ -969,7 +970,7 @@ private fun AddShopItemDialog(repo: AppRepository, changed: () -> Unit, close: (
             if (compatibleAssets.isNotEmpty()) {
                 Text("یا از دارایی‌های ثبت‌شده انتخاب کن")
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { compatibleAssets.forEach { asset ->
-                    val thumb = remember(asset.path) { BitmapFactory.decodeFile(asset.path)?.asImageBitmap() }
+                    val thumb = remember(asset.path) { AvatarRender.decodeSampled(asset.path, 256)?.asImageBitmap() }
                     Card(onClick = { assetId = asset.id; imagePath = null }) { Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) { thumb?.let { Image(bitmap = it, contentDescription = asset.name, modifier = Modifier.size(54.dp)) }; Text(asset.name, style = MaterialTheme.typography.labelSmall) } }
                 } }
             }
@@ -1543,7 +1544,7 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, filter: Sho
         result?.let { Text(it, color = Neon.Cyan) }
         if (shown.isEmpty()) Text("هنوز آیتمی در این بخش تعریف نشده است.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
             items(shown, key = { it.id }) { item ->
-                val itemBitmap = remember(item.imagePath) { item.imagePath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() } }
+                val itemBitmap = remember(item.imagePath) { item.imagePath?.let { AvatarRender.decodeSampled(it, 384)?.asImageBitmap() } }
                 val reason = member?.let { com.kichikan.ak1.domain.service.ShopService.canAcquire(item, it, now) }
                 val owned = member?.let { m -> historyOwned(repo, m.id, item.id) } == true
                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1561,20 +1562,33 @@ private fun StoreScreen(repo: AppRepository, padding: PaddingValues, filter: Sho
                         AcquisitionMethod.LEVEL_UNLOCK !in item.methods
                     Button(onClick = {
                         try {
-                            if (owned && item.type != ShopItemType.REWARD) {
-                                repo.equipShopItem(selectedMemberId, item.id)
-                                result = "«${item.name}» برای عضو فعال شد."
-                                changed()
-                            } else if (manualOnly) {
-                                manualGrantItem = item
-                            } else {
-                                repo.purchaseShopItem(selectedMemberId, item.id)
-                                result = "«${item.name}» دریافت شد."
-                                changed()
+                            when {
+                                // A REWARD is consumed, not equipped: tapping "use" again must never
+                                // charge the member a second time.
+                                owned && item.type == ShopItemType.REWARD ->
+                                    result = "«${item.name}» قبلاً دریافت شده است."
+                                owned -> {
+                                    repo.equipShopItem(selectedMemberId, item.id)
+                                    result = "«${item.name}» برای عضو فعال شد."
+                                    changed()
+                                }
+                                manualOnly -> manualGrantItem = item
+                                else -> {
+                                    repo.purchaseShopItem(selectedMemberId, item.id)
+                                    result = "«${item.name}» دریافت شد."
+                                    changed()
+                                }
                             }
                         } catch (ex: Exception) { result = ex.message }
                     }, enabled = member != null && (manualOnly || reason == null)) {
-                        Text(if (owned) "استفاده" else if (manualOnly) "هدیه مربی" else "دریافت")
+                        Text(
+                            when {
+                                owned && item.type == ShopItemType.REWARD -> "قبلاً دریافت شد"
+                                owned -> "استفاده"
+                                manualOnly -> "هدیه مربی"
+                                else -> "دریافت"
+                            }
+                        )
                     }
                     reason?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 } }
@@ -1758,9 +1772,9 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
     }
     if (profileOpen) {
         val preview = remember(profileImageUri) {
-            profileImageUri?.let { raw -> runCatching {
-                context.contentResolver.openInputStream(android.net.Uri.parse(raw))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
-            }.getOrNull() }
+            profileImageUri?.let { raw ->
+                AvatarRender.decodeSampled(context, android.net.Uri.parse(raw), 256)?.asImageBitmap()
+            }
         }
         AlertDialog(
             onDismissRequest = { profileOpen = false },

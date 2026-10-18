@@ -25,13 +25,8 @@ object BirthdayReminderScheduler {
             Intent(context, BirthdayReminderReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val next = java.util.Calendar.getInstance()
-        next.add(java.util.Calendar.DAY_OF_YEAR, 1)
-        next.set(java.util.Calendar.HOUR_OF_DAY, 9)
-        next.set(java.util.Calendar.MINUTE, 0)
-        next.set(java.util.Calendar.SECOND, 0)
-        next.set(java.util.Calendar.MILLISECOND, 0)
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, pending)
+        val next = BirthdaySchedule.nextNineAm(java.time.ZonedDateTime.now())
+        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toInstant().toEpochMilli(), pending)
     }
 
     fun ensureChannel(context: Context) {

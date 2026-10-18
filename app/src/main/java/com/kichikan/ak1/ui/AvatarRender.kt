@@ -42,6 +42,23 @@ object AvatarRender {
         }.getOrNull()
     }
 
+    /**
+     * The same sampling rule for images opened through a content Uri (photo picker).
+     * Without it a multi-megapixel photo is decoded at full size just to fill a 112dp circle,
+     * which can exhaust the heap.
+     */
+    fun decodeSampled(context: android.content.Context, uri: android.net.Uri, target: Int): Bitmap? {
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= target) sample *= 2
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+            }
+        }.getOrNull()
+    }
+
     /** Diameter of the frame's transparent opening as a fraction of the frame size (0.5..0.95). */
     fun holeRatio(frame: Bitmap, key: String?): Float {
         key?.let { holeCache[it]?.let { cached -> return cached } }
