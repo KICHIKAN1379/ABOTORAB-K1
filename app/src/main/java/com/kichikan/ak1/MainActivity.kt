@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -22,7 +23,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
@@ -39,7 +43,7 @@ import com.kichikan.ak1.ui.theme.Card
 import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.ui.Exports
-import com.kichikan.ak1.ui.GrowthMapDialog
+import com.kichikan.ak1.ui.GrowthMapPage
 import com.kichikan.ak1.ui.HubEntry
 import com.kichikan.ak1.ui.HubScreen
 import com.kichikan.ak1.ui.MemberAvatar
@@ -63,7 +67,8 @@ private enum class Tab {
     WORKSHOP_MISSIONS, WORKSHOP_PRIZES, WORKSHOP_ASSETS, WORKSHOP_WHEEL,
     RANK_MEMBERS, RANK_GROUPS,
     STORE_AVATARS, STORE_FRAMES, STORE_REWARDS,
-    SESSIONS_LIST, SESSIONS_ATTENDANCE
+    SESSIONS_LIST, SESSIONS_ATTENDANCE,
+    GROWTH
 }
 
 private fun parentOf(tab: Tab): Tab = when (tab) {
@@ -72,6 +77,7 @@ private fun parentOf(tab: Tab): Tab = when (tab) {
     Tab.STORE_AVATARS, Tab.STORE_FRAMES, Tab.STORE_REWARDS -> Tab.STORE
     Tab.SESSIONS_LIST, Tab.SESSIONS_ATTENDANCE -> Tab.SESSIONS
     Tab.WORKSHOP, Tab.RANKING, Tab.STORE, Tab.SESSIONS, Tab.WHEEL -> Tab.SERVICES
+    Tab.GROWTH -> Tab.MEMBERS
     else -> Tab.HOME
 }
 
@@ -100,8 +106,10 @@ private fun AK1App() {
     val repo = remember { AppRepository(context.applicationContext) }
     var tab by remember { mutableStateOf(Tab.HOME) }
     var refresh by remember { mutableIntStateOf(0) }
+    var ringReady by remember { mutableStateOf(repo.ring != null) }
+    var growthMemberId by remember { mutableStateOf<String?>(null) }
     fun changed() { refresh++ }
-    if (repo.ring == null) { SetupScreen(repo) { refresh++ }; return }
+    if (!ringReady) { WelcomeScreen(repo) { ringReady = true }; return }
     androidx.activity.compose.BackHandler(enabled = tab != Tab.HOME) { tab = parentOf(tab) }
     Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent, bottomBar = {
         NavigationBar(containerColor = Neon.Navy.copy(alpha = 0.88f)) {
@@ -132,7 +140,20 @@ private fun AK1App() {
         key(refresh) {
             when (tab) {
                 Tab.HOME -> HomeScreen(repo, padding, { tab = Tab.MEMBERS }, { changed() }) { tab = it }
-                Tab.MEMBERS -> MembersScreen(repo, padding, { changed() })
+                Tab.MEMBERS -> MembersScreen(repo, padding, { changed() }) { member ->
+                    growthMemberId = member.id
+                    tab = Tab.GROWTH
+                }
+                Tab.GROWTH -> {
+                    val growthMember = repo.members.firstOrNull { it.id == growthMemberId }
+                    if (growthMember != null) {
+                        GrowthMapPage(repo, growthMember, padding) { tab = Tab.MEMBERS }
+                    } else {
+                        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                            Text("عضو پیدا نشد.")
+                        }
+                    }
+                }
                 Tab.SERVICES -> ServicesScreen(padding) { tab = it }
                 Tab.WORKSHOP -> WorkshopHub(padding, repo, { changed() }, { tab = it }) { tab = Tab.SERVICES }
                 Tab.RANKING -> RankingHub(padding, { tab = it }) { tab = Tab.SERVICES }
@@ -230,37 +251,137 @@ private fun SessionsHub(padding: PaddingValues, open: (Tab) -> Unit, back: () ->
     )
 }
 
+/**
+ * First-run flow: a welcome screen, then a short setup step that names the ring.
+ *
+ * It reports success through [onReady] instead of mutating a counter, because the caller's
+ * early return used to mean the counter was never read, so the first tap looked like it did
+ * nothing and the second one crashed on `check(ring == null)`.
+ */
 @Composable
-private fun SetupScreen(repo: AppRepository, changed: () -> Unit) {
-    var ringName by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
+private fun WelcomeScreen(repo: AppRepository, onReady: () -> Unit) {
+    var step by remember { mutableIntStateOf(0) }
+    var ringName by remember { mutableStateOf("ابوتراب") }
+    var username by remember { mutableStateOf("مربی") }
     var error by remember { mutableStateOf<String?>(null) }
 
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("ابوتراب K1", style = MaterialTheme.typography.headlineLarge)
-        Spacer(Modifier.height(8.dp))
-        Text("راه‌اندازی آفلاین مربی", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(24.dp))
-        Text("در این مرحله هیچ اتصال آنلاین یا حساب ابری فعال نیست.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Spacer(Modifier.height(16.dp))
-        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true)
-        Spacer(Modifier.height(10.dp))
-        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true)
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Spacer(Modifier.height(18.dp))
-        Button({
-            try {
-                repo.createRing(ringName, username)
-                changed()
-            } catch (e: IllegalArgumentException) {
-                error = e.message
+    Box(Modifier.fillMaxSize()) {
+        WelcomeBackdrop()
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (step == 0) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.55f)),
+                    modifier = Modifier.size(112.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("K1", style = MaterialTheme.typography.headlineLarge, color = Neon.Cyan)
+                    }
+                }
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    "خوش آمدید",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = androidx.compose.ui.graphics.Color.White
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "مجموعه فرهنگی ابوتراب علیه السلام",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Neon.Gold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(44.dp))
+                Button(
+                    onClick = { step = 1 },
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("ورود", style = MaterialTheme.typography.titleLarge)
+                }
+            } else {
+                Text("مشخصات حلقه", style = MaterialTheme.typography.headlineSmall, color = androidx.compose.ui.graphics.Color.White)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "این اطلاعات فقط روی همین گوشی ذخیره می‌شود.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(20.dp))
+                OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                error?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.height(22.dp))
+                Button(
+                    onClick = {
+                        try {
+                            repo.createRing(ringName, username)
+                            onReady()
+                        } catch (e: Exception) {
+                            error = e.message ?: "شروع کار انجام نشد"
+                        }
+                    },
+                    enabled = ringName.isNotBlank() && username.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().height(54.dp)
+                ) {
+                    Text("شروع کار آفلاین", style = MaterialTheme.typography.titleMedium)
+                }
+                TextButton(onClick = { step = 0; error = null }) { Text("→ بازگشت") }
             }
-        }, enabled = ringName.isNotBlank() && username.isNotBlank()) {
-            Text("شروع کار آفلاین")
+        }
+    }
+}
+
+/** Soft night-sky background for the welcome step, drawn with the app palette. */
+@Composable
+private fun WelcomeBackdrop() {
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(
+            Brush.verticalGradient(
+                listOf(
+                    androidx.compose.ui.graphics.Color(0xFF02132B),
+                    Neon.Navy,
+                    androidx.compose.ui.graphics.Color(0xFF07395E)
+                )
+            )
+        )
+        val upperGlow = Offset(size.width * 0.82f, size.height * 0.14f)
+        drawCircle(
+            Brush.radialGradient(
+                listOf(Neon.Cyan.copy(alpha = 0.26f), androidx.compose.ui.graphics.Color.Transparent),
+                center = upperGlow,
+                radius = size.width * 0.85f
+            ),
+            radius = size.width * 0.85f,
+            center = upperGlow
+        )
+        val lowerGlow = Offset(size.width * 0.12f, size.height * 0.88f)
+        drawCircle(
+            Brush.radialGradient(
+                listOf(Neon.Violet.copy(alpha = 0.22f), androidx.compose.ui.graphics.Color.Transparent),
+                center = lowerGlow,
+                radius = size.width * 0.75f
+            ),
+            radius = size.width * 0.75f,
+            center = lowerGlow
+        )
+        val arcCenter = Offset(size.width / 2f, size.height * 0.30f)
+        for (index in 1..4) {
+            drawCircle(
+                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.055f),
+                radius = size.width * (0.30f + index * 0.19f),
+                center = arcCenter,
+                style = Stroke(1.2f)
+            )
         }
     }
 }
@@ -511,7 +632,7 @@ private fun SummaryCard(repo: AppRepository) {
     }
 }
 @Composable
-private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit, openGrowth: (Member) -> Unit) {
     var page by remember { mutableIntStateOf(0) }
     var add by remember { mutableStateOf(false) }
     var addGroup by remember { mutableStateOf(false) }
@@ -520,7 +641,6 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
     var editing by remember { mutableStateOf<Member?>(null) }
     var groupEditing by remember { mutableStateOf<Group?>(null) }
     var scoreGroup by remember { mutableStateOf<Group?>(null) }
-    var mapMember by remember { mutableStateOf<Member?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
     val context = LocalContext.current
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
@@ -630,13 +750,12 @@ private fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed: 
                 Column(horizontalAlignment = Alignment.End) {
                     TextButton({ actionMember = null; editing = m }) { Text("ویرایش") }
                     TextButton({ actionMember = null; selected = m }) { Text("گنجینه") }
-                    TextButton({ actionMember = null; mapMember = m }) { Text("نقشه کمال") }
+                    TextButton({ actionMember = null; openGrowth(m) }) { Text("نقشه کمال") }
                 }
             },
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
         )
     }
-    mapMember?.let { m -> GrowthMapDialog(repo, m) { mapMember = null } }
 }
 
 @Composable private fun GroupDialog(repo: AppRepository, group: Group?, changed: () -> Unit, close: () -> Unit) {
