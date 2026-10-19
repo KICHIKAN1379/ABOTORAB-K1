@@ -1,0 +1,22 @@
+package com.kichikan.ak1.ui.screens
+
+/** Every screen of the app; sub-pages know their parent through [parentOf] (used by Back). */
+internal enum class Tab {
+    HOME, MEMBERS, SERVICES, WORKSHOP, WHEEL, SESSIONS, RANKING, STORE, SETTINGS,
+    WORKSHOP_MISSIONS, WORKSHOP_PRIZES, WORKSHOP_ASSETS, WORKSHOP_WHEEL,
+    RANK_MEMBERS, RANK_GROUPS,
+    STORE_AVATARS, STORE_FRAMES, STORE_REWARDS,
+    SESSIONS_LIST, SESSIONS_ATTENDANCE,
+    GROWTH, ARCHIVE
+}
+
+internal fun parentOf(tab: Tab): Tab = when (tab) {
+    Tab.WORKSHOP_MISSIONS, Tab.WORKSHOP_PRIZES, Tab.WORKSHOP_ASSETS, Tab.WORKSHOP_WHEEL -> Tab.WORKSHOP
+    Tab.RANK_MEMBERS, Tab.RANK_GROUPS -> Tab.RANKING
+    Tab.STORE_AVATARS, Tab.STORE_FRAMES, Tab.STORE_REWARDS -> Tab.STORE
+    Tab.SESSIONS_LIST, Tab.SESSIONS_ATTENDANCE -> Tab.SESSIONS
+    Tab.WORKSHOP, Tab.RANKING, Tab.STORE, Tab.SESSIONS, Tab.WHEEL -> Tab.SERVICES
+    Tab.GROWTH -> Tab.MEMBERS
+    Tab.ARCHIVE -> Tab.SETTINGS
+    else -> Tab.HOME
+}
