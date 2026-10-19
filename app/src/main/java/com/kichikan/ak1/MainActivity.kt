@@ -44,6 +44,7 @@ import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.GrowthMapPage
+import com.kichikan.ak1.ui.MemberArchivePage
 import com.kichikan.ak1.ui.HubEntry
 import com.kichikan.ak1.ui.HubScreen
 import com.kichikan.ak1.ui.MemberAvatar
@@ -70,7 +71,7 @@ private enum class Tab {
     RANK_MEMBERS, RANK_GROUPS,
     STORE_AVATARS, STORE_FRAMES, STORE_REWARDS,
     SESSIONS_LIST, SESSIONS_ATTENDANCE,
-    GROWTH
+    GROWTH, ARCHIVE
 }
 
 private fun parentOf(tab: Tab): Tab = when (tab) {
@@ -80,6 +81,7 @@ private fun parentOf(tab: Tab): Tab = when (tab) {
     Tab.SESSIONS_LIST, Tab.SESSIONS_ATTENDANCE -> Tab.SESSIONS
     Tab.WORKSHOP, Tab.RANKING, Tab.STORE, Tab.SESSIONS, Tab.WHEEL -> Tab.SERVICES
     Tab.GROWTH -> Tab.MEMBERS
+    Tab.ARCHIVE -> Tab.SETTINGS
     else -> Tab.HOME
 }
 
@@ -200,7 +202,8 @@ private fun AK1App(repo: AppRepository) {
                 Tab.STORE_REWARDS -> StoreScreen(repo, padding, ShopItemType.REWARD, { changed() }) { tab = Tab.STORE }
                 Tab.SESSIONS_LIST -> SessionsScreen(padding, repo, { changed() }, false) { tab = Tab.SESSIONS }
                 Tab.SESSIONS_ATTENDANCE -> SessionsScreen(padding, repo, { changed() }, true) { tab = Tab.SESSIONS }
-                Tab.SETTINGS -> SettingsScreen(repo, padding) { changed() }
+                Tab.SETTINGS -> SettingsScreen(repo, padding, { changed() }) { tab = Tab.ARCHIVE }
+                Tab.ARCHIVE -> MemberArchivePage(repo, padding) { tab = Tab.SETTINGS }
             }
         }
     }
@@ -885,7 +888,7 @@ private fun GroupScoreDialog(repo: AppRepository, group: Group, changed: () -> U
         OutlinedTextField(responsibility, { responsibility = it }, label = { Text("مسئولیت در حلقه (نمایش در اعضا، نه رتبه‌بندی)") }, singleLine = true)
         OutlinedTextField(notes, { notes = it }, label = { Text("توضیحات محرمانه تربیتی") })
     } }, confirmButton = { TextButton({ if (name.isNotBlank()) { repo.updateMember(member.copy(name = name.trim(), groupId = groupId, privateNotes = notes, responsibility = responsibility.trim())); changed(); close() } }) { Text("ذخیره") } },
-    dismissButton = { Row { TextButton({ repo.deleteMember(member.id); changed(); close() }) { Text("حذف عضو") }; TextButton(close) { Text("لغو") } } })
+    dismissButton = { Row { TextButton({ repo.archiveMember(member.id); changed(); close() }) { Text("حذف (به بایگانی)") }; TextButton(close) { Text("لغو") } } })
 }
 @Composable private fun MemberNotesDialog(repo: AppRepository, member: Member, close: () -> Unit) {
     AlertDialog(onDismissRequest = close, title = { Text("توضیحات ${member.name}") }, text = { Text(if (member.privateNotes.isBlank()) "برای این عضو توضیحی ثبت نشده است." else member.privateNotes) }, confirmButton = { TextButton(close) { Text("بستن") } })
@@ -1803,7 +1806,7 @@ private fun ActionLabel(icon: Int, text: String) {
 }
 
 @Composable
-private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
+private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit, openArchive: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
     var musicEnabled by remember { mutableStateOf(BackgroundMusic.enabled(context)) }
@@ -1904,6 +1907,7 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_restore, "ورود اطلاعات پشتیبان") }
         OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_edit_profile, "ویرایش پروفایل") }
         OutlinedButton({ growthManagerOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_growth_map, "مدیریت نقشه کمال") }
+        OutlinedButton({ openArchive() }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_home_member_management, "بایگانی اعضا") }
         OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_shortcuts, "تنظیم میانبرهای خانه") }
         HorizontalDivider()
         Text("روزهای برگزاری کلاس", style = MaterialTheme.typography.titleMedium)
