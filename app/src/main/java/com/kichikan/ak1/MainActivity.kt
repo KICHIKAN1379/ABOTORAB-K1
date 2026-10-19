@@ -53,7 +53,9 @@ import com.kichikan.ak1.ui.SpinWheelPage
 import com.kichikan.ak1.ui.TreasureDialog
 import com.kichikan.ak1.ui.theme.GlassIcon
 import com.kichikan.ak1.ui.theme.GlassKind
+import com.kichikan.ak1.audio.BackgroundMusic
 import com.kichikan.ak1.data.AppRepository
+import com.kichikan.ak1.data.AutoArchive
 import com.kichikan.ak1.birthday.BirthdayReminderScheduler
 import com.kichikan.ak1.notification.DailyDateNotification
 import com.kichikan.ak1.domain.calendar.BirthdayRules
@@ -82,14 +84,43 @@ private fun parentOf(tab: Tab): Tab = when (tab) {
 }
 
 class MainActivity : ComponentActivity() {
+    /**
+     * One repository for the whole process. The Activity owns it (instead of a composable) so the
+     * automatic `MRT` archive can read the latest state from [onStop].
+     */
+    private val repo: AppRepository by lazy { AppRepository(applicationContext) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         BirthdayReminderScheduler.schedule(this)
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 4107)
         }
+        // Only needed on Android 8-9, where the archive folder lives at the root of shared storage.
+        if (android.os.Build.VERSION.SDK_INT <= 28 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 4108)
+        }
         DailyDateNotification.start(this)
-        setContent { AK1Theme { AK1App() } }
+        setContent { AK1Theme { AK1App(repo) } }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        BackgroundMusic.start(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        BackgroundMusic.pause()
+        // Leaving the app (not a rotation) writes a dated snapshot into the MRT folder.
+        if (!isChangingConfigurations) {
+            runCatching { repo.exportBackup() }.getOrNull()?.let { AutoArchive.save(this, it) }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) BackgroundMusic.stop()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -101,9 +132,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AK1App() {
-    val context = LocalContext.current
-    val repo = remember { AppRepository(context.applicationContext) }
+private fun AK1App(repo: AppRepository) {
     var tab by remember { mutableStateOf(Tab.HOME) }
     var refresh by remember { mutableIntStateOf(0) }
     var ringReady by remember { mutableStateOf(repo.ring != null) }
@@ -1777,6 +1806,7 @@ private fun ActionLabel(icon: Int, text: String) {
 private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
+    var musicEnabled by remember { mutableStateOf(BackgroundMusic.enabled(context)) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             try {
@@ -1858,6 +1888,18 @@ private fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed:
         Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
         Text("حلقه: ${repo.ring?.ringName ?: "-"}")
         Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(musicEnabled, { on ->
+                musicEnabled = on
+                BackgroundMusic.setEnabled(context, on)
+            })
+            Text("پخش موسیقی پس‌زمینه")
+        }
+        Text(
+            "هر بار که از برنامه خارج می‌شوی، یک نسخه‌ی پشتیبان با تاریخ شمسی در پوشه‌ی ${AutoArchive.folderLabel()} ذخیره می‌شود (۱۲ نسخه‌ی آخر نگه داشته می‌شود).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_backup, "خروجی کامل اطلاعات") }
         OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_restore, "ورود اطلاعات پشتیبان") }
         OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_edit_profile, "ویرایش پروفایل") }
