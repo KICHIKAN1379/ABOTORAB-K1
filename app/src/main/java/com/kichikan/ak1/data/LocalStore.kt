@@ -22,9 +22,10 @@ class LocalStore(private val context: Context) {
         sessions: List<Session>,
         attendance: List<Attendance>,
         assets: List<CustomAsset>,
-        groups: List<Group>
+        groups: List<Group>,
+        archived: List<ArchivedMember> = emptyList()
     ) {
-        val root = JSONObject().put("schemaVersion", 5)
+        val root = JSONObject().put("schemaVersion", 6)
         ring?.let {
             root.put("ringId", it.ringId).put("ringName", it.ringName)
                 .put("ringUsername", it.ringUsername).put("passwordRequired", it.passwordRequired)
@@ -41,6 +42,20 @@ class LocalStore(private val context: Context) {
                 .put("birthDate", it.birthDate ?: JSONObject.NULL).put("groupId", it.groupId ?: JSONObject.NULL).put("privateNotes", it.privateNotes).put("responsibility", it.responsibility))
         }
         root.put("members", ms)
+        val archivedJson = JSONArray()
+        archived.forEach { entry ->
+            val it = entry.member
+            archivedJson.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)
+                .put("xp", it.economy.xp).put("points", it.economy.spendablePoints)
+                .put("diamonds", it.economy.diamonds)
+                .put("halfDiamondUnits", it.economy.halfDiamondUnits)
+                .put("avatar", it.avatarItemId ?: JSONObject.NULL)
+                .put("frame", it.frameItemId ?: JSONObject.NULL)
+                .put("birthDate", it.birthDate ?: JSONObject.NULL).put("groupId", it.groupId ?: JSONObject.NULL)
+                .put("privateNotes", it.privateNotes).put("responsibility", it.responsibility)
+                .put("archivedAt", entry.archivedAtEpochMillis))
+        }
+        root.put("archivedMembers", archivedJson)
         val groupsJson = JSONArray()
         groups.forEach {
             groupsJson.put(JSONObject().put("id", it.id).put("ringId", it.ringId).put("name", it.name)
@@ -164,7 +179,7 @@ class LocalStore(private val context: Context) {
             throw IllegalArgumentException("ساختار فایل پشتیبان معتبر نیست", e)
         }
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..6) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
 
         // Validate the entire backup before accepting it. If parsing any nested record fails,
         // restore the previous saved data instead of leaving the app with a broken backup.
@@ -184,7 +199,7 @@ class LocalStore(private val context: Context) {
         val raw = prefs.getString("backup", null) ?: return null
         val root = JSONObject(raw)
         val version = root.optInt("schemaVersion", 0)
-        require(version in 1..5) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
+        require(version in 1..6) { "نسخه پشتیبان پشتیبانی نمی‌شود" }
 
         val ring = if (root.has("ringId")) RingAccount(
             root.getString("ringId"), root.getString("ringName"),
@@ -207,6 +222,28 @@ class LocalStore(private val context: Context) {
                 o.optString("groupId").takeIf { it.isNotEmpty() && it != "null" },
                 o.optString("privateNotes", ""),
                 o.optString("responsibility", "")
+            )
+        }
+
+        val archived = mutableListOf<ArchivedMember>()
+        val archivedArray = root.optJSONArray("archivedMembers") ?: JSONArray()
+        for (i in 0 until archivedArray.length()) {
+            val o = archivedArray.getJSONObject(i)
+            archived += ArchivedMember(
+                Member(
+                    o.getString("id"), o.getString("ringId"), o.getString("name"),
+                    MemberEconomy(
+                        o.optInt("xp"), o.optInt("points"), o.optInt("diamonds"),
+                        o.optInt("halfDiamondUnits", 0)
+                    ),
+                    o.optString("avatar").takeIf { it.isNotEmpty() && it != "null" },
+                    o.optString("frame").takeIf { it.isNotEmpty() && it != "null" },
+                    o.optString("birthDate").takeIf { it.isNotEmpty() && it != "null" },
+                    o.optString("groupId").takeIf { it.isNotEmpty() && it != "null" },
+                    o.optString("privateNotes", ""),
+                    o.optString("responsibility", "")
+                ),
+                o.optLong("archivedAt", 0L)
             )
         }
 
@@ -346,7 +383,7 @@ class LocalStore(private val context: Context) {
             )
         }
 
-        return LoadedState(ring, members, history, shop, wheel, missions, completions, sessions, attendance, assets, groups)
+        return LoadedState(ring, members, history, shop, wheel, missions, completions, sessions, attendance, assets, groups, archived)
     }
 }
 
@@ -361,5 +398,6 @@ data class LoadedState(
     val sessions: List<Session> = emptyList(),
     val attendance: List<Attendance> = emptyList(),
     val assets: List<CustomAsset> = emptyList(),
-    val groups: List<Group> = emptyList()
+    val groups: List<Group> = emptyList(),
+    val archived: List<ArchivedMember> = emptyList()
 )

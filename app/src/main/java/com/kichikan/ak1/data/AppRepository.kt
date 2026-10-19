@@ -31,6 +31,7 @@ class AppRepository(context: Context) {
     val attendance = mutableListOf<Attendance>()
     val assets = mutableListOf<CustomAsset>()
     val groups = mutableListOf<Group>()
+    val archived = mutableListOf<ArchivedMember>()
 
     var wheel = WheelConfig()
         private set
@@ -48,6 +49,7 @@ class AppRepository(context: Context) {
             attendance += state.attendance
             assets += state.assets
             groups += state.groups
+            archived += state.archived
         }
         val catalogPrefs = appContext.getSharedPreferences("ak1_settings", Context.MODE_PRIVATE)
         if (!catalogPrefs.getBoolean("starter_catalog_created", false)) {
@@ -328,6 +330,49 @@ class AppRepository(context: Context) {
             )
         }
         persist()
+    }
+
+    /**
+     * Removes a member from the ring but keeps the full record in [archived], together with their
+     * history, attendance and sessions (those rows are keyed by member id and stay untouched).
+     */
+    fun archiveMember(memberId: String): Boolean {
+        val member = members.firstOrNull { it.id == memberId } ?: return false
+        members.removeAll { it.id == memberId }
+        groups.indices.forEach { index ->
+            val group = groups[index]
+            groups[index] = group.copy(
+                memberIds = group.memberIds.filterNot { it == memberId },
+                leaderMemberId = group.leaderMemberId?.takeUnless { it == memberId }
+            )
+        }
+        archived.removeAll { it.member.id == memberId }
+        archived += ArchivedMember(member, System.currentTimeMillis())
+        persist()
+        return true
+    }
+
+    /** Brings an archived member back; a group that no longer exists is dropped from the record. */
+    fun restoreArchivedMember(memberId: String): Boolean {
+        val entry = archived.firstOrNull { it.member.id == memberId } ?: return false
+        archived.removeAll { it.member.id == memberId }
+        val existingGroup = entry.member.groupId?.takeIf { id -> groups.any { group -> group.id == id } }
+        val restored = entry.member.copy(groupId = existingGroup)
+        if (members.none { it.id == restored.id }) members += restored
+        persist()
+        return true
+    }
+
+    /** Deletes an archived member for good, including their history, attendance and sessions. */
+    fun purgeArchivedMember(memberId: String): Boolean {
+        val removed = archived.any { it.member.id == memberId }
+        if (!removed) return false
+        archived.removeAll { it.member.id == memberId }
+        history.removeAll { it.memberId == memberId }
+        attendance.removeAll { it.memberId == memberId }
+        sessions.removeAll { it.memberId == memberId }
+        persist()
+        return true
     }
 
     fun updateMember(member: Member) {
@@ -716,7 +761,8 @@ class AppRepository(context: Context) {
             sessions,
             attendance,
             assets,
-            groups
+            groups,
+            archived
         )
     }
 
@@ -752,6 +798,7 @@ class AppRepository(context: Context) {
         attendance.clear()
         assets.clear()
         groups.clear()
+        archived.clear()
         wheel = WheelConfig()
 
         store.load()?.let { state ->
@@ -766,6 +813,7 @@ class AppRepository(context: Context) {
             attendance += state.attendance
             assets += state.assets
             groups += state.groups
+            archived += state.archived
         }
     }
 }
