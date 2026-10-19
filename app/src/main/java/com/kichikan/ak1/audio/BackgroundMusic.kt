@@ -8,8 +8,8 @@ import com.kichikan.ak1.R
 /**
  * Low-volume background loop that plays while the app is on screen.
  *
- * The track is `res/raw/ak1_theme.wav` (a calm 32 s pad). Replace that file with any audio you
- * like and it keeps working; nothing else refers to the track.
+ * The track is `res/raw/ak1_theme.mp3`. Replace that file with any audio you like (keep the
+ * name `ak1_theme`, the extension may change) and it keeps working; nothing else refers to it.
  */
 object BackgroundMusic {
     private const val PREFS = "ak1_settings"

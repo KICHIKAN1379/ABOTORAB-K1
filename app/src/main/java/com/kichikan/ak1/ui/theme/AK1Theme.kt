@@ -21,9 +21,9 @@ import androidx.compose.ui.unit.dp
 /**
  * AK1 visual system, built from the "4 icon styles" sheet:
  *  - Style 2 (neon gradient)  -> theme, background and buttons (this file + [Button]).
- *  - Style 1 (minimal vector) -> bottom-menu icons ([MinimalIcon]).
- *  - Style 3 (clay 3D)        -> service icons ([ClayIcon]).
- *  - Style 4 (layered glass)  -> cards, panels and everything else ([Card]).
+ *  - Style 1 (minimal vector) -> bottom-menu icons, now the hand-illustrated PNG set ([AppIcon]).
+ *  - Style 3 (clay 3D)        -> service icons, now the hand-illustrated PNG set ([AppIcon]).
+ *  - Style 4 (layered glass)  -> cards, panels and metric icons ([Card], [GlassIcon]).
  */
 object Neon {
     val Navy = Color(0xFF021E43)
