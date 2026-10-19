@@ -59,9 +59,16 @@ object DailyDateNotification {
             context, 6102, Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val icon = IconCompat.createWithBitmap(createDayIcon(date.day))
+        val season = JalaliSeason.forMonth(date.month)
+        // Status bar renders alpha only, so it gets the outlined badge; the expanded notification
+        // shows the filled, season-coloured one as the large icon.
+        val smallIcon = IconCompat.createWithBitmap(NotificationBadge.dayIcon(date.day, season, 72, filled = false))
+        val largeIcon = NotificationBadge.dayIcon(date.day, season, 192, filled = true)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(icon)
+            .setSmallIcon(smallIcon)
+            .setLargeIcon(largeIcon)
+            .setColor(season.frame)
+            .setSubText(season.label)
             .setContentTitle("امروز • ${date.day} ${JalaliCalendar.MONTH_NAMES[date.month - 1]} ${date.year}")
             .setContentText("روز ${date.day} • ساعت ${now.hour.toString().padStart(2, '0')}:${now.minute.toString().padStart(2, '0')}")
             .setContentIntent(openApp)
@@ -84,20 +91,6 @@ object DailyDateNotification {
                 }
             )
         }
-    }
-
-    private fun createDayIcon(day: Int): Bitmap {
-        val bitmap = Bitmap.createBitmap(72, 72, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.WHITE
-            textSize = 56f
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        }
-        val metrics = paint.fontMetrics
-        canvas.drawText(day.toString(), 36f, 36f - (metrics.ascent + metrics.descent) / 2f, paint)
-        return bitmap
     }
 
     internal fun updateAndReschedule(context: Context) {
