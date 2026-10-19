@@ -1,0 +1,61 @@
+name: Release preview APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v1.1.0-preview"
+        required: true
+        default: "v1.1.0-preview"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
+
+      - name: Build debug APK
+        run: gradle assembleDebug --console=plain
+
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/ABOTORAB-K1-${{ inputs.tag }}.apk"
+          cd dist && sha256sum "ABOTORAB-K1-${{ inputs.tag }}.apk" > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ABOTORAB-K1 ${{ inputs.tag }}
+          prerelease: true
+          body: |
+            Preview build (debug-signed) for installing on a phone.
+
+            Included in this build:
+            - the whole hand-illustrated icon set wired into navigation, hubs, home shortcuts and settings
+            - the identity (economy) entry in the workshop hub
+            - unique history event ids, so correcting attendance no longer breaks the member ledger
+            - sampled image decoding (no more full-size photo decoding)
+            - a birthday reminder that targets the next 09:00 and catches up on launch
+            - the shop no longer charges twice when tapping "use" on an owned reward
+
+            Debug builds are signed with a per-run key: uninstall the previous build before installing
+            this one, or app data will not be upgradable. A signed release build is the next step.
+          files: |
+            dist/ABOTORAB-K1-${{ inputs.tag }}.apk
+            dist/SHA256SUMS.txt
