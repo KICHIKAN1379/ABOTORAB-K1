@@ -9,6 +9,7 @@ import com.kichikan.ak1.domain.service.EconomyService
 import com.kichikan.ak1.domain.service.HistoryEvents
 import com.kichikan.ak1.domain.service.MissionService
 import com.kichikan.ak1.domain.service.AssetArt
+import com.kichikan.ak1.domain.service.ProfilePack
 import com.kichikan.ak1.domain.service.ShopService
 import com.kichikan.ak1.domain.service.WheelService
 import java.time.Instant
@@ -60,6 +61,8 @@ class AppRepository(context: Context) {
             regenerateLevelAvatars()
             catalogPrefs.edit().putInt("starter_art_version", AssetArt.ART_VERSION).apply()
         }
+        // PNGs dropped into assets/art/profiles become free avatars/frames (see ProfilePack).
+        runCatching { syncProfilePack() }
         members.toList().forEach { member ->
             val updated = grantLevelAvatars(member, (5..member.economy.level step 5).toList())
             if (updated != member) {
@@ -109,6 +112,54 @@ class AppRepository(context: Context) {
                 )
             }
         }
+    }
+
+    /**
+     * Registers the PNGs bundled in assets/art/profiles as free shop items named by [ProfilePack].
+     *
+     * - An item is created once per file name, so deleting one in the shop sticks.
+     * - The image is (re)written into the starter-catalog folder whenever it is missing (fresh
+     *   install or restored backup) or the bundled PNG changed, so replacing a PNG updates the art.
+     * - Files that are not readable images are skipped; one bad file never blocks the others.
+     */
+    private fun syncProfilePack() {
+        val names = appContext.assets.list(ProfilePack.ASSET_DIR)?.toList().orEmpty()
+        if (names.isEmpty()) return
+        val prefs = appContext.getSharedPreferences("ak1_profile_pack", Context.MODE_PRIVATE)
+        val directory = java.io.File(appContext.filesDir, "custom_assets/starter_catalog")
+        if (!directory.exists() && !directory.mkdirs()) return
+        val edit = prefs.edit()
+        names.sorted().forEach { assetName ->
+            val entry = ProfilePack.parse(assetName) ?: return@forEach
+            runCatching {
+                val bytes = appContext.assets.open("${ProfilePack.ASSET_DIR}/$assetName").use { it.readBytes() }
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching
+                val hash = java.security.MessageDigest.getInstance("SHA-1").digest(bytes).joinToString("") { "%02x".format(it) }
+                val id = entry.itemId
+                val file = java.io.File(directory, "$id.png")
+                val index = shop.indexOfFirst { it.id == id }
+                val registered = prefs.getBoolean("registered_$id", false)
+                if (index >= 0 || !registered) {
+                    if (!file.exists() || prefs.getString("hash_$id", null) != hash) file.writeBytes(bytes)
+                    edit.putString("hash_$id", hash)
+                }
+                if (index >= 0) {
+                    if (shop[index].imagePath != file.absolutePath) shop[index] = shop[index].copy(imagePath = file.absolutePath)
+                    edit.putBoolean("registered_$id", true)
+                } else if (!registered) {
+                    shop += ShopItem(
+                        id = id, name = entry.displayName, type = entry.type,
+                        imagePath = file.absolutePath, price = 0, currency = Currency.NONE,
+                        methods = setOf(AcquisitionMethod.DIRECT_PURCHASE), active = true,
+                        description = entry.description
+                    )
+                    edit.putBoolean("registered_$id", true)
+                }
+            }
+        }
+        edit.apply()
     }
 
     /** Hand-illustrated artwork bundled in the APK (assets/art); the code-drawn art is only a fallback. */
