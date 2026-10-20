@@ -28,6 +28,19 @@ jobs:
         with:
           gradle-version: "9.4.1"
 
+      - name: Restore signing key (only when the secrets are configured)
+        env:
+          AK1_KEYSTORE_BASE64: ${{ secrets.AK1_KEYSTORE_BASE64 }}
+          AK1_KEYSTORE_PASSWORD: ${{ secrets.AK1_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$AK1_KEYSTORE_BASE64" ] && [ -n "$AK1_KEYSTORE_PASSWORD" ]; then
+            echo "$AK1_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ak1-signing.p12"
+            echo "AK1_KEYSTORE_PATH=$RUNNER_TEMP/ak1-signing.p12" >> "$GITHUB_ENV"
+            echo "AK1_KEYSTORE_PASSWORD=$AK1_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "Fixed AK1 signing key restored."
+          else
+            echo "No signing secrets: building with the default debug key."
+          fi
       - name: Build debug APK
         run: gradle assembleDebug --console=plain
 
@@ -54,8 +67,10 @@ jobs:
             - a birthday reminder that targets the next 09:00 and catches up on launch
             - the shop no longer charges twice when tapping "use" on an owned reward
 
-            Debug builds are signed with a per-run key: uninstall the previous build before installing
-            this one, or app data will not be upgradable. A signed release build is the next step.
+            Signing: when the AK1_KEYSTORE_* secrets are configured this APK carries the fixed AK1 key,
+            so it installs over previous builds signed with the same key and keeps the app data.
+            Without the secrets it falls back to a per-run debug key: uninstall the previous build first
+            (back up from Settings before that). The first build with the fixed key also needs one uninstall.
           files: |
             dist/ABOTORAB-K1-${{ inputs.tag }}.apk
             dist/SHA256SUMS.txt

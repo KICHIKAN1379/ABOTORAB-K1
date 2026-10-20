@@ -19,6 +19,19 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.4.1"
+      - name: Restore signing key (only when the secrets are configured)
+        env:
+          AK1_KEYSTORE_BASE64: ${{ secrets.AK1_KEYSTORE_BASE64 }}
+          AK1_KEYSTORE_PASSWORD: ${{ secrets.AK1_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$AK1_KEYSTORE_BASE64" ] && [ -n "$AK1_KEYSTORE_PASSWORD" ]; then
+            echo "$AK1_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ak1-signing.p12"
+            echo "AK1_KEYSTORE_PATH=$RUNNER_TEMP/ak1-signing.p12" >> "$GITHUB_ENV"
+            echo "AK1_KEYSTORE_PASSWORD=$AK1_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "Fixed AK1 signing key restored."
+          else
+            echo "No signing secrets: building with the default debug key."
+          fi
       - name: Assemble debug APK and run unit tests
         run: |
           set +e
@@ -30,6 +43,15 @@ jobs:
             echo "::error title=Gradle build failed::$msg"
           fi
           exit $status
+      - name: Report APK signing certificate
+        if: success()
+        continue-on-error: true
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          fp=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
+          kind="default per-run debug key (uninstall the old app before installing)"
+          if [ -n "$AK1_KEYSTORE_PATH" ]; then kind="fixed AK1 key (installs over previous builds, keeps data)"; fi
+          echo "::notice title=APK signing certificate::SHA-256 $fp - $kind"
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
@@ -38,3 +60,35 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  # Proves the signing wiring keeps working: builds with a throwaway key and checks the APK carries it.
+  signing-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
+      - name: Build with a throwaway key and verify it signed the APK
+        run: |
+          set -e
+          keytool -genkeypair -keystore "$RUNNER_TEMP/check.p12" -storetype PKCS12 -alias ak1 \
+            -keyalg RSA -keysize 2048 -validity 2 -storepass checkpass123 -keypass checkpass123 -dname "CN=ci-signing-check"
+          export AK1_KEYSTORE_PATH="$RUNNER_TEMP/check.p12" AK1_KEYSTORE_PASSWORD=checkpass123
+          gradle assembleDebug --console=plain
+          want=$(keytool -list -v -keystore "$AK1_KEYSTORE_PATH" -storepass checkpass123 | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          got=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
+          echo "expected $want"
+          echo "got      $got"
+          if [ -z "$want" ] || [ "$want" != "$got" ]; then
+            echo "::error title=Signing check failed::the APK was not signed with the configured key (expected $want, got $got)"
+            exit 1
+          fi
+          echo "::notice title=Signing check::APK signed with the configured key ($got)"
