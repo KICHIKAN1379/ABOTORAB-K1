@@ -21,8 +21,8 @@ android {
         applicationId = "com.kichikan.ak1"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.15.0"
+        versionCode = 17
+        versionName = "1.16.0"
     }
     signingConfigs {
         if (useAk1Key) {

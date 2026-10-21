@@ -35,10 +35,17 @@ object AutoArchive {
         worker.execute { runCatching { write(app, json) } }
     }
 
-    fun folderLabel(): String = "${Environment.DIRECTORY_DOWNLOADS}/$FOLDER"
+    fun folderLabel(): String = "${Environment.getExternalStorageDirectory().absolutePath}/$FOLDER"
 
     private fun write(context: Context, json: String) {
         val name = fileName()
+        // Preferred location: next to Download/DCIM in the root of shared storage.
+        // Android 10+ only allows this after "All files access" is granted; if the
+        // write fails we transparently fall back to Download/MRT.
+        if (writeRoot(name, json)) {
+            pruneRoot()
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             writeScoped(context, name, json)
             pruneScoped(context)
@@ -92,6 +99,23 @@ object AutoArchive {
             }
         }
         stale.forEach { runCatching { resolver.delete(it, null, null) } }
+    }
+
+    private fun writeRoot(name: String, json: String): Boolean = runCatching {
+        val folder = File(Environment.getExternalStorageDirectory(), FOLDER)
+        if (!folder.exists() && !folder.mkdirs()) return false
+        File(folder, name).writeText(json)
+        true
+    }.getOrDefault(false)
+
+    private fun pruneRoot() {
+        runCatching {
+            val kept = File(Environment.getExternalStorageDirectory(), FOLDER)
+                .listFiles { file -> file.name.startsWith(PREFIX) }
+                ?.sortedByDescending { it.lastModified() }
+                ?: return
+            kept.drop(KEEP).forEach { runCatching { it.delete() } }
+        }
     }
 
     private fun writeLegacy(name: String, json: String) {

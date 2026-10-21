@@ -353,6 +353,9 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             it.memberId == member.id && it.sessionId == null &&
                 java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day
         }
+        var pending by remember(member.id, day) { mutableStateOf(current?.status ?: AttendanceStatus.UNMARKED) }
+        var reason by remember(member.id, day) { mutableStateOf(current?.note.orEmpty()) }
+        var error by remember(member.id, day) { mutableStateOf<String?>(null) }
         val options = listOf(
             AttendanceStatus.PRESENT to "حاضر • ح",
             AttendanceStatus.EXCUSED to "غیبت موجه • م",
@@ -360,30 +363,53 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             AttendanceStatus.LATE to "تأخیر • ت",
             AttendanceStatus.UNMARKED to "بدون ثبت • —"
         )
+        val needsReason = pending == AttendanceStatus.EXCUSED || pending == AttendanceStatus.ABSENT
         val jalaliDate = JalaliCalendar.fromGregorian(day)
         AlertDialog(
             onDismissRequest = { attendanceEditTarget = null },
             title = { Text("حضور و غیاب ${member.name}") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${jalaliDate.day} ${JalaliCalendar.MONTH_NAMES[jalaliDate.month - 1]} ${jalaliDate.year}")
                     options.forEach { (status, label) ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(
-                                selected = current?.status == status || (current == null && status == AttendanceStatus.UNMARKED),
-                                onClick = {
-                                    val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
-                                    repo.recordWeeklyAttendance(member.id, epoch, status)
-                                    changed()
-                                    attendanceEditTarget = null
-                                }
+                                selected = pending == status,
+                                onClick = { pending = status; error = null }
                             )
                             Text(label, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
+                    if (needsReason) {
+                        OutlinedTextField(
+                            value = reason,
+                            onValueChange = { reason = it; error = null },
+                            label = { Text("دلیل غیبت (اجباری)") },
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = error != null
+                        )
+                    }
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
-            confirmButton = { TextButton({ attendanceEditTarget = null }) { Text("بستن") } }
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        if (needsReason && reason.isBlank()) {
+                            error = "برای ثبت غیبت، وارد کردن دلیل الزامی است"
+                        } else {
+                            val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                            repo.recordWeeklyAttendance(member.id, epoch, pending, reason.takeIf { it.isNotBlank() })
+                            changed()
+                            attendanceEditTarget = null
+                        }
+                    } catch (e: Exception) {
+                        error = e.message ?: "ثبت حضور انجام نشد"
+                    }
+                }, enabled = !needsReason || reason.isNotBlank()) { Text("ثبت") }
+            },
+            dismissButton = { TextButton({ attendanceEditTarget = null }) { Text("بستن") } }
         )
     }
 }

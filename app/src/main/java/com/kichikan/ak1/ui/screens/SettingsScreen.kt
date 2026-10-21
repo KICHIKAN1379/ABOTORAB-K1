@@ -8,14 +8,18 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +34,7 @@ import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.audio.BackgroundMusic
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.data.AutoArchive
+import com.kichikan.ak1.data.DailyQuotes
 import com.kichikan.ak1.domain.calendar.JalaliCalendar
 
 /** Icon + label used inside the wide settings buttons. */
@@ -38,6 +43,34 @@ private fun ActionLabel(icon: Int, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         AppIcon(icon, 22.dp)
         Text(text)
+    }
+}
+
+private data class SettingsTool(val icon: Int, val label: String, val onClick: () -> Unit)
+
+/** Phone-menu style tile: big icon with the label underneath. */
+@Composable
+private fun SettingsTile(tool: SettingsTool, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = tool.onClick,
+        modifier = modifier.heightIn(min = 96.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.25f))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            AppIcon(tool.icon, 34.dp)
+            Text(
+                tool.label,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
     }
 }
 
@@ -74,6 +107,9 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
         }
     }
     var shortcutsOpen by remember { mutableStateOf(false) }
+    var quotesOpen by remember { mutableStateOf(false) }
+    var newQuote by remember { mutableStateOf("") }
+    val quotes = remember { mutableStateListOf<String>().apply { addAll(DailyQuotes.list(context)) } }
     var profileOpen by remember { mutableStateOf(false) }
     var growthManagerOpen by remember { mutableStateOf(false) }
     var growthStageName by remember { mutableStateOf("") }
@@ -161,16 +197,55 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "هر بار که از برنامه خارج می‌شوی، یک نسخه‌ی پشتیبان با تاریخ شمسی در پوشه‌ی ${AutoArchive.folderLabel()} ذخیره می‌شود (۱۲ نسخه‌ی آخر نگه داشته می‌شود).",
+            "هر بار که از برنامه خارج می‌شوی، یک نسخه‌ی پشتیبان با تاریخ شمسی در پوشه‌ی ${AutoArchive.folderLabel()} ذخیره می‌شود (۱۲ نسخه‌ی آخر نگه داشته می‌شود). اگر اجازهٔ دسترسی به حافظه داده نشود، پوشه در Download/MRT ساخته می‌شود.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        OutlinedButton({ export.launch("AK1-backup.json") }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_backup, "خروجی کامل اطلاعات") }
-        OutlinedButton({ import.launch(arrayOf("application/json", "text/plain")) }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_restore, "ورود اطلاعات پشتیبان") }
-        OutlinedButton({ profileOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_edit_profile, "ویرایش پروفایل") }
-        OutlinedButton({ growthManagerOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_growth_map, "مدیریت نقشه کمال") }
-        OutlinedButton({ openArchive() }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_home_member_management, "بایگانی اعضا") }
-        OutlinedButton({ shortcutsOpen = true }, Modifier.fillMaxWidth()) { ActionLabel(R.drawable.icon_settings_shortcuts, "تنظیم میانبرهای خانه") }
+        if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+            OutlinedButton(onClick = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            android.net.Uri.parse("package:${context.packageName}")
+                        )
+                    )
+                }.onFailure {
+                    runCatching {
+                        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                    }
+                }
+            }, modifier = Modifier.fillMaxWidth()) {
+                ActionLabel(R.drawable.icon_settings_backup, "اجازهٔ دسترسی به حافظهٔ اصلی (پوشه MRT)")
+            }
+        }
+        Text("ابزارها", style = MaterialTheme.typography.titleMedium)
+        val tools = listOf(
+            SettingsTool(R.drawable.icon_settings_backup, "خروجی کامل") { export.launch("AK1-backup.json") },
+            SettingsTool(R.drawable.icon_settings_restore, "ورود پشتیبان") { import.launch(arrayOf("application/json", "text/plain")) },
+            SettingsTool(R.drawable.icon_settings_edit_profile, "ویرایش پروفایل") { profileOpen = true },
+            SettingsTool(R.drawable.icon_settings_growth_map, "نقشه کمال") { growthManagerOpen = true },
+            SettingsTool(R.drawable.icon_home_member_management, "بایگانی") { openArchive() },
+            SettingsTool(R.drawable.icon_settings_shortcuts, "میانبرها") { shortcutsOpen = true }
+        )
+        tools.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { tool -> SettingsTile(tool, Modifier.weight(1f)) }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        Card(Modifier.fillMaxWidth(), accent = Neon.Violet) {
+            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("جملهٔ روز", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (quotes.isEmpty()) "هنوز جمله‌ای ثبت نشده است. هر تعداد جمله بنویس تا هر روز یکی بالای صفحهٔ خانه بیاید."
+                    else "${quotes.size} جمله ثبت شده • امروز: «${DailyQuotes.today(context) ?: ""}»",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = { quotesOpen = true }, modifier = Modifier.fillMaxWidth()) { Text("مدیریت جمله‌های روز") }
+            }
+        }
         HorizontalDivider()
         Text("روزهای برگزاری کلاس", style = MaterialTheme.typography.titleMedium)
         Text("هر زمان برنامه تغییر کرد، روزهای کلاس را از اینجا به‌روزرسانی کن. روز حذف‌شده در حضور و غیاب هفتگی نمایش داده نمی‌شود.")
@@ -383,5 +458,50 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
             dismissButton = { TextButton(onClick = { scheduleOpen = false }) { Text("بستن") } }
         )
     }
-
+    if (quotesOpen) {
+        AlertDialog(
+            onDismissRequest = { quotesOpen = false },
+            title = { Text("جمله‌های روز") },
+            text = {
+                Column(
+                    Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "هر تعداد جمله که می‌خواهی بنویس؛ هر روز یکی از آن‌ها به‌صورت خودکار بالای صفحهٔ خانه نمایش داده می‌شود.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = newQuote,
+                        onValueChange = { newQuote = it },
+                        label = { Text("جملهٔ جدید") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = {
+                            DailyQuotes.add(context, newQuote)
+                            newQuote = ""
+                            quotes.clear()
+                            quotes.addAll(DailyQuotes.list(context))
+                        },
+                        enabled = newQuote.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("افزودن جمله") }
+                    Text("${quotes.size} جمله ثبت‌شده", style = MaterialTheme.typography.labelMedium)
+                    quotes.toList().forEach { quote ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(quote, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            TextButton(onClick = {
+                                DailyQuotes.remove(context, quote)
+                                quotes.remove(quote)
+                            }) { Text("حذف") }
+                        }
+                    }
+                    if (quotes.isEmpty()) Text("فهرست خالی است.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = { TextButton(onClick = { quotesOpen = false }) { Text("بستن") } }
+        )
+    }
 }

@@ -57,7 +57,7 @@ internal fun RankingScreen(repo: AppRepository, padding: PaddingValues, groups: 
         if (uri != null) {
             val rows = if (groups) rankedGroups.map { g -> RankRow(g.name, "امتیاز ${g.economy.spendablePoints} • الماس ${g.economy.diamonds}", letter = g.name) }
             else rankedMembers.map { m -> RankRow(m.name, "سطح ${m.economy.level} • XP ${m.economy.xp} • امتیاز ${m.economy.spendablePoints} • الماس ${m.economy.diamonds}", avatarOf(m), frameOf(m), m.name) }
-            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> Exports.rankingCard(title, rows).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> Exports.rankingCard(title, rows).compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, out) } }
                 .onSuccess { Toast.makeText(context, "تصویر رتبه‌بندی ذخیره شد", Toast.LENGTH_SHORT).show() }
                 .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود: ${it.message}", Toast.LENGTH_LONG).show() }
         }

@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.15.0"`, `versionCode = 16`.
+- Version: `versionName = "1.16.0"`, `versionCode = 17`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -112,6 +112,28 @@ end with a green `Android Build` run and a downloadable debug APK.
   frames, wheel prizes/active/total weight), accent-edged cards for missions and shop items,
   coloured activity status, roomier rows.
 - Version 1.15.0.
+
+## Pass 13 (this pass) — requested feature round
+
+- Group profiles: each group card opens a profile with the leader's framed avatar, group economy,
+  total XP and every member's avatar, plus shortcuts to edit/score.
+- Attendance: excused/absent now require a written reason (enforced in the repository and shown
+  in a stateful edit dialog).
+- Treasure: history gets category chips (economy/attendance/missions/rewards/looks) and a separate
+  "received rewards" tab with item art, date and reason.
+- Frames: the frame hole measurement now has a 0.74 floor, so the uploaded profile frames
+  (leader, Soleimani, Ramadan, Fatemiyeh, Ghadir, commando) show the avatar at the same size as
+  the built-in frames instead of shrinking it.
+- Shop: workshop prizes are grouped into avatars/frames/rewards; every store/workshop item has a
+  poster-style high-resolution JPEG card export.
+- Looks are no longer auto-equipped on gift, purchase or wheel win; they wait in the treasure.
+- Ranking/member exports redrawn at higher resolution (1600px / 1200px) and saved at JPEG 100.
+- Home: offline chip removed, daily quote replaces the fixed greeting line, compact summary card,
+  larger shortcut icons. Settings can manage any number of daily quotes.
+- Settings: phone-menu style icon grid for tools, all-files-access shortcut, archive path hint.
+- Auto archive prefers `MRT/` at the root of shared storage (next to Download/DCIM) and falls back
+  to `Download/MRT` when access is not granted.
+- Version 1.16.0.
 
 ## Profile pack (uploaded assets)
 

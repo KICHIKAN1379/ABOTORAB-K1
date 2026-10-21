@@ -41,13 +41,14 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
     var editing by remember { mutableStateOf<Member?>(null) }
     var groupEditing by remember { mutableStateOf<Group?>(null) }
     var scoreGroup by remember { mutableStateOf<Group?>(null) }
+    var profileGroup by remember { mutableStateOf<Group?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
     var query by remember { mutableStateOf("") }
     val context = LocalContext.current
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
         val m = exportMember
         if (uri != null && m != null) {
-            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> Exports.memberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> Exports.memberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, out) } }
                 .onSuccess { Toast.makeText(context, "خروجی JPEG آماده شد", Toast.LENGTH_SHORT).show() }
                 .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود", Toast.LENGTH_SHORT).show() }
         }
@@ -159,11 +160,26 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
             if (repo.groups.isEmpty()) Text("هنوز گروهی ساخته نشده است.")
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(repo.groups, key = { it.id }) { g ->
-                    Card(Modifier.fillMaxWidth().animateItem()) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(g.name, style = MaterialTheme.typography.titleLarge)
-                            Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
-                            Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
+                    val leader = repo.members.firstOrNull { it.id == g.leaderMemberId }
+                    val leaderAvatar = repo.shop.firstOrNull { it.id == leader?.avatarItemId }?.imagePath
+                    val leaderFrame = repo.shop.firstOrNull { it.id == leader?.frameItemId }?.imagePath
+                    Card(
+                        onClick = { profileGroup = g },
+                        modifier = Modifier.fillMaxWidth().animateItem(),
+                        accent = Neon.Violet
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                MemberAvatar(leaderAvatar, leaderFrame, 52.dp, g.name)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(g.name, style = MaterialTheme.typography.titleLarge)
+                                    Text("سرگروه: ${leader?.name ?: "تعیین نشده"}")
+                                    Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
+                                }
+                                Surface(shape = RoundedCornerShape(50), color = Neon.Violet.copy(alpha = 0.14f), border = BorderStroke(1.dp, Neon.Violet.copy(alpha = 0.3f))) {
+                                    Text("پروفایل", Modifier.padding(horizontal = 9.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = Neon.Violet)
+                                }
+                            }
                             Text("امتیاز گروه ${g.economy.spendablePoints} • 💎 الماس ${g.economy.diamonds}")
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
@@ -181,6 +197,52 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
     scoreGroup?.let { GroupScoreDialog(repo, it, changed) { scoreGroup = null } }
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
     selected?.let { TreasureDialog(repo, it.id, changed) { selected = null } }
+    profileGroup?.let { g ->
+        val leader = repo.members.firstOrNull { it.id == g.leaderMemberId }
+        val leaderAvatar = repo.shop.firstOrNull { it.id == leader?.avatarItemId }?.imagePath
+        val leaderFrame = repo.shop.firstOrNull { it.id == leader?.frameItemId }?.imagePath
+        val groupMembers = repo.members.filter { it.groupId == g.id || it.id in g.memberIds }
+        AlertDialog(
+            onDismissRequest = { profileGroup = null },
+            title = { Text("پروفایل گروه ${g.name}") },
+            text = {
+                Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        MemberAvatar(leaderAvatar, leaderFrame, 84.dp, g.name)
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(g.name, style = MaterialTheme.typography.headlineSmall)
+                            Text("سرگروه: ${leader?.name ?: "تعیین نشده"}", style = MaterialTheme.typography.bodyMedium)
+                            Text("${groupMembers.size} عضو", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MiniStat("امتیاز", "${g.economy.spendablePoints}", Neon.Gold, Modifier.weight(1f))
+                        MiniStat("الماس", "${g.economy.diamonds}", Neon.Cyan, Modifier.weight(1f))
+                        MiniStat("کل XP", "${groupMembers.sumOf { it.economy.xp }}", Neon.Green, Modifier.weight(1f))
+                    }
+                    Text("اعضای گروه", style = MaterialTheme.typography.titleSmall)
+                    if (groupMembers.isEmpty()) Text("هنوز عضوی در این گروه نیست.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        groupMembers.forEach { m ->
+                            val avatar = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
+                            val frame = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                MemberAvatar(avatar, frame, 56.dp, m.name)
+                                Text(m.name, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton({ profileGroup = null; groupEditing = g }) { Text("ویرایش گروه") } },
+            dismissButton = {
+                Row {
+                    TextButton({ profileGroup = null; scoreGroup = g }) { Text("تغییر امتیاز") }
+                    TextButton({ profileGroup = null }) { Text("بستن") }
+                }
+            }
+        )
+    }
     actionMember?.let { m ->
         AlertDialog(
             onDismissRequest = { actionMember = null },

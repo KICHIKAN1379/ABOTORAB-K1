@@ -56,6 +56,23 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
     var tab by remember { mutableIntStateOf(1) }
     val member: Member = remember(tick, repo.members.size) { repo.members.firstOrNull { it.id == memberId } } ?: run { close(); return }
     val events = remember(tick, repo.history.size) { repo.history.filter { it.memberId == memberId }.sortedByDescending { it.createdAtEpochMillis } }
+    var category by remember { mutableIntStateOf(0) }
+    val rewardEvents = events.filter {
+        it.type == com.kichikan.ak1.domain.model.HistoryType.REWARD_RECEIVED ||
+            it.type == com.kichikan.ak1.domain.model.HistoryType.WHEEL_REWARD ||
+            it.type == com.kichikan.ak1.domain.model.HistoryType.BIRTHDAY_REWARD
+    }
+    val filteredEvents = events.filter { event ->
+        when (category) {
+            1 -> event.type.name.startsWith("XP_") || event.type.name.startsWith("POINTS_") ||
+                event.type.name.startsWith("DIAMONDS_") || event.type.name == "LEVEL_CHANGED"
+            2 -> event.type.name == "ATTENDANCE" || event.type.name == "SESSION_NOTE"
+            3 -> event.type.name == "MISSION_COMPLETED"
+            4 -> event.type.name == "REWARD_RECEIVED" || event.type.name == "WHEEL_REWARD" || event.type.name == "BIRTHDAY_REWARD"
+            5 -> event.type.name == "AVATAR_ACQUIRED" || event.type.name == "FRAME_ACQUIRED"
+            else -> true
+        }
+    }
     val now = System.currentTimeMillis()
     val ownedIds = remember(tick, repo.history.size) {
         (events.mapNotNull { it.metadata["itemId"] } + listOfNotNull(member.avatarItemId, member.frameItemId)).toSet()
@@ -96,20 +113,73 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(tab == 1, { tab = 1 }, label = { Text("آواتارها (${avatars.size})") })
                     FilterChip(tab == 2, { tab = 2 }, label = { Text("قاب‌ها (${frames.size})") })
+                    FilterChip(tab == 3, { tab = 3 }, label = { Text("جوایز دریافتی (${rewardEvents.size})") })
                     FilterChip(tab == 0, { tab = 0 }, label = { Text("سوابق") })
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (tab) {
                         0 -> {
-                            if (events.isEmpty()) Text("هنوز رویدادی در گنجینه ثبت نشده است.")
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("همه", "اقتصاد", "حضور", "مأموریت", "جوایز", "ظاهر").forEachIndexed { index, label ->
+                                    FilterChip(category == index, { category = index }, label = { Text(label) })
+                                }
+                            }
+                            if (filteredEvents.isEmpty()) Text("برای این دسته رویدادی ثبت نشده است.")
                             else LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(events, key = { it.id }) { event ->
+                                items(filteredEvents, key = { it.id }) { event ->
                                     Card(Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                             Text(event.title, style = MaterialTheme.typography.titleSmall)
                                             Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             event.reason?.takeIf { it.isNotBlank() }?.let { Text("دلیل: $it", style = MaterialTheme.typography.bodySmall) }
                                             event.amount?.let { Text("مقدار: $it", style = MaterialTheme.typography.bodySmall) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        3 -> {
+                            if (rewardEvents.isEmpty()) Text("هنوز جایزه‌ای دریافت نشده است.")
+                            else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(rewardEvents, key = { it.id }) { event ->
+                                    val item = event.metadata["itemId"]?.let { id -> repo.shop.firstOrNull { it.id == id } }
+                                    Card(Modifier.fillMaxWidth(), accent = Neon.Gold) {
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(10.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            item?.let { found ->
+                                                val path = found.imagePath
+                                                if (path != null) {
+                                                    MemberAvatar(
+                                                        if (found.type == ShopItemType.AVATAR) path else null,
+                                                        if (found.type == ShopItemType.FRAME) path else null,
+                                                        56.dp,
+                                                        event.title
+                                                    )
+                                                }
+                                            }
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(item?.name ?: event.title, style = MaterialTheme.typography.titleSmall)
+                                                Text(JalaliCalendar.formatDateTime(event.createdAtEpochMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                event.reason?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(50),
+                                                color = Neon.Gold.copy(alpha = 0.15f),
+                                                border = BorderStroke(1.dp, Neon.Gold.copy(alpha = 0.35f))
+                                            ) {
+                                                Text(
+                                                    "دریافت شد",
+                                                    Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Neon.Gold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -124,7 +194,8 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
                             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 item {
                                     Text(
-                                        if (tab == 1) "آواتار دلخواه را انتخاب کن؛ هر وقت خواستی عوضش کن." else "قاب دلخواه را انتخاب کن؛ آواتار همیشه داخل قاب می‌ماند.",
+                                        if (tab == 1) "آواتار دلخواه را انتخاب کن؛ دریافت هر آواتار فقط آن را به گنجینه اضافه می‌کند و انتخاب با خودت است."
+                                        else "قاب دلخواه را انتخاب کن؛ آواتار همیشه داخل قاب می‌ماند و دریافت قاب به‌صورت خودکار آن را فعال نمی‌کند.",
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }

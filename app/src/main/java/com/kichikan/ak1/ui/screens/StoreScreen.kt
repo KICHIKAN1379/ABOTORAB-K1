@@ -12,16 +12,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
 import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.AvatarRender
+import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.MemberAvatar
 import com.kichikan.ak1.ui.PageHeader
 import com.kichikan.ak1.data.AppRepository
@@ -33,6 +38,23 @@ internal fun StoreScreen(repo: AppRepository, padding: PaddingValues, filter: Sh
     var selectedMemberId by remember { mutableStateOf(lastStoreMemberId.takeIf { id -> repo.members.any { it.id == id } } ?: repo.members.firstOrNull()?.id ?: "") }
     var result by remember { mutableStateOf<String?>(null) }
     var manualGrantItem by remember { mutableStateOf<ShopItem?>(null) }
+    var exportItem by remember { mutableStateOf<ShopItem?>(null) }
+    val context = LocalContext.current
+    val cardExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
+        val item = exportItem
+        if (uri != null && item != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    Exports.shopItemCard(repo, item).compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, out)
+                }
+            }.onSuccess {
+                Toast.makeText(context, "کارت تصویری با کیفیت بالا ذخیره شد", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "ذخیره تصویر ناموفق بود", Toast.LENGTH_SHORT).show()
+            }
+        }
+        exportItem = null
+    }
     val member = repo.members.firstOrNull { it.id == selectedMemberId }
     val now = System.currentTimeMillis()
     val memberAvatarPath = member?.let { m -> repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath }
@@ -158,6 +180,13 @@ internal fun StoreScreen(repo: AppRepository, padding: PaddingValues, filter: Sh
                                 )
                             }
                             reason?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                            OutlinedButton(
+                                onClick = {
+                                    exportItem = item
+                                    cardExport.launch("${item.name}-AK1.jpg")
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("کارت تصویری (JPEG)") }
                         }
                     }
                 }

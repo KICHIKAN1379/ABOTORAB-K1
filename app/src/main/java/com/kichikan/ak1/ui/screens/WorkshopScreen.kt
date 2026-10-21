@@ -31,6 +31,20 @@ internal fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed
     val context = LocalContext.current
     var addMission by remember { mutableStateOf(false) }; var editMission by remember { mutableStateOf<Mission?>(null) }; var completeMission by remember { mutableStateOf<Mission?>(null) }; var addWheel by remember { mutableStateOf(false) }; var editWheelConfig by remember { mutableStateOf(false) }; var editWheel by remember { mutableStateOf<WheelItem?>(null) }; var addShop by remember { mutableStateOf(false) }; var editShop by remember { mutableStateOf<ShopItem?>(null) }
     var assetKind by remember { mutableStateOf<String?>(null) }; var assetMessage by remember { mutableStateOf<String?>(null) }
+    var cardItem by remember { mutableStateOf<ShopItem?>(null) }
+    val cardExport = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
+        val item = cardItem
+        if (uri != null && item != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    com.kichikan.ak1.ui.Exports.shopItemCard(repo, item).compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, out)
+                }
+            }.onSuccess {
+                android.widget.Toast.makeText(context, "کارت تصویری با کیفیت بالا ذخیره شد", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        cardItem = null
+    }
     val importAsset = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if(uri!=null) try { val mime=context.contentResolver.getType(uri)?:"image/png"; require(mime.startsWith("image/")){"فقط فایل تصویری قابل ثبت است"}; val o=BitmapFactory.Options().also{it.inJustDecodeBounds=true}; context.contentResolver.openInputStream(uri)?.use{BitmapFactory.decodeStream(it,null,o)}; val frame=assetKind=="FRAME"; val size=if(frame)288 else 256; require(o.outWidth==size&&o.outHeight==size){"ابعاد ${if(frame)"قاب" else "آواتار"} باید ${size}×${size} باشد"}; val id="asset-"+System.currentTimeMillis(); val ext=when{mime.equals("image/jpeg",true)->".jpg";mime.equals("image/webp",true)->".webp";mime.equals("image/gif",true)->".gif";else->".png"}; val target=java.io.File(context.filesDir,"custom_assets/$id$ext");target.parentFile?.mkdirs();context.contentResolver.openInputStream(uri)?.use{input->target.outputStream().use{out->input.copyTo(out)}};val assetName=if(frame)"قاب سفارشی" else "آواتار سفارشی";repo.addAsset(CustomAsset(id,assetName,if(frame)AssetType.FRAME else AssetType.AVATAR,target.absolutePath,mime,size,size));repo.addShopItem(ShopItem(id=id,name=assetName,type=if(frame)ShopItemType.FRAME else ShopItemType.AVATAR,imagePath=target.absolutePath,currency=Currency.NONE,methods=setOf(AcquisitionMethod.MANUAL),description="دارایی سفارشی مربی؛ برای دریافت باید مربی آن را هدیه کند."));assetMessage="ثبت شد و به فهرست آواتار/قاب اضافه شد";changed()}catch(ex:Exception){assetMessage=ex.message} }
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         PageHeader(when (section) { 0 -> "مأموریت‌ها"; 1 -> "جوایز فروشگاه"; 2 -> "آواتار و قاب"; else -> "تنظیم گردونه" }, back, "ساخت و مدیریت در تراشکاری")
@@ -42,7 +56,28 @@ internal fun WorkshopScreen(repo: AppRepository, padding: PaddingValues, changed
         if(section==1){
         Text("جوایز / فروشگاه",style=MaterialTheme.typography.titleLarge)
         OutlinedButton({addShop=true},Modifier.fillMaxWidth()){Text("+ ساخت جایزه / آواتار / قاب")}
-        repo.shop.forEach{item->Card(Modifier.fillMaxWidth(), accent = when (item.type) { ShopItemType.AVATAR -> Neon.Cyan; ShopItemType.FRAME -> Neon.Violet; ShopItemType.REWARD -> Neon.Gold; else -> Neon.Cyan }){Row(Modifier.fillMaxWidth().padding(10.dp),verticalAlignment = Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){Column{Text(item.name);Text("${item.type.name} • ${item.price} ${item.currency.name}")};Row{TextButton({editShop=item}){Text("ویرایش")};TextButton({repo.deleteShopItem(item.id);changed()}){Text("حذف")}}}}}
+        listOf(
+            ShopItemType.AVATAR to "آواتارها",
+            ShopItemType.FRAME to "قاب‌ها",
+            ShopItemType.REWARD to "جوایز"
+        ).forEach { (type, title) ->
+            val items = repo.shop.filter { it.type == type }
+            Text("$title (${items.size})", style = MaterialTheme.typography.titleMedium)
+            if (items.isEmpty()) Text("در این دسته آیتمی ثبت نشده است.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            items.forEach { item ->
+                Card(Modifier.fillMaxWidth(), accent = when (item.type) { ShopItemType.AVATAR -> Neon.Cyan; ShopItemType.FRAME -> Neon.Violet; else -> Neon.Gold }) {
+                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(item.name)
+                        Text("${item.type.name} • ${item.price} ${item.currency.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton({ cardItem = item; cardExport.launch("${item.name}-AK1.jpg") }) { Text("کارت تصویری") }
+                            TextButton({ editShop = item }) { Text("ویرایش") }
+                            TextButton({ repo.deleteShopItem(item.id); changed() }) { Text("حذف") }
+                        }
+                    }
+                }
+            }
+        }
         }
         if(section==2){
         Text("ساخت شخصی قاب و آواتار",style=MaterialTheme.typography.titleLarge);Text("آواتار 256×256 و قاب 288×288 — PNG/JPEG/WebP/GIF")

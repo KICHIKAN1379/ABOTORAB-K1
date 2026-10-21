@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Android 8-9 only: the automatic MRT archive writes to the root of shared storage there.
-         Android 10+ writes through MediaStore (Download/MRT) and needs no permission. -->
+    <!-- The automatic MRT archive prefers the root of shared storage (next to Download/DCIM).
+         Android 11+ needs "All files access" for that; otherwise it falls back to Download/MRT. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
