@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.10.0"`, `versionCode = 11`.
+- Version: `versionName = "1.11.0"`, `versionCode = 12`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -66,7 +66,7 @@ end with a green `Android Build` run and a downloadable debug APK.
   compact action button; list items animate; catalog shows "N items • M free".
 - Version 1.9.0.
 
-## Pass 7 (this pass)
+## Pass 7 (committed)
 
 - Ranking ("رقابت"): animated podium card for the top three (2nd–1st–3rd arrangement, crown,
   medal colours, scaled entrance) plus a "rest of the table" list.
@@ -74,6 +74,13 @@ end with a green `Android Build` run and a downloadable debug APK.
   animates on reorder via `animateItem()`.
 - Groups ranking reuses the same podium and bars with the group initial as avatar.
 - Version 1.10.0.
+
+## Pass 8 (this pass)
+
+- Wheel: rim glow now brightens while spinning (`animateFloatAsState`).
+- After a successful spin a celebration dialog appears: falling confetti (deterministic Canvas
+  particles driven by an `Animatable`), prize name, custom note, winner and a close button.
+- Version 1.11.0.
 
 ## Profile pack (uploaded assets)
 
