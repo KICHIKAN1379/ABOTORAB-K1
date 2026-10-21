@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.6.0"`, `versionCode = 7`.
+- Version: `versionName = "1.7.0"`, `versionCode = 8`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -26,7 +26,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 - Summary numbers use `headlineMedium`; version marker in the Home footer.
 - Uploaded profile packs are surfaced in the store's **جوایز (Rewards)** tab as free items.
 
-## Pass 3 (this pass)
+## Pass 3 (committed)
 
 - `ui/components/LevelProgress.kt`: animated gradient XP bar driven by `LevelRules`,
   shown under every member's header with the remaining XP to the next level.
@@ -34,6 +34,15 @@ end with a green `Android Build` run and a downloadable debug APK.
 - `syncProfilePack()` now keeps name/description/type/art in sync with the file name and
   `ProfilePack.NAMES`, while leaving price/currency/methods untouched (in-app price edits survive).
 - Version 1.6.0.
+
+## Pass 4 (this pass)
+
+- Members screen: glass header card with ring stats (members/groups/total XP), live search by
+  name or responsibility, "N of M" count, glass member cards instead of flat surfaces.
+- Growth map ("نقشه کمال"): hero card with avatar, level/XP chips and the XP bar; the stage
+  progress bar is now a gradient bar animated with `animateFloatAsState`; stage dots animate
+  their fill/edge when toggled.
+- Version 1.7.0.
 
 ## Profile pack (uploaded assets)
 

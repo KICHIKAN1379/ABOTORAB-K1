@@ -7,19 +7,23 @@ import com.kichikan.ak1.domain.model.*
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.MemberAvatar
 import com.kichikan.ak1.ui.TreasureDialog
@@ -38,6 +42,7 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
     var groupEditing by remember { mutableStateOf<Group?>(null) }
     var scoreGroup by remember { mutableStateOf<Group?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
+    var query by remember { mutableStateOf("") }
     val context = LocalContext.current
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
         val m = exportMember
@@ -49,22 +54,60 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
         exportMember = null
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.headlineMedium)
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            accent = Neon.Violet
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.titleLarge)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MiniStat("اعضا", "${repo.members.size}", Neon.Cyan, Modifier.weight(1f))
+                    MiniStat("گروه‌ها", "${repo.groups.size}", Neon.Violet, Modifier.weight(1f))
+                    MiniStat("کل XP", "${repo.members.sumOf { it.economy.xp }}", Neon.Gold, Modifier.weight(1f))
+                }
+            }
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(page == 0, { page = 0 }, label = { Text("اعضا") })
             FilterChip(page == 1, { page = 1 }, label = { Text("گروه‌ها") })
         }
         if (page == 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button({ add = true }) { Text("+ عضو") } }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(repo.members, key = { it.id }) { m ->
+            val needle = query.trim()
+            val filteredMembers = repo.members.filter {
+                needle.isBlank() || it.name.contains(needle, ignoreCase = true) ||
+                    it.responsibility.contains(needle, ignoreCase = true)
+            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("جست‌وجوی عضو") },
+                placeholder = { Text("نام یا مسئولیت") }
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${filteredMembers.size} از ${repo.members.size} عضو",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button({ add = true }) { Text("+ عضو") }
+            }
+            if (filteredMembers.isEmpty()) {
+                Text("عضوی با این مشخصات پیدا نشد.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(filteredMembers, key = { it.id }) { m ->
                     val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
                     val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
                     Card(
                         Modifier.fillMaxWidth().animateItem(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        shape = RoundedCornerShape(24.dp),
+                        accent = Neon.Cyan
                     ) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -152,6 +195,25 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
             },
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
         )
+    }
+}
+
+@Composable
+private fun MiniStat(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = accent.copy(alpha = 0.13f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+    ) {
+        Column(
+            Modifier.padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleLarge, color = accent)
+        }
     }
 }
 
