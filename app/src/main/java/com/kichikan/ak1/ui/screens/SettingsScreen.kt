@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.R
 import com.kichikan.ak1.ui.theme.AppIcon
 import com.kichikan.ak1.ui.theme.Button
+import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.theme.ThemeMode
 import com.kichikan.ak1.ui.theme.ThemeState
 import com.kichikan.ak1.ui.AvatarRender
@@ -121,9 +124,17 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
         }
     }
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("تنظیمات", style = MaterialTheme.typography.headlineMedium)
-        Text("حلقه: ${repo.ring?.ringName ?: "-"}")
-        Text("نام کاربری حلقه: ${repo.ring?.ringUsername ?: "-"}")
+        Card(Modifier.fillMaxWidth(), accent = Neon.Cyan) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("تنظیمات", style = MaterialTheme.typography.headlineSmall)
+                Text("حلقه: ${repo.ring?.ringName ?: "-"}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "نام کاربری مربی: ${repo.ring?.ringUsername ?: "-"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(musicEnabled, { on ->
                 musicEnabled = on
@@ -132,7 +143,10 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
             Text("پخش موسیقی پس‌زمینه")
         }
         Text("ظاهر برنامه", style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             ThemeMode.entries.forEach { mode ->
                 FilterChip(
                     selected = ThemeState.mode == mode,
@@ -141,6 +155,11 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
                 )
             }
         }
+        Text(
+            "تم انتخابی بلافاصله اعمال و ذخیره می‌شود.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Text(
             "هر بار که از برنامه خارج می‌شوی، یک نسخه‌ی پشتیبان با تاریخ شمسی در پوشه‌ی ${AutoArchive.folderLabel()} ذخیره می‌شود (۱۲ نسخه‌ی آخر نگه داشته می‌شود).",
             style = MaterialTheme.typography.bodySmall,

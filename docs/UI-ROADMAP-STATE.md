@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.14.0"`, `versionCode = 15`.
+- Version: `versionName = "1.15.0"`, `versionCode = 16`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -96,13 +96,22 @@ end with a green `Android Build` run and a downloadable debug APK.
   empty-result message, glass rows with level/XP line, points/diamond chips and animated items.
 - Version 1.13.0.
 
-## Pass 11 (this pass)
+## Pass 11 (committed)
 
 - Shared `PageHeader` is now a pill back button with an accent edge plus title/subtitle, so every
   inner page gets the same compact header.
 - Welcome flow: enter animation on each step (fade + rise), three feature chips on the welcome
   step, and the ring setup fields grouped in a glass card.
 - Version 1.14.0.
+
+## Pass 12 (this pass)
+
+- Settings: header card with ring name/mentor, theme chips scroll horizontally on narrow screens
+  and explain that the choice is saved instantly.
+- Workshop management lists: section summary card (missions active/inactive, shop items/free/
+  frames, wheel prizes/active/total weight), accent-edged cards for missions and shop items,
+  coloured activity status, roomier rows.
+- Version 1.15.0.
 
 ## Profile pack (uploaded assets)
 
