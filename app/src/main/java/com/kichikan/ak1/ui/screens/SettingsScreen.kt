@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.R
 import com.kichikan.ak1.ui.theme.AppIcon
 import com.kichikan.ak1.ui.theme.Button
+import com.kichikan.ak1.ui.theme.ThemeMode
+import com.kichikan.ak1.ui.theme.ThemeState
 import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.audio.BackgroundMusic
 import com.kichikan.ak1.data.AppRepository
@@ -128,6 +130,16 @@ internal fun SettingsScreen(repo: AppRepository, padding: PaddingValues, changed
                 BackgroundMusic.setEnabled(context, on)
             })
             Text("پخش موسیقی پس‌زمینه")
+        }
+        Text("ظاهر برنامه", style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeMode.entries.forEach { mode ->
+                FilterChip(
+                    selected = ThemeState.mode == mode,
+                    onClick = { ThemeState.set(context, mode) },
+                    label = { Text(mode.label) }
+                )
+            }
         }
         Text(
             "هر بار که از برنامه خارج می‌شوی، یک نسخه‌ی پشتیبان با تاریخ شمسی در پوشه‌ی ${AutoArchive.folderLabel()} ذخیره می‌شود (۱۲ نسخه‌ی آخر نگه داشته می‌شود).",

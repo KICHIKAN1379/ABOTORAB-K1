@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,7 @@ import com.kichikan.ak1.domain.model.ShopItem
 import com.kichikan.ak1.domain.model.ShopItemType
 import com.kichikan.ak1.domain.service.ShopService
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.LocalAk1Background
 import com.kichikan.ak1.ui.theme.Neon
 
 /**
@@ -80,8 +82,8 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
     fun finish() { changed(); close() }
 
     Dialog(onDismissRequest = { finish() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = Neon.Navy) {
-            Column(Modifier.fillMaxSize().background(Neon.BackgroundBrush).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Surface(Modifier.fillMaxSize(), color = Color.Transparent) {
+            Column(Modifier.fillMaxSize().background(LocalAk1Background.current).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TextButton(onClick = { finish() }) { Text("→ بازگشت") }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     MemberAvatar(avatarPath, framePath, 104.dp, member.name)

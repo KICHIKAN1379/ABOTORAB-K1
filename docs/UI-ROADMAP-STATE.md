@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.7.0"`, `versionCode = 8`.
+- Version: `versionName = "1.8.0"`, `versionCode = 9`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -35,7 +35,7 @@ end with a green `Android Build` run and a downloadable debug APK.
   `ProfilePack.NAMES`, while leaving price/currency/methods untouched (in-app price edits survive).
 - Version 1.6.0.
 
-## Pass 4 (this pass)
+## Pass 4 (committed)
 
 - Members screen: glass header card with ring stats (members/groups/total XP), live search by
   name or responsibility, "N of M" count, glass member cards instead of flat surfaces.
@@ -43,6 +43,17 @@ end with a green `Android Build` run and a downloadable debug APK.
   progress bar is now a gradient bar animated with `animateFloatAsState`; stage dots animate
   their fill/edge when toggled.
 - Version 1.7.0.
+
+## Pass 5 (this pass)
+
+- `ui/theme/ThemeState.kt`: `ThemeMode` presets persisted in `ak1_settings` (`theme_mode`).
+- `AK1Theme`: three dark presets (Neon / Amoled / Midnight) with per-mode background brushes;
+  AMOLED drops the aurora glows and uses near-black surfaces.
+- `LocalAk1Background` composition local so full-screen pages (growth map, treasure) follow the
+  selected preset instead of hard-coding the navy gradient.
+- Settings screen: "ظاهر برنامه" filter chips, applied instantly and saved.
+- Bottom bar now uses the theme surface colour, so it matches AMOLED/Midnight.
+- Version 1.8.0.
 
 ## Profile pack (uploaded assets)
 

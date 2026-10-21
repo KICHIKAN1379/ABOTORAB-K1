@@ -155,7 +155,7 @@ private fun AK1BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
                     spotColor = Neon.Violet.copy(alpha = 0.24f)
                 ),
             shape = RoundedCornerShape(28.dp),
-            color = Neon.Navy.copy(alpha = 0.92f),
+            color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f),
             border = BorderStroke(
                 1.dp,
                 Brush.linearGradient(

@@ -45,6 +45,7 @@ import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.model.Member
 import com.kichikan.ak1.ui.components.LevelProgress
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.LocalAk1Background
 import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.ui.theme.Neon
 
@@ -90,7 +91,7 @@ fun GrowthMapPage(repo: AppRepository, member: Member, padding: PaddingValues, b
     val framePath = repo.shop.firstOrNull { it.id == member.frameItemId }?.imagePath
 
     Column(
-        Modifier.fillMaxSize().padding(padding).background(Neon.BackgroundBrush)
+        Modifier.fillMaxSize().padding(padding).background(LocalAk1Background.current)
             .verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

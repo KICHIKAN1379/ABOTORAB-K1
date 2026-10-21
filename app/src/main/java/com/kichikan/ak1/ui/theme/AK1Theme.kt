@@ -17,6 +17,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -81,8 +82,61 @@ private val NeonScheme = darkColorScheme(
     surfaceContainerHighest = Color(0xFF123D8F)
 )
 
+/**
+ * Pure-black variant: surfaces collapse to near-black so the neon accents do the talking
+ * (and OLED panels draw less power).
+ */
+private val AmoledScheme = NeonScheme.copy(
+    background = Color.Black,
+    surface = Color(0xFF070707),
+    surfaceVariant = Color(0x14FFFFFF),
+    onSurfaceVariant = Color(0xFFADADAD),
+    outline = Color(0xFF3C3C3C),
+    outlineVariant = Color(0xFF1F1F1F),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF050505),
+    surfaceContainer = Color(0xFF0B0B0B),
+    surfaceContainerHigh = Color(0xFF111111),
+    surfaceContainerHighest = Color(0xFF171717)
+)
+
+/** Deep violet variant: same accents over an indigo-night backdrop. */
+private val MidnightScheme = NeonScheme.copy(
+    background = Color(0xFF0A0518),
+    surface = Color(0xFF171030),
+    surfaceVariant = Color(0x1FFFFFFF),
+    outline = Color(0xFF5A4B8F),
+    outlineVariant = Color(0xFF2E2456),
+    surfaceContainerLowest = Color(0xFF07030F),
+    surfaceContainerLow = Color(0xFF0E0820),
+    surfaceContainer = Color(0xFF150E2C),
+    surfaceContainerHigh = Color(0xFF1D1438),
+    surfaceContainerHighest = Color(0xFF271B49)
+)
+
+private val AmoledBackground = Brush.verticalGradient(listOf(Color.Black, Color(0xFF050505), Color.Black))
+private val MidnightBackground = Brush.verticalGradient(listOf(Color(0xFF0A0518), Color(0xFF160B33), Color(0xFF07030F)))
+
+/**
+ * The backdrop brush of the current [ThemeMode]. Full-screen screens that paint their own
+ * background (growth map, treasure) read this so they follow the selected theme instead of
+ * hard-coding the navy gradient.
+ */
+val LocalAk1Background = staticCompositionLocalOf { Neon.BackgroundBrush }
+
 @Composable
 fun AK1Theme(content: @Composable () -> Unit) {
+    val mode = ThemeState.mode
+    val scheme = when (mode) {
+        ThemeMode.NEON -> NeonScheme
+        ThemeMode.AMOLED -> AmoledScheme
+        ThemeMode.MIDNIGHT -> MidnightScheme
+    }
+    val background = when (mode) {
+        ThemeMode.NEON -> Neon.BackgroundBrush
+        ThemeMode.AMOLED -> AmoledBackground
+        ThemeMode.MIDNIGHT -> MidnightBackground
+    }
     // Slow aurora drift behind every screen: the gradient never sits still, but the
     // movement is gentle enough not to pull attention away from the content.
     val aurora = rememberInfiniteTransition(label = "aurora")
@@ -96,7 +150,7 @@ fun AK1Theme(content: @Composable () -> Unit) {
         label = "aurora-drift"
     )
     MaterialTheme(
-        colorScheme = NeonScheme,
+        colorScheme = scheme,
         typography = AK1Typography,
         shapes = Shapes(
             small = RoundedCornerShape(12.dp),
@@ -107,8 +161,10 @@ fun AK1Theme(content: @Composable () -> Unit) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Neon.BackgroundBrush)
+                .background(background)
                 .drawBehind {
+                    // AMOLED stays flat black; the other modes get drifting light sources.
+                    if (mode == ThemeMode.AMOLED) return@drawBehind
                     // Drifting neon glows: three soft light sources whose centres move with
                     // the aurora animation, so the background breathes behind the glass cards.
                     drawRect(
@@ -134,7 +190,10 @@ fun AK1Theme(content: @Composable () -> Unit) {
                     )
                 }
         ) {
-            CompositionLocalProvider(LocalContentColor provides NeonScheme.onBackground) {
+            CompositionLocalProvider(
+                LocalContentColor provides scheme.onBackground,
+                LocalAk1Background provides background
+            ) {
                 content()
             }
         }
