@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.13.0"`, `versionCode = 14`.
+- Version: `versionName = "1.14.0"`, `versionCode = 15`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -90,11 +90,19 @@ end with a green `Android Build` run and a downloadable debug APK.
   opaque surfaces.
 - Version 1.12.0.
 
-## Pass 10 (this pass)
+## Pass 10 (committed)
 
 - Member archive: coral summary card (count + latest archive date), live name search with
   empty-result message, glass rows with level/XP line, points/diamond chips and animated items.
 - Version 1.13.0.
+
+## Pass 11 (this pass)
+
+- Shared `PageHeader` is now a pill back button with an accent edge plus title/subtitle, so every
+  inner page gets the same compact header.
+- Welcome flow: enter animation on each step (fade + rise), three feature chips on the welcome
+  step, and the ring setup fields grouped in a glass card.
+- Version 1.14.0.
 
 ## Profile pack (uploaded assets)
 
