@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.8.0"`, `versionCode = 9`.
+- Version: `versionName = "1.9.0"`, `versionCode = 10`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -44,7 +44,7 @@ end with a green `Android Build` run and a downloadable debug APK.
   their fill/edge when toggled.
 - Version 1.7.0.
 
-## Pass 5 (this pass)
+## Pass 5 (committed)
 
 - `ui/theme/ThemeState.kt`: `ThemeMode` presets persisted in `ak1_settings` (`theme_mode`).
 - `AK1Theme`: three dark presets (Neon / Amoled / Midnight) with per-mode background brushes;
@@ -54,6 +54,17 @@ end with a green `Android Build` run and a downloadable debug APK.
 - Settings screen: "ظاهر برنامه" filter chips, applied instantly and saved.
 - Bottom bar now uses the theme surface colour, so it matches AMOLED/Midnight.
 - Version 1.8.0.
+
+## Pass 6 (this pass)
+
+- Sessions: summary card (total/upcoming/member counts); each session is a timeline card with a
+  Jalali date badge, member, time and upcoming marker; list items animate with `animateItem()`.
+- Attendance: per-member glass card with avatar, "N of M present" line, animated percentage chip
+  and status-tinted day buttons; status colours animate with `animateColorAsState`; cards for a
+  fully-present week get a green edge.
+- Store: horizontal item rows with framed preview, name, type badge, free/owned/price badge,
+  compact action button; list items animate; catalog shows "N items • M free".
+- Version 1.9.0.
 
 ## Profile pack (uploaded assets)
 
