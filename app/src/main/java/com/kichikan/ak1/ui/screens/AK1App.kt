@@ -2,6 +2,7 @@ package com.kichikan.ak1.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -10,13 +11,21 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.kichikan.ak1.R
 import com.kichikan.ak1.data.AppRepository
@@ -130,40 +139,85 @@ private fun AK1BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
         Tab.SERVICES to "خدمات",
         Tab.SETTINGS to "تنظیمات"
     )
-    NavigationBar(containerColor = Neon.Navy.copy(alpha = 0.94f), tonalElevation = 0.dp) {
-        items.forEach { (target, label) ->
-            val selected = current == target ||
-                (target == Tab.SERVICES && current !in listOf(Tab.HOME, Tab.MEMBERS, Tab.SETTINGS))
-            val iconScale by animateFloatAsState(
-                targetValue = if (selected) 1.14f else 1f,
-                animationSpec = Motion.Selection,
-                label = "nav-icon-$label"
-            )
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onSelect(target) },
-                icon = {
-                    AppIcon(
-                        when (target) {
-                            Tab.HOME -> R.drawable.icon_nav_home
-                            Tab.MEMBERS -> R.drawable.icon_nav_members
-                            Tab.SERVICES -> R.drawable.icon_nav_services
-                            else -> R.drawable.icon_nav_settings
-                        },
-                        size = 28.dp,
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = iconScale
-                            scaleY = iconScale
-                        }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    18.dp,
+                    RoundedCornerShape(28.dp),
+                    ambientColor = Neon.Cyan.copy(alpha = 0.20f),
+                    spotColor = Neon.Violet.copy(alpha = 0.24f)
+                ),
+            shape = RoundedCornerShape(28.dp),
+            color = Neon.Navy.copy(alpha = 0.92f),
+            border = BorderStroke(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.28f),
+                        Neon.Cyan.copy(alpha = 0.22f),
+                        Neon.Violet.copy(alpha = 0.18f)
                     )
-                },
-                label = { Text(label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedTextColor = Neon.Cyan,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = Neon.Cyan.copy(alpha = 0.16f)
                 )
             )
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
+                items.forEach { (target, label) ->
+                    val selected = current == target ||
+                        (target == Tab.SERVICES && current !in listOf(Tab.HOME, Tab.MEMBERS, Tab.SETTINGS))
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (selected) 1f else 0.92f,
+                        animationSpec = Motion.Selection,
+                        label = "nav-scale-$label"
+                    )
+                    val tint by animateColorAsState(
+                        targetValue = if (selected) Neon.Cyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(Motion.Medium, easing = Motion.Standard),
+                        label = "nav-tint-$label"
+                    )
+                    val pill by animateColorAsState(
+                        targetValue = if (selected) Neon.Cyan.copy(alpha = 0.13f) else Color.Transparent,
+                        animationSpec = tween(Motion.Medium, easing = Motion.Standard),
+                        label = "nav-pill-$label"
+                    )
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(pill)
+                            .clickable(role = Role.Tab) { onSelect(target) }
+                            .padding(vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AppIcon(
+                            when (target) {
+                                Tab.HOME -> R.drawable.icon_nav_home
+                                Tab.MEMBERS -> R.drawable.icon_nav_members
+                                Tab.SERVICES -> R.drawable.icon_nav_services
+                                else -> R.drawable.icon_nav_settings
+                            },
+                            size = 26.dp,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                            }
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tint,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
         }
     }
 }

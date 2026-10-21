@@ -32,7 +32,11 @@ internal fun StoreScreen(repo: AppRepository, padding: PaddingValues, filter: Sh
     val memberAvatarPath = member?.let { m -> repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath }
     val memberFramePath = member?.let { m -> repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath }
     val title = when (filter) { ShopItemType.AVATAR -> "آواتارها"; ShopItemType.FRAME -> "قاب‌ها"; ShopItemType.REWARD -> "جوایز" }
-    val shown = repo.shop.filter { it.active && it.type == filter }
+    // The mentor's uploaded profile pack (assets/art/profiles) is free, so it is also
+    // surfaced in the rewards tab where gifts are expected to live.
+    val shown = repo.shop.filter {
+        it.active && (it.type == filter || (filter == ShopItemType.REWARD && it.id.startsWith("profile-")))
+    }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PageHeader(title, back, "فروشگاه")
         member?.let { Text("${it.name} • سطح ${it.economy.level} • امتیاز ${it.economy.spendablePoints} • الماس ${it.economy.diamonds}", style = MaterialTheme.typography.bodyMedium) }
@@ -40,6 +44,13 @@ internal fun StoreScreen(repo: AppRepository, padding: PaddingValues, filter: Sh
             repo.members.forEach { m -> FilterChip(selectedMemberId == m.id, { selectedMemberId = m.id; lastStoreMemberId = m.id; result = null }, label = { Text(m.name) }) }
         }
         result?.let { Text(it, color = Neon.Cyan) }
+        if (filter == ShopItemType.REWARD) {
+            Text(
+                "آواتارها و قاب‌های تازهٔ آپلودشده هم به‌صورت رایگان در همین بخش هستند.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         if (shown.isEmpty()) Text("هنوز آیتمی در این بخش تعریف نشده است.") else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
             items(shown, key = { it.id }) { item ->
                 val itemBitmap = remember(item.imagePath) { item.imagePath?.let { AvatarRender.decodeSampled(it, 384)?.asImageBitmap() } }

@@ -1,5 +1,11 @@
 package com.kichikan.ak1.ui.theme
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +16,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -76,6 +83,18 @@ private val NeonScheme = darkColorScheme(
 
 @Composable
 fun AK1Theme(content: @Composable () -> Unit) {
+    // Slow aurora drift behind every screen: the gradient never sits still, but the
+    // movement is gentle enough not to pull attention away from the content.
+    val aurora = rememberInfiniteTransition(label = "aurora")
+    val drift by aurora.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(14000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "aurora-drift"
+    )
     MaterialTheme(
         colorScheme = NeonScheme,
         typography = AK1Typography,
@@ -90,19 +109,27 @@ fun AK1Theme(content: @Composable () -> Unit) {
                 .fillMaxSize()
                 .background(Neon.BackgroundBrush)
                 .drawBehind {
-                    // Soft neon glows, like the light bloom in the sheet's gradient tiles.
+                    // Drifting neon glows: three soft light sources whose centres move with
+                    // the aurora animation, so the background breathes behind the glass cards.
                     drawRect(
                         Brush.radialGradient(
-                            listOf(Neon.Cyan.copy(alpha = 0.16f), Color.Transparent),
-                            center = Offset(size.width * 0.95f, size.height * 0.04f),
+                            listOf(Neon.Cyan.copy(alpha = 0.20f), Color.Transparent),
+                            center = Offset(size.width * (0.94f - 0.10f * drift), size.height * (0.04f + 0.06f * drift)),
                             radius = size.width * 0.95f
                         )
                     )
                     drawRect(
                         Brush.radialGradient(
-                            listOf(Neon.Violet.copy(alpha = 0.20f), Color.Transparent),
-                            center = Offset(size.width * 0.05f, size.height * 0.96f),
-                            radius = size.width * 1.0f
+                            listOf(Neon.Violet.copy(alpha = 0.24f), Color.Transparent),
+                            center = Offset(size.width * (0.06f + 0.10f * drift), size.height * (0.94f - 0.06f * drift)),
+                            radius = size.width * 1.05f
+                        )
+                    )
+                    drawRect(
+                        Brush.radialGradient(
+                            listOf(Neon.Sky.copy(alpha = 0.12f), Color.Transparent),
+                            center = Offset(size.width * (0.35f + 0.30f * drift), size.height * 0.45f),
+                            radius = size.width * 0.65f
                         )
                     )
                 }

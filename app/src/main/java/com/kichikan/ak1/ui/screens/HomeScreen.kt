@@ -4,13 +4,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.kichikan.ak1.domain.model.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -73,67 +79,74 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.30f)),
+            accent = Neon.Cyan
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                Modifier.fillMaxWidth().background(
+                    Brush.linearGradient(listOf(Color(0xFF06255A), Color(0xFF0A3C86), Color(0xFF062A63)))
+                )
             ) {
-                Surface(
-                    modifier = Modifier.size(64.dp),
-                    shape = androidx.compose.foundation.shape.CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                    border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                Column(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    if (ringPhoto != null) {
-                        Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
-                    } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("K1", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge)
+                            Box(
+                                Modifier.size(78.dp).background(
+                                    Brush.radialGradient(listOf(Neon.Cyan.copy(alpha = 0.35f), Color.Transparent)),
+                                    CircleShape
+                                )
+                            )
+                            Surface(
+                                modifier = Modifier.size(62.dp),
+                                shape = CircleShape,
+                                color = Neon.Navy,
+                                border = BorderStroke(2.dp, Neon.Cyan)
+                            ) {
+                                if (ringPhoto != null) {
+                                    Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
+                                } else {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("K1", color = Neon.Cyan, style = MaterialTheme.typography.titleLarge)
+                                    }
+                                }
+                            }
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
+                            Text(
+                                "پنل مربی • مدیریت حلقه",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                HeroChip("● آفلاین", Neon.Green)
+                                HeroChip("${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", Neon.Cyan)
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.size(58.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Neon.Cyan.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.35f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("${jalali.day}", color = Neon.Cyan, style = MaterialTheme.typography.headlineMedium)
+                            }
                         }
                     }
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
-                    Text("پنل مربی • مدیریت حلقه", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Text(
-                            "●  حالت آفلاین",
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            }
-        }
-        Card(
-            Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(54.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("${jalali.day}", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.headlineSmall)
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("امروز", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleLarge)
-                    Text("روز تازه، فرصت تازه برای رشد", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "روز تازه، فرصت تازه برای رشد",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Neon.Ice.copy(alpha = 0.78f)
+                    )
                 }
             }
         }
@@ -189,10 +202,26 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                 }
             }
         }
-        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است • نسخهٔ ۱.۵", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (action) EconomyDialog(repo, changed) { action = false }
     if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
+}
+
+@Composable
+private fun HeroChip(text: String, accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = accent.copy(alpha = 0.14f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = accent
+        )
+    }
 }
 
 @Composable
@@ -267,7 +296,7 @@ private fun SummaryCard(repo: AppRepository) {
                                 }
                                 AnimatedCounter(
                                     value = value,
-                                    style = MaterialTheme.typography.headlineSmall,
+                                    style = MaterialTheme.typography.headlineMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
