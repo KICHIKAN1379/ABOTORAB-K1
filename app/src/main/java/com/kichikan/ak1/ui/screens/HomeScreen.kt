@@ -41,7 +41,8 @@ import com.kichikan.ak1.ui.components.StaggeredItem
 internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit, open: (Tab) -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ak1_settings", android.content.Context.MODE_PRIVATE) }
-    val ringPhotoUri = remember { prefs.getString("ring_profile_image", null) }    val ringPhoto = remember(ringPhotoUri) {
+    val ringPhotoUri = remember { prefs.getString("ring_profile_image", null) }
+    val ringPhoto = remember(ringPhotoUri) {
         ringPhotoUri?.let { raw ->
             AvatarRender.decodeSampled(context, android.net.Uri.parse(raw), 256)?.asImageBitmap()
         }

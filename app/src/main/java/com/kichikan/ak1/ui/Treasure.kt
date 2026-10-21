@@ -119,6 +119,7 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (tab) {
                         0 -> {
+                            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
                                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -128,7 +129,7 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
                                 }
                             }
                             if (filteredEvents.isEmpty()) Text("برای این دسته رویدادی ثبت نشده است.")
-                            else LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(filteredEvents, key = { it.id }) { event ->
                                     Card(Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -139,6 +140,7 @@ fun TreasureDialog(repo: AppRepository, memberId: String, changed: () -> Unit, c
                                         }
                                     }
                                 }
+                            }
                             }
                         }
                         3 -> {
