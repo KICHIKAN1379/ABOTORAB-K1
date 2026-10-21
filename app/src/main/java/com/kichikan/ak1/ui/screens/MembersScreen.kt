@@ -7,22 +7,28 @@ import com.kichikan.ak1.domain.model.*
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.MemberAvatar
 import com.kichikan.ak1.ui.TreasureDialog
+import com.kichikan.ak1.ui.components.LevelProgress
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.calendar.JalaliCalendar
 
@@ -36,34 +42,74 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
     var editing by remember { mutableStateOf<Member?>(null) }
     var groupEditing by remember { mutableStateOf<Group?>(null) }
     var scoreGroup by remember { mutableStateOf<Group?>(null) }
+    var profileGroup by remember { mutableStateOf<Group?>(null) }
     var exportMember by remember { mutableStateOf<Member?>(null) }
+    var query by remember { mutableStateOf("") }
     val context = LocalContext.current
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg")) { uri ->
         val m = exportMember
         if (uri != null && m != null) {
-            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> Exports.memberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 94, out) } }
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> Exports.memberCard(repo, m).compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, out) } }
                 .onSuccess { Toast.makeText(context, "خروجی JPEG آماده شد", Toast.LENGTH_SHORT).show() }
                 .onFailure { Toast.makeText(context, "ذخیره تصویر ناموفق بود", Toast.LENGTH_SHORT).show() }
         }
         exportMember = null
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.headlineMedium)
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            accent = Neon.Violet
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("مدیریت اعضا و گروه‌ها", style = MaterialTheme.typography.titleLarge)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MiniStat("اعضا", "${repo.members.size}", Neon.Cyan, Modifier.weight(1f))
+                    MiniStat("گروه‌ها", "${repo.groups.size}", Neon.Violet, Modifier.weight(1f))
+                    MiniStat("کل XP", "${repo.members.sumOf { it.economy.xp }}", Neon.Gold, Modifier.weight(1f))
+                }
+            }
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(page == 0, { page = 0 }, label = { Text("اعضا") })
             FilterChip(page == 1, { page = 1 }, label = { Text("گروه‌ها") })
         }
         if (page == 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button({ add = true }) { Text("+ عضو") } }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(repo.members, key = { it.id }) { m ->
+            val needle = query.trim()
+            val filteredMembers = repo.members.filter {
+                needle.isBlank() || it.name.contains(needle, ignoreCase = true) ||
+                    it.responsibility.contains(needle, ignoreCase = true)
+            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("جست‌وجوی عضو") },
+                placeholder = { Text("نام یا مسئولیت") }
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${filteredMembers.size} از ${repo.members.size} عضو",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button({ add = true }) { Text("+ عضو") }
+            }
+            if (filteredMembers.isEmpty()) {
+                Text("عضوی با این مشخصات پیدا نشد.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(filteredMembers, key = { it.id }) { m ->
                     val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
                     val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
                     Card(
-                        Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        Modifier.fillMaxWidth().animateItem(),
+                        shape = RoundedCornerShape(24.dp),
+                        accent = Neon.Cyan
                     ) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -82,6 +128,7 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
                                     }
                                 }
                             }
+                            LevelProgress(xp = m.economy.xp, level = m.economy.level)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf(
                                     Triple("سطح", m.economy.level.toString(), MaterialTheme.colorScheme.primaryContainer),
@@ -114,11 +161,26 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
             if (repo.groups.isEmpty()) Text("هنوز گروهی ساخته نشده است.")
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(repo.groups, key = { it.id }) { g ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(g.name, style = MaterialTheme.typography.titleLarge)
-                            Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
-                            Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
+                    val leader = repo.members.firstOrNull { it.id == g.leaderMemberId }
+                    val leaderAvatar = repo.shop.firstOrNull { it.id == leader?.avatarItemId }?.imagePath
+                    val leaderFrame = repo.shop.firstOrNull { it.id == leader?.frameItemId }?.imagePath
+                    Card(
+                        onClick = { profileGroup = g },
+                        modifier = Modifier.fillMaxWidth().animateItem(),
+                        accent = Neon.Violet
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                MemberAvatar(leaderAvatar, leaderFrame, 52.dp, g.name)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(g.name, style = MaterialTheme.typography.titleLarge)
+                                    Text("سرگروه: ${leader?.name ?: "تعیین نشده"}")
+                                    Text("اعضا: ${repo.members.count { it.groupId == g.id }}")
+                                }
+                                Surface(shape = RoundedCornerShape(50), color = Neon.Violet.copy(alpha = 0.14f), border = BorderStroke(1.dp, Neon.Violet.copy(alpha = 0.3f))) {
+                                    Text("پروفایل", Modifier.padding(horizontal = 9.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall, color = Neon.Violet)
+                                }
+                            }
                             Text("امتیاز گروه ${g.economy.spendablePoints} • 💎 الماس ${g.economy.diamonds}")
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton({ groupEditing = g }) { Text("ویرایش گروه") }
@@ -136,6 +198,52 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
     scoreGroup?.let { GroupScoreDialog(repo, it, changed) { scoreGroup = null } }
     editing?.let { MemberEditDialog(repo, it, changed) { editing = null } }
     selected?.let { TreasureDialog(repo, it.id, changed) { selected = null } }
+    profileGroup?.let { g ->
+        val leader = repo.members.firstOrNull { it.id == g.leaderMemberId }
+        val leaderAvatar = repo.shop.firstOrNull { it.id == leader?.avatarItemId }?.imagePath
+        val leaderFrame = repo.shop.firstOrNull { it.id == leader?.frameItemId }?.imagePath
+        val groupMembers = repo.members.filter { it.groupId == g.id || it.id in g.memberIds }
+        AlertDialog(
+            onDismissRequest = { profileGroup = null },
+            title = { Text("پروفایل گروه ${g.name}") },
+            text = {
+                Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        MemberAvatar(leaderAvatar, leaderFrame, 84.dp, g.name)
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(g.name, style = MaterialTheme.typography.headlineSmall)
+                            Text("سرگروه: ${leader?.name ?: "تعیین نشده"}", style = MaterialTheme.typography.bodyMedium)
+                            Text("${groupMembers.size} عضو", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MiniStat("امتیاز", "${g.economy.spendablePoints}", Neon.Gold, Modifier.weight(1f))
+                        MiniStat("الماس", "${g.economy.diamonds}", Neon.Cyan, Modifier.weight(1f))
+                        MiniStat("کل XP", "${groupMembers.sumOf { it.economy.xp }}", Neon.Green, Modifier.weight(1f))
+                    }
+                    Text("اعضای گروه", style = MaterialTheme.typography.titleSmall)
+                    if (groupMembers.isEmpty()) Text("هنوز عضوی در این گروه نیست.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        groupMembers.forEach { m ->
+                            val avatar = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
+                            val frame = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                MemberAvatar(avatar, frame, 56.dp, m.name)
+                                Text(m.name, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton({ profileGroup = null; groupEditing = g }) { Text("ویرایش گروه") } },
+            dismissButton = {
+                Row {
+                    TextButton({ profileGroup = null; scoreGroup = g }) { Text("تغییر امتیاز") }
+                    TextButton({ profileGroup = null }) { Text("بستن") }
+                }
+            }
+        )
+    }
     actionMember?.let { m ->
         AlertDialog(
             onDismissRequest = { actionMember = null },
@@ -150,6 +258,25 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
             },
             dismissButton = { TextButton({ actionMember = null }) { Text("بستن") } }
         )
+    }
+}
+
+@Composable
+private fun MiniStat(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = accent.copy(alpha = 0.13f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+    ) {
+        Column(
+            Modifier.padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleLarge, color = accent)
+        }
     }
 }
 

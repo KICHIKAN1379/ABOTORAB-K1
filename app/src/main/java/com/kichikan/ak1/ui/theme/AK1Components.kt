@@ -2,6 +2,8 @@ package com.kichikan.ak1.ui.theme
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,12 +21,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
 /** Style 2: neon-gradient button (cyan -> sky -> violet) with a soft glow. */
@@ -38,13 +44,26 @@ fun Button(
     content: @Composable RowScope.() -> Unit
 ) {
     val glow = if (enabled) Modifier.shadow(10.dp, shape, ambientColor = Neon.Cyan.copy(alpha = 0.4f), spotColor = Neon.Cyan.copy(alpha = 0.6f)) else Modifier
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.97f else 1f,
+        animationSpec = Motion.Press,
+        label = "button-press"
+    )
     Surface(
         onClick = onClick,
-        modifier = modifier.then(glow),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .then(glow),
         enabled = enabled,
         shape = shape,
         color = Color.Transparent,
-        contentColor = if (enabled) Neon.Navy else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        contentColor = if (enabled) Neon.Navy else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        interactionSource = interaction
     ) {
         val fill = if (enabled) Neon.ButtonBrush else Brush.linearGradient(listOf(Color(0x1FFFFFFF), Color(0x1FFFFFFF)))
         Box(
@@ -104,13 +123,26 @@ fun Card(
     accent: Color? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = Motion.Press,
+        label = "card-press"
+    )
     androidx.compose.material3.Card(
         onClick = onClick,
-        modifier = modifier.background(glassFill(accent), shape),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .background(glassFill(accent), shape),
         shape = shape,
         colors = colors,
         elevation = elevation,
         border = border ?: glassEdge(accent),
+        interactionSource = interaction,
         content = content
     )
 }

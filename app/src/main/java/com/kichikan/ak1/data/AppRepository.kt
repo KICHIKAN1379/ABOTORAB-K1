@@ -146,7 +146,17 @@ class AppRepository(context: Context) {
                     edit.putString("hash_$id", hash)
                 }
                 if (index >= 0) {
-                    if (shop[index].imagePath != file.absolutePath) shop[index] = shop[index].copy(imagePath = file.absolutePath)
+                    // Keep name/description/art in sync with the file name and ProfilePack.NAMES.
+                    // Price, currency and acquisition methods are deliberately left alone so a
+                    // price edited in the app survives future launches.
+                    val current = shop[index]
+                    val synced = current.copy(
+                        name = entry.displayName,
+                        description = entry.description,
+                        type = entry.type,
+                        imagePath = file.absolutePath
+                    )
+                    if (synced != current) shop[index] = synced
                     edit.putBoolean("registered_$id", true)
                 } else if (!registered) {
                     shop += ShopItem(
@@ -577,6 +587,12 @@ class AppRepository(context: Context) {
 
     fun recordAttendance(item: Attendance) {
         check(members.any { it.id == item.memberId }) { "عضو نامعتبر است" }
+        require(
+            item.status == AttendanceStatus.PRESENT ||
+                item.status == AttendanceStatus.LATE ||
+                item.status == AttendanceStatus.UNMARKED ||
+                !item.note.isNullOrBlank()
+        ) { "برای ثبت غیبت، وارد کردن دلیل الزامی است" }
         attendance.removeAll { it.memberId == item.memberId && it.dateEpochMillis == item.dateEpochMillis }
         attendance += item
         // One ledger row per member and class day: re-marking the same day updates that row instead
@@ -607,11 +623,9 @@ class AppRepository(context: Context) {
         require(AcquisitionMethod.MANUAL in item.methods) { "این آیتم برای هدیه دستی تنظیم نشده است" }
         require(item.stock == null || item.stock > 0) { "موجودی آیتم تمام شده است" }
         val now = System.currentTimeMillis()
-        val updated = when (item.type) {
-            ShopItemType.AVATAR -> member.copy(avatarItemId = item.id)
-            ShopItemType.FRAME -> member.copy(frameItemId = item.id)
-            ShopItemType.REWARD -> member
-        }
+        // Receiving an avatar/frame only adds it to the treasure. The member (or mentor)
+        // chooses when to equip it, so a gift never changes the current look by surprise.
+        val updated = member
         members[members.indexOfFirst { it.id == memberId }] = updated
         if (item.stock != null) {
             val index = shop.indexOfFirst { it.id == item.id }
@@ -640,10 +654,7 @@ class AppRepository(context: Context) {
         require(acquisitionError == null) { acquisitionError ?: "این آیتم قابل دریافت نیست" }
         if (item.stock != null) require(item.stock > 0) { "موجودی جایزه تمام شده است" }
         val alreadyOwned = item.type != ShopItemType.REWARD && history.any { it.memberId == memberId && it.type == HistoryType.REWARD_RECEIVED && it.metadata["itemId"] == item.id }
-        if (alreadyOwned) {
-            equipShopItem(memberId, itemId)
-            return true
-        }
+        if (alreadyOwned) return true
         val freeLevelUnlock = ShopService.isFreeLevelUnlock(item)
         if (!freeLevelUnlock && ShopService.hasDirectPurchase(item)) {
             when (item.currency) {
@@ -653,11 +664,9 @@ class AppRepository(context: Context) {
             }
         }
         val current = members.first { it.id == memberId }
-        val equipped = when (item.type) {
-            ShopItemType.AVATAR -> current.copy(avatarItemId = item.id)
-            ShopItemType.FRAME -> current.copy(frameItemId = item.id)
-            ShopItemType.REWARD -> current
-        }
+        // Newly acquired looks are stored in the treasure; equipping is a separate,
+        // deliberate action from the treasure screen.
+        val equipped = current
         members[members.indexOfFirst { it.id == memberId }] = equipped
         val index = shop.indexOfFirst { it.id == item.id }
         if (index >= 0 && item.stock != null) shop[index] = item.copy(stock = item.stock - 1)
@@ -757,11 +766,8 @@ class AppRepository(context: Context) {
                 val linked = shop.first { it.id == item.shopItemId && it.active && (it.stock == null || it.stock > 0) }
                 val memberIndex = members.indexOfFirst { it.id == memberId }
                 val current = members[memberIndex]
-                members[memberIndex] = when (linked.type) {
-                    ShopItemType.AVATAR -> current.copy(avatarItemId = linked.id)
-                    ShopItemType.FRAME -> current.copy(frameItemId = linked.id)
-                    ShopItemType.REWARD -> current
-                }
+                // Wheel prizes land in the treasure as well; the winner equips them later.
+                members[memberIndex] = current
                 val shopIndex = shop.indexOfFirst { it.id == linked.id }
                 if (shopIndex >= 0 && linked.stock != null) shop[shopIndex] = linked.copy(stock = linked.stock - 1)
                 history += HistoryEvent(

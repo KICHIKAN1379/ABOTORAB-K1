@@ -1,5 +1,6 @@
 package com.kichikan.ak1.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,13 +14,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Neon
 
 /** One entrance card of a hub page (icon + title + short description). */
 data class HubEntry(
@@ -33,8 +37,22 @@ data class HubEntry(
 /** Top row used by every inner page so the user can always step back to the group page. */
 @Composable
 fun PageHeader(title: String, onBack: () -> Unit, subtitle: String? = null) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) { Text("→ بازگشت") }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Surface(
+            onClick = onBack,
+            shape = RoundedCornerShape(50),
+            color = Color.White.copy(alpha = 0.06f),
+            border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.28f))
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("→", style = MaterialTheme.typography.labelLarge, color = Neon.Cyan)
+                Text("بازگشت", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
         Text(title, style = MaterialTheme.typography.headlineMedium)
         if (!subtitle.isNullOrBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }

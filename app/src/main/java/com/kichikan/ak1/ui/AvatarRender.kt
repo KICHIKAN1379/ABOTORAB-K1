@@ -67,7 +67,7 @@ object AvatarRender {
         val cx = w / 2
         val cy = h / 2
         fun opaque(x: Int, y: Int) = Color.alpha(frame.getPixel(x.coerceIn(0, w - 1), y.coerceIn(0, h - 1))) >= 40
-        var ratio = 0.72f
+        var ratio = 0.74f
         if (!opaque(cx, cy)) {
             var smallest = Float.MAX_VALUE
             val steps = 16
@@ -80,7 +80,7 @@ object AvatarRender {
                 while (r < limit && !opaque((cx + dx * r).toInt(), (cy + dy * r).toInt())) r++
                 smallest = min(smallest, r.toFloat())
             }
-            if (smallest < Float.MAX_VALUE) ratio = (2f * smallest / min(w, h)).coerceIn(0.5f, 0.95f)
+            if (smallest < Float.MAX_VALUE) ratio = (2f * smallest / min(w, h)).coerceIn(0.74f, 0.95f)
         }
         key?.let { holeCache[it] = ratio }
         return ratio

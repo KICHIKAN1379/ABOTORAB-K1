@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.kichikan.ak1.ui.theme.AK1Theme
+import com.kichikan.ak1.ui.theme.ThemeState
 import com.kichikan.ak1.audio.BackgroundMusic
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.data.AutoArchive
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
             requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 4108)
         }
         DailyDateNotification.start(this)
+        ThemeState.load(this)
         setContent { AK1Theme { AK1App(repo) } }
     }
 

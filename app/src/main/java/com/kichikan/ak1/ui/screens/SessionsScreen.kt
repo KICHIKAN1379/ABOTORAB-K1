@@ -7,16 +7,24 @@ import com.kichikan.ak1.domain.model.*
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.kichikan.ak1.ui.MemberAvatar
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.PageHeader
 import com.kichikan.ak1.data.AppRepository
@@ -32,19 +40,71 @@ internal fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed
             if (attendance) "تقویم هفتگی و ماهانه" else "برای دیدن جزئیات، روی جلسه بزن")
         if (attendance) AttendanceCalendarScreen(repo, changed)
         else {
+            val sessions = repo.sessions.sortedByDescending { it.startsAt }
+            val now = System.currentTimeMillis()
+            val upcoming = sessions.count { it.startsAt > now }
+            Card(Modifier.fillMaxWidth(), accent = Neon.Coral) {
+                Row(
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    SessionStat("جلسات", "${sessions.size}", Neon.Coral, Modifier.weight(1f))
+                    SessionStat("پیش رو", "$upcoming", Neon.Cyan, Modifier.weight(1f))
+                    SessionStat("اعضا", "${repo.members.size}", Neon.Violet, Modifier.weight(1f))
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${repo.sessions.size} جلسه ثبت‌شده", style = MaterialTheme.typography.labelLarge)
+                Text("${sessions.size} جلسه ثبت‌شده", style = MaterialTheme.typography.labelLarge)
                 Button(onClick = { add = true }, enabled = repo.members.isNotEmpty()) { Text("+ جلسه") }
             }
-            if (repo.sessions.isEmpty()) Text("هنوز جلسه‌ای ثبت نشده است.")
+            if (sessions.isEmpty()) Text("هنوز جلسه‌ای ثبت نشده است.")
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(repo.sessions.sortedByDescending { it.startsAt }, key = { it.id }) { session ->
-                    Card(onClick = { detail = session }, modifier = Modifier.fillMaxWidth(), accent = Neon.Coral) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            // Only the essentials here: topic, member, date and time. The rest lives in the detail view.
-                            Text(session.title, style = MaterialTheme.typography.titleLarge)
-                            Text(repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده", style = MaterialTheme.typography.titleSmall, color = Neon.Cyan)
-                            Text(JalaliCalendar.formatDateTime(session.startsAt), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                items(sessions, key = { it.id }) { session ->
+                    val zone = java.time.ZoneId.systemDefault()
+                    val moment = java.time.Instant.ofEpochMilli(session.startsAt).atZone(zone)
+                    val j = JalaliCalendar.fromGregorian(moment.toLocalDate())
+                    val isUpcoming = session.startsAt > now
+                    val accent = if (isUpcoming) Neon.Cyan else Neon.Coral
+                    Card(onClick = { detail = session }, modifier = Modifier.fillMaxWidth().animateItem(), accent = accent) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = accent.copy(alpha = 0.13f),
+                                border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+                            ) {
+                                Column(
+                                    Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("${j.day}", style = MaterialTheme.typography.headlineSmall, color = accent)
+                                    Text(
+                                        JalaliCalendar.MONTH_NAMES[j.month - 1],
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                // Only the essentials here: topic, member, date and time. The rest lives in the detail view.
+                                Text(session.title, style = MaterialTheme.typography.titleLarge, maxLines = 2)
+                                Text(
+                                    repo.members.firstOrNull { it.id == session.memberId }?.name ?: "عضو حذف‌شده",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Neon.Cyan
+                                )
+                                Text(
+                                    "%02d:%02d".format(moment.hour, moment.minute) + if (isUpcoming) " • پیش رو" else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                session.location?.takeIf { it.isNotBlank() }?.let {
+                                    Text("مکان: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                         }
                     }
                 }
@@ -73,6 +133,25 @@ internal fun SessionsScreen(padding: PaddingValues, repo: AppRepository, changed
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun SessionStat(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = accent.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f))
+    ) {
+        Column(
+            Modifier.padding(vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleLarge, color = accent)
+        }
     }
 }
 
@@ -154,21 +233,72 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
         else if (days.isEmpty()) Text("تمام روزهای برنامه‌ریزی‌شده این هفته تعطیل شده‌اند.")
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(repo.members, key = { it.id }) { member ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(member.name, style = MaterialTheme.typography.titleMedium)
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            days.forEach { day ->
-                                val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
-                                val current = repo.attendance.firstOrNull { it.memberId == member.id && it.sessionId == null && java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day }
-                                val mark = when (current?.status) {
+                val statuses = days.map { day ->
+                    day to repo.attendance.firstOrNull {
+                        it.memberId == member.id && it.sessionId == null &&
+                            java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day
+                    }?.status
+                }
+                val attended = statuses.count {
+                    it.second == AttendanceStatus.PRESENT || it.second == AttendanceStatus.LATE
+                }
+                val ratio = if (days.isEmpty()) 0 else attended * 100 / days.size
+                val cardAccent = if (days.isNotEmpty() && attended == days.size) Neon.Green else Neon.Cyan
+                val avatarPath = repo.shop.firstOrNull { it.id == member.avatarItemId }?.imagePath
+                val framePath = repo.shop.firstOrNull { it.id == member.frameItemId }?.imagePath
+                Card(Modifier.fillMaxWidth().animateItem(), accent = cardAccent) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            MemberAvatar(avatarPath, framePath, 40.dp, member.name)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(member.name, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "$attended از ${days.size} روز حاضر",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = cardAccent.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, cardAccent.copy(alpha = 0.30f))
+                            ) {
+                                Text(
+                                    "$ratio٪",
+                                    Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = cardAccent
+                                )
+                            }
+                        }
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            statuses.forEach { (day, status) ->
+                                val effective = status?.takeIf { it != AttendanceStatus.UNMARKED }
+                                val dayAccent = when (effective) {
+                                    AttendanceStatus.PRESENT -> Neon.Green
+                                    AttendanceStatus.EXCUSED -> Neon.Gold
+                                    AttendanceStatus.ABSENT -> Neon.Coral
+                                    AttendanceStatus.LATE -> Neon.Violet
+                                    else -> Neon.Sky
+                                }
+                                val container by animateColorAsState(
+                                    targetValue = if (effective == null) MaterialTheme.colorScheme.surfaceVariant
+                                    else dayAccent.copy(alpha = 0.22f),
+                                    animationSpec = tween(Motion.Medium),
+                                    label = "attendance-fill"
+                                )
+                                val mark = when (effective) {
                                     AttendanceStatus.PRESENT -> "ح"
                                     AttendanceStatus.EXCUSED -> "م"
                                     AttendanceStatus.ABSENT -> "غ"
                                     AttendanceStatus.LATE -> "ت"
                                     else -> "—"
                                 }
-                                val statusLabel = when (current?.status) {
+                                val statusLabel = when (effective) {
                                     AttendanceStatus.PRESENT -> "حاضر"
                                     AttendanceStatus.EXCUSED -> "موجه"
                                     AttendanceStatus.ABSENT -> "غایب"
@@ -178,21 +308,19 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
                                 val jd = JalaliCalendar.fromGregorian(day)
                                 OutlinedButton(
                                     onClick = { attendanceEditTarget = member to day },
-                                    modifier = Modifier.width(84.dp).height(76.dp),
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = when (current?.status) {
-                                            AttendanceStatus.PRESENT -> androidx.compose.ui.graphics.Color(0xFF3CAEA3).copy(alpha = 0.28f)
-                                            AttendanceStatus.EXCUSED -> androidx.compose.ui.graphics.Color(0xFFFEC856).copy(alpha = 0.28f)
-                                            AttendanceStatus.ABSENT -> androidx.compose.ui.graphics.Color(0xFFFF8A80).copy(alpha = 0.28f)
-                                            AttendanceStatus.LATE -> androidx.compose.ui.graphics.Color(0xFFB197FF).copy(alpha = 0.28f)
-                                            else -> MaterialTheme.colorScheme.surface
-                                        }
-                                    )
+                                    modifier = Modifier.width(78.dp).height(74.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    border = BorderStroke(1.dp, if (effective == null) MaterialTheme.colorScheme.outlineVariant else dayAccent.copy(alpha = 0.55f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = container)
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                         Text("${jd.day}", style = MaterialTheme.typography.labelLarge)
-                                        Text(mark, style = MaterialTheme.typography.titleMedium, color = if (current?.status == null || current.status == AttendanceStatus.UNMARKED) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
+                                        Text(
+                                            mark,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = if (effective == null) MaterialTheme.colorScheme.onSurfaceVariant else dayAccent
+                                        )
                                         Text(statusLabel, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                                     }
                                 }
@@ -225,6 +353,9 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             it.memberId == member.id && it.sessionId == null &&
                 java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day
         }
+        var pending by remember(member.id, day) { mutableStateOf(current?.status ?: AttendanceStatus.UNMARKED) }
+        var reason by remember(member.id, day) { mutableStateOf(current?.note.orEmpty()) }
+        var error by remember(member.id, day) { mutableStateOf<String?>(null) }
         val options = listOf(
             AttendanceStatus.PRESENT to "حاضر • ح",
             AttendanceStatus.EXCUSED to "غیبت موجه • م",
@@ -232,30 +363,53 @@ private fun AttendanceCalendarScreen(repo: AppRepository, changed: () -> Unit) {
             AttendanceStatus.LATE to "تأخیر • ت",
             AttendanceStatus.UNMARKED to "بدون ثبت • —"
         )
+        val needsReason = pending == AttendanceStatus.EXCUSED || pending == AttendanceStatus.ABSENT
         val jalaliDate = JalaliCalendar.fromGregorian(day)
         AlertDialog(
             onDismissRequest = { attendanceEditTarget = null },
             title = { Text("حضور و غیاب ${member.name}") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${jalaliDate.day} ${JalaliCalendar.MONTH_NAMES[jalaliDate.month - 1]} ${jalaliDate.year}")
                     options.forEach { (status, label) ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(
-                                selected = current?.status == status || (current == null && status == AttendanceStatus.UNMARKED),
-                                onClick = {
-                                    val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
-                                    repo.recordWeeklyAttendance(member.id, epoch, status)
-                                    changed()
-                                    attendanceEditTarget = null
-                                }
+                                selected = pending == status,
+                                onClick = { pending = status; error = null }
                             )
                             Text(label, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
+                    if (needsReason) {
+                        OutlinedTextField(
+                            value = reason,
+                            onValueChange = { reason = it; error = null },
+                            label = { Text("دلیل غیبت (اجباری)") },
+                            minLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = error != null
+                        )
+                    }
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
-            confirmButton = { TextButton({ attendanceEditTarget = null }) { Text("بستن") } }
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        if (needsReason && reason.isBlank()) {
+                            error = "برای ثبت غیبت، وارد کردن دلیل الزامی است"
+                        } else {
+                            val epoch = day.atStartOfDay(zone).toInstant().toEpochMilli()
+                            repo.recordWeeklyAttendance(member.id, epoch, pending, reason.takeIf { it.isNotBlank() })
+                            changed()
+                            attendanceEditTarget = null
+                        }
+                    } catch (e: Exception) {
+                        error = e.message ?: "ثبت حضور انجام نشد"
+                    }
+                }, enabled = !needsReason || reason.isNotBlank()) { Text("ثبت") }
+            },
+            dismissButton = { TextButton({ attendanceEditTarget = null }) { Text("بستن") } }
         )
     }
 }

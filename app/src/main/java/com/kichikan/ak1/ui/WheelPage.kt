@@ -2,6 +2,7 @@ package com.kichikan.ak1.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
@@ -15,11 +16,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,11 +38,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.model.WheelItem
 import com.kichikan.ak1.ui.theme.Button
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.ui.theme.Neon
 import kotlinx.coroutines.launch
 import java.time.LocalTime
@@ -70,10 +76,18 @@ fun SpinWheelPage(repo: AppRepository, padding: PaddingValues) {
     var result by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf<String?>(null) }
     var spinning by remember { mutableStateOf(false) }
+    var celebration by remember { mutableStateOf<WheelItem?>(null) }
+    var winnerName by remember { mutableStateOf("") }
     val rotation = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val member = remember(tick, memberId) { repo.members.firstOrNull { it.id == memberId } }
     val segments: List<WheelItem> = repo.wheel.items.filter { it.active }
+    // The rim glow brightens while the wheel is spinning.
+    val glow by animateFloatAsState(
+        targetValue = if (spinning) 0.58f else 0.30f,
+        animationSpec = tween(Motion.Slow),
+        label = "wheel-glow"
+    )
 
     fun spin() {
         if (spinning || member == null) return
@@ -92,6 +106,8 @@ fun SpinWheelPage(repo: AppRepository, padding: PaddingValues) {
         scope.launch {
             rotation.animateTo(end, tween(plan.durationMs, easing = CubicBezierEasing(0.12f, 0.7f, 0.1f, 1f)))
             result = "🎉 نتیجه: ${prize.title}" + (prize.customText?.takeIf { it.isNotBlank() }?.let { "\n$it" } ?: "")
+            winnerName = member?.name ?: ""
+            celebration = prize
             spinning = false
             tick++
         }
@@ -128,7 +144,7 @@ fun SpinWheelPage(repo: AppRepository, padding: PaddingValues) {
                         val center = Offset(size.width / 2f, radius)
                         val seg = 360f / segments.size
                         // outer neon glow + rim
-                        drawCircle(Brush.radialGradient(listOf(Neon.Cyan.copy(alpha = 0.35f), Color.Transparent), center, radius * 1.18f), radius * 1.18f, center)
+                        drawCircle(Brush.radialGradient(listOf(Neon.Cyan.copy(alpha = glow), Color.Transparent), center, radius * 1.18f), radius * 1.18f, center)
                         drawCircle(Color.White.copy(alpha = 0.18f), radius, center)
                         val r = radius * 0.94f
                         val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -178,6 +194,56 @@ fun SpinWheelPage(repo: AppRepository, padding: PaddingValues) {
                 }
                 Text("هزینه: " + when (repo.wheel.mode.name) { "FREE" -> "رایگان"; "POINTS" -> "${repo.wheel.spinCostPoints} امتیاز"; else -> "${repo.wheel.spinCostPoints} امتیاز + ${repo.wheel.spinCostDiamonds} الماس" },
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    celebration?.let { prize ->
+        PrizeDialog(prize = prize, winner = winnerName) { celebration = null }
+    }
+}
+
+@Composable
+private fun PrizeDialog(prize: WheelItem, winner: String, onClose: () -> Unit) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, tween(1400, easing = CubicBezierEasing(0.1f, 0.6f, 0.2f, 1f))) }
+    Dialog(onDismissRequest = onClose) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.matchParentSize()) {
+                if (progress.value <= 0f) return@Canvas
+                val palette = listOf(Neon.Cyan, Neon.Violet, Neon.Gold, Color(0xFFFF8A6B), Neon.Green, Neon.Sky)
+                repeat(40) { i ->
+                    val seed = i * 97 + 13
+                    val x = ((seed * 37) % 100) / 100f * size.width
+                    val delay = (seed % 41) / 100f
+                    val t = ((progress.value - delay) / (1f - delay).coerceAtLeast(0.01f)).coerceIn(0f, 1f)
+                    if (t > 0f) {
+                        val y = size.height * t * (0.65f + ((seed % 23) / 23f) * 0.45f)
+                        drawCircle(
+                            color = palette[i % palette.size],
+                            radius = 3f + (seed % 5),
+                            center = Offset(x, y),
+                            alpha = (1f - t).coerceIn(0f, 1f)
+                        )
+                    }
+                }
+            }
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), accent = Neon.Gold) {
+                Column(
+                    Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("🎉", style = MaterialTheme.typography.displaySmall)
+                    Text("جایزه گرفتی!", style = MaterialTheme.typography.headlineSmall, color = Neon.Gold)
+                    Text(prize.title, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+                    prize.customText?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                    }
+                    if (winner.isNotBlank()) {
+                        Text(winner, style = MaterialTheme.typography.labelMedium, color = Neon.Cyan)
+                    }
+                    Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) { Text("عالی!") }
+                }
             }
         }
     }

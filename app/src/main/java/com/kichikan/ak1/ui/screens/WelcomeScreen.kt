@@ -4,14 +4,23 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.kichikan.ak1.domain.model.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kichikan.ak1.ui.theme.Button
+import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.data.AppRepository
 
@@ -28,11 +37,22 @@ internal fun WelcomeScreen(repo: AppRepository, onReady: () -> Unit) {
     var ringName by remember { mutableStateOf("ابوتراب") }
     var username by remember { mutableStateOf("مربی") }
     var error by remember { mutableStateOf<String?>(null) }
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(step) {
+        enter.snapTo(0f)
+        enter.animateTo(1f, tween(Motion.Slow, easing = Motion.Emphasized))
+    }
 
     Box(Modifier.fillMaxSize()) {
         WelcomeBackdrop()
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 32.dp),
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 28.dp, vertical = 32.dp)
+                .graphicsLayer {
+                    alpha = enter.value
+                    translationY = (1f - enter.value) * 28.dp.toPx()
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -61,6 +81,12 @@ internal fun WelcomeScreen(repo: AppRepository, onReady: () -> Unit) {
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(Modifier.height(44.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WelcomeChip("کاملاً آفلاین", Neon.Green, Modifier.weight(1f))
+                    WelcomeChip("مدیریت اعضا", Neon.Cyan, Modifier.weight(1f))
+                    WelcomeChip("حضور و جلسات", Neon.Violet, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(22.dp))
                 Button(
                     onClick = { step = 1 },
                     modifier = Modifier.fillMaxWidth().height(56.dp)
@@ -77,9 +103,12 @@ internal fun WelcomeScreen(repo: AppRepository, onReady: () -> Unit) {
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(Modifier.height(20.dp))
-                OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Card(Modifier.fillMaxWidth(), accent = Neon.Cyan) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(ringName, { ringName = it }, label = { Text("نام حلقه") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(username, { username = it }, label = { Text("نام کاربری محلی مربی") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    }
+                }
                 error?.let {
                     Spacer(Modifier.height(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.error)
@@ -102,6 +131,25 @@ internal fun WelcomeScreen(repo: AppRepository, onReady: () -> Unit) {
                 TextButton(onClick = { step = 0; error = null }) { Text("→ بازگشت") }
             }
         }
+    }
+}
+
+@Composable
+private fun WelcomeChip(text: String, accent: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = accent.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+    ) {
+        Text(
+            text,
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = accent,
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
     }
 }
 

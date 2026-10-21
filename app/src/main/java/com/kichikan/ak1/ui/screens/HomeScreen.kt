@@ -4,13 +4,22 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.kichikan.ak1.domain.model.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -21,8 +30,12 @@ import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.ui.theme.GlassIcon
 import com.kichikan.ak1.ui.theme.GlassKind
+import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.data.AppRepository
+import com.kichikan.ak1.data.DailyQuotes
 import com.kichikan.ak1.domain.calendar.JalaliCalendar
+import com.kichikan.ak1.ui.components.AnimatedCounter
+import com.kichikan.ak1.ui.components.StaggeredItem
 
 @Composable
 internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit, open: (Tab) -> Unit) {
@@ -40,6 +53,7 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
     var assistantOpen by remember { mutableStateOf(false) }
     val now = remember(tick) { java.time.LocalDateTime.now() }
     val jalali = remember(tick) { JalaliCalendar.fromGregorian(now.toLocalDate()) }
+    val dailyQuote = remember(tick) { DailyQuotes.today(context) }
     val shortcuts = listOf(
         Triple("شناسنامه", "home_identity", "◉"),
         Triple("مدیریت اعضا", "home_members", "♙"),
@@ -71,71 +85,80 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.30f)),
+            accent = Neon.Cyan
         ) {
-            Row(
-                Modifier.fillMaxWidth().padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                Modifier.fillMaxWidth().background(
+                    Brush.linearGradient(listOf(Color(0xFF06255A), Color(0xFF0A3C86), Color(0xFF062A63)))
+                )
             ) {
-                Surface(
-                    modifier = Modifier.size(64.dp),
-                    shape = androidx.compose.foundation.shape.CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                    border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                Column(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    if (ringPhoto != null) {
-                        Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
-                    } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("K1", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge)
+                            Box(
+                                Modifier.size(78.dp).background(
+                                    Brush.radialGradient(listOf(Neon.Cyan.copy(alpha = 0.35f), Color.Transparent)),
+                                    CircleShape
+                                )
+                            )
+                            Surface(
+                                modifier = Modifier.size(62.dp),
+                                shape = CircleShape,
+                                color = Neon.Navy,
+                                border = BorderStroke(2.dp, Neon.Cyan)
+                            ) {
+                                if (ringPhoto != null) {
+                                    Image(bitmap = ringPhoto, contentDescription = "تصویر پروفایل حلقه", modifier = Modifier.fillMaxSize())
+                                } else {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("K1", color = Neon.Cyan, style = MaterialTheme.typography.titleLarge)
+                                    }
+                                }
+                            }
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
+                            Text(
+                                "پنل مربی • مدیریت حلقه",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                HeroChip("${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", Neon.Cyan)
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.size(58.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Neon.Cyan.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.35f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("${jalali.day}", color = Neon.Cyan, style = MaterialTheme.typography.headlineMedium)
+                            }
                         }
                     }
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("سلام، ${repo.ring?.ringName ?: "مربی"}", style = MaterialTheme.typography.headlineSmall)
-                    Text("پنل مربی • مدیریت حلقه", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
+                    dailyQuote?.let { quote ->
                         Text(
-                            "●  حالت آفلاین",
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            style = MaterialTheme.typography.labelSmall
+                            "«$quote»",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Neon.Ice.copy(alpha = 0.92f)
                         )
                     }
                 }
             }
         }
-        Card(
-            Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(54.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("${jalali.day}", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.headlineSmall)
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("امروز", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("${JalaliCalendar.MONTH_NAMES[jalali.month - 1]} ${jalali.year}", style = MaterialTheme.typography.titleLarge)
-                    Text("روز تازه، فرصت تازه برای رشد", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
         SummaryCard(repo)
+        WeeklyActivityCard(repo)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("دسترسی سریع", style = MaterialTheme.typography.titleLarge)
             Text("${visibleShortcuts.size} میانبر", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -143,23 +166,21 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
         if (visibleShortcuts.isEmpty()) {
             Card(
                         Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        shape = RoundedCornerShape(22.dp),
+                        accent = Neon.Violet
                     ) {
                 Text("هنوز میانبری انتخاب نشده؛ از تنظیمات، میانبرهای خانه را فعال کن.", Modifier.padding(16.dp))
             }
         } else {
-            visibleShortcuts.chunked(2).forEach { rowItems ->
+            visibleShortcuts.chunked(2).forEachIndexed { rowIndex, rowItems ->
+                StaggeredItem(index = rowIndex + 3) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     rowItems.forEach { (label, key, icon) ->
                         Card(
                             onClick = { openShortcut(key) },
-                            modifier = Modifier.weight(1f).heightIn(min = 118.dp),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            modifier = Modifier.weight(1f).heightIn(min = 108.dp),
+                            shape = RoundedCornerShape(22.dp),
+                            accent = shortcutAccent(key)
                         ) {
                             Column(
                                 Modifier.fillMaxSize().padding(12.dp),
@@ -167,14 +188,14 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 when (key) {
-                                    "home_workshop" -> AppIcon(R.drawable.icon_services_workshop, 52.dp)
-                                    "home_sessions" -> AppIcon(R.drawable.icon_services_sessions, 52.dp)
-                                    "home_ranking" -> AppIcon(R.drawable.icon_services_competition, 52.dp)
-                                    "home_store" -> AppIcon(R.drawable.icon_services_store, 52.dp)
-                                    "home_identity" -> AppIcon(R.drawable.icon_home_identity, 52.dp)
-                                    "home_members" -> AppIcon(R.drawable.icon_home_member_management, 52.dp)
-                                    "home_assistant" -> AppIcon(R.drawable.icon_home_assistant, 52.dp)
-                                    else -> AppIcon(R.drawable.icon_services_wheel, 52.dp)
+                                    "home_workshop" -> AppIcon(R.drawable.icon_services_workshop, 62.dp)
+                                    "home_sessions" -> AppIcon(R.drawable.icon_services_sessions, 62.dp)
+                                    "home_ranking" -> AppIcon(R.drawable.icon_services_competition, 62.dp)
+                                    "home_store" -> AppIcon(R.drawable.icon_services_store, 62.dp)
+                                    "home_identity" -> AppIcon(R.drawable.icon_home_identity, 62.dp)
+                                    "home_members" -> AppIcon(R.drawable.icon_home_member_management, 62.dp)
+                                    "home_assistant" -> AppIcon(R.drawable.icon_home_assistant, 62.dp)
+                                    else -> AppIcon(R.drawable.icon_services_wheel, 62.dp)
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(label, style = MaterialTheme.typography.titleSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -183,12 +204,29 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                     }
                     if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                 }
+                }
             }
         }
-        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است • نسخهٔ ۱.۱۶", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (action) EconomyDialog(repo, changed) { action = false }
     if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
+}
+
+@Composable
+private fun HeroChip(text: String, accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = accent.copy(alpha = 0.14f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f))
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = accent
+        )
+    }
 }
 
 @Composable
@@ -232,36 +270,129 @@ private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
 }
 
 @Composable
+private fun WeeklyActivityCard(repo: AppRepository) {
+    val zone = java.time.ZoneId.systemDefault()
+    val today = java.time.LocalDate.now(zone)
+    val days = remember(today) { (6 downTo 0).map { today.minusDays(it.toLong()) } }
+    val counts = days.map { day ->
+        repo.attendance.count {
+            it.sessionId == null &&
+                (it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE) &&
+                java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day
+        }
+    }
+    val peak = (counts.maxOrNull() ?: 0).coerceAtLeast(1)
+    Card(Modifier.fillMaxWidth(), accent = Neon.Green) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("حضور هفت روز گذشته", style = MaterialTheme.typography.titleMedium)
+                Text("${counts.sum()} حاضر", style = MaterialTheme.typography.labelMedium, color = Neon.Green)
+            }
+            Row(
+                Modifier.fillMaxWidth().height(86.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                days.forEachIndexed { index, day ->
+                    val animated by animateFloatAsState(
+                        targetValue = counts[index].toFloat() / peak,
+                        animationSpec = tween(700, easing = Motion.Decelerate),
+                        label = "home-week-bar"
+                    )
+                    val isToday = day == today
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(animated.coerceAtLeast(0.04f))
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isToday) Brush.verticalGradient(listOf(Neon.Green, Neon.Cyan))
+                                        else Brush.verticalGradient(
+                                            listOf(Neon.Cyan.copy(alpha = 0.55f), Neon.Violet.copy(alpha = 0.35f))
+                                        )
+                                    )
+                            )
+                        }
+                        Text(
+                            listOf("ی", "د", "س", "چ", "پ", "ج", "ش")[day.dayOfWeek.value % 7],
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isToday) Neon.Green else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${counts[index]}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (counts[index] == 0) MaterialTheme.colorScheme.onSurfaceVariant else Neon.Cyan
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun shortcutAccent(key: String): Color = when (key) {
+    "home_workshop" -> Neon.Coral
+    "home_sessions" -> Neon.Cyan
+    "home_ranking" -> Neon.Gold
+    "home_store" -> Neon.Violet
+    "home_identity" -> Neon.Sky
+    "home_members" -> Neon.Green
+    "home_assistant" -> Neon.Violet
+    else -> Neon.Gold
+}
+
+@Composable
 private fun SummaryCard(repo: AppRepository) {
     val metrics = listOf(
-        Triple("اعضای حلقه", repo.members.size.toString(), "♙"),
-        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
-        Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }.toString(), "✦"),
-        Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }.toString(), "◆")
+        Triple("اعضای حلقه", repo.members.size, "♙"),
+        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }, "↗"),
+        Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }, "✦"),
+        Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }, "◆")
     )
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("خلاصه حلقه", style = MaterialTheme.typography.titleLarge)
-                Text("نمای کلی", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("خلاصه حلقه", style = MaterialTheme.typography.titleMedium)
+                Text("نمای کلی", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             metrics.chunked(2).forEach { rowItems ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     rowItems.forEach { (label, value, icon) ->
                         Card(
                             modifier = Modifier.weight(1f),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
-                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    GlassIcon(
-                                        when (icon) { "♙" -> GlassKind.MEMBERS; "↗" -> GlassKind.XP; "✦" -> GlassKind.POINTS; else -> GlassKind.DIAMOND },
-                                        size = 28.dp,
-                                        tint = when (icon) { "♙" -> Neon.Violet; "↗" -> Neon.Green; "✦" -> Neon.Gold; else -> Neon.Cyan }
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                GlassIcon(
+                                    when (icon) { "♙" -> GlassKind.MEMBERS; "↗" -> GlassKind.XP; "✦" -> GlassKind.POINTS; else -> GlassKind.DIAMOND },
+                                    size = 34.dp,
+                                    tint = when (icon) { "♙" -> Neon.Violet; "↗" -> Neon.Green; "✦" -> Neon.Gold; else -> Neon.Cyan }
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                    AnimatedCounter(
+                                        value = value,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
-                                    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }

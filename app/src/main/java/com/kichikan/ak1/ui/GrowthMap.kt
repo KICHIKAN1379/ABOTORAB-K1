@@ -4,17 +4,22 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -26,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -37,7 +43,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.model.Member
+import com.kichikan.ak1.ui.components.LevelProgress
 import com.kichikan.ak1.ui.theme.Card
+import com.kichikan.ak1.ui.theme.LocalAk1Background
+import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.ui.theme.Neon
 
 private val DEFAULT_STAGES = listOf("شروع مسیر", "خدمت‌گزار حلقه", "مسئولیت‌پذیری", "اعتمادسازی", "پیش‌قدم در خیر", "قله کمال")
@@ -73,24 +82,60 @@ fun GrowthMapPage(repo: AppRepository, member: Member, padding: PaddingValues, b
     var reached by remember(member.id) { mutableStateOf(readReached(prefs, reachedKey)) }
     val count = stages.count { it in reached }
     val progress = if (stages.isEmpty()) 0f else count.toFloat() / stages.size.toFloat()
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(700, easing = Motion.Decelerate),
+        label = "stage-progress"
+    )
     val avatarPath = repo.shop.firstOrNull { it.id == member.avatarItemId }?.imagePath
     val framePath = repo.shop.firstOrNull { it.id == member.frameItemId }?.imagePath
 
     Column(
-        Modifier.fillMaxSize().padding(padding).background(Neon.BackgroundBrush)
+        Modifier.fillMaxSize().padding(padding).background(LocalAk1Background.current)
             .verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         PageHeader("نقشه کمال", back, "صعود ${member.name}")
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MemberAvatar(avatarPath, framePath, 72.dp, member.name)
-            Column {
-                Text(member.name, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "سطح ${member.economy.level} • XP ${member.economy.xp}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), accent = Neon.Cyan) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    MemberAvatar(avatarPath, framePath, 86.dp, member.name)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(member.name, style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            "نقشهٔ صعود • ${stages.size} مقام",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Neon.Cyan.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, Neon.Cyan.copy(alpha = 0.30f))
+                            ) {
+                                Text(
+                                    "سطح ${member.economy.level}",
+                                    Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Neon.Cyan
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Neon.Violet.copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, Neon.Violet.copy(alpha = 0.30f))
+                            ) {
+                                Text(
+                                    "${member.economy.xp} XP",
+                                    Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Neon.Violet
+                                )
+                            }
+                        }
+                    }
+                }
+                LevelProgress(xp = member.economy.xp, level = member.economy.level)
             }
         }
         Card(Modifier.fillMaxWidth()) {
@@ -110,16 +155,40 @@ fun GrowthMapPage(repo: AppRepository, member: Member, padding: PaddingValues, b
                     drawCircle(Neon.Gold, 8f, Offset(w * 0.60f, h * 0.28f))
                 }
                 Text("$count از ${stages.size} مقام ثبت شده", style = MaterialTheme.typography.titleMedium)
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.10f))
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(animatedProgress)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(50))
+                            .background(Brush.horizontalGradient(listOf(Neon.Cyan, Neon.Sky, Neon.Violet)))
+                    )
+                }
             }
         }
         stages.forEachIndexed { index, stage ->
             val isReached = stage in reached
+            val dotColor by animateColorAsState(
+                targetValue = if (isReached) Neon.Cyan else Color.Transparent,
+                animationSpec = tween(Motion.Medium),
+                label = "stage-dot-$index"
+            )
+            val edgeColor by animateColorAsState(
+                targetValue = if (isReached) Neon.Cyan else MaterialTheme.colorScheme.outline,
+                animationSpec = tween(Motion.Medium),
+                label = "stage-edge-$index"
+            )
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Surface(
                     shape = CircleShape,
-                    color = if (isReached) Neon.Cyan else Color.Transparent,
-                    border = BorderStroke(1.5.dp, if (isReached) Neon.Cyan else MaterialTheme.colorScheme.outline)
+                    color = dotColor,
+                    border = BorderStroke(1.5.dp, edgeColor)
                 ) {
                     Text(
                         "${index + 1}", Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
