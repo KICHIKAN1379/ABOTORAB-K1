@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.9.0"`, `versionCode = 10`.
+- Version: `versionName = "1.10.0"`, `versionCode = 11`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -55,7 +55,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 - Bottom bar now uses the theme surface colour, so it matches AMOLED/Midnight.
 - Version 1.8.0.
 
-## Pass 6 (this pass)
+## Pass 6 (committed)
 
 - Sessions: summary card (total/upcoming/member counts); each session is a timeline card with a
   Jalali date badge, member, time and upcoming marker; list items animate with `animateItem()`.
@@ -65,6 +65,15 @@ end with a green `Android Build` run and a downloadable debug APK.
 - Store: horizontal item rows with framed preview, name, type badge, free/owned/price badge,
   compact action button; list items animate; catalog shows "N items • M free".
 - Version 1.9.0.
+
+## Pass 7 (this pass)
+
+- Ranking ("رقابت"): animated podium card for the top three (2nd–1st–3rd arrangement, crown,
+  medal colours, scaled entrance) plus a "rest of the table" list.
+- Every remaining row shows an animated gradient bar scaled to the leader's XP/points and
+  animates on reorder via `animateItem()`.
+- Groups ranking reuses the same podium and bars with the group initial as avatar.
+- Version 1.10.0.
 
 ## Profile pack (uploaded assets)
 
