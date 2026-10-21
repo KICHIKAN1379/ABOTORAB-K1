@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.5.0"`, `versionCode = 6`.
+- Version: `versionName = "1.6.0"`, `versionCode = 7`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -18,13 +18,22 @@ end with a green `Android Build` run and a downloadable debug APK.
 - Press-scale on gradient buttons and clickable glass cards.
 - Animated counters for the ring summary; staggered home shortcut rows.
 
-## Pass 2 (this pass)
+## Pass 2 (committed)
 
 - Floating pill bottom bar with animated tint/pill/icon scale (replaces `NavigationBar`).
 - Home hero: single gradient card with ring avatar glow, offline/date chips and Jalali day tile.
 - Animated aurora background in `AK1Theme` (three drifting radial glows).
 - Summary numbers use `headlineMedium`; version marker in the Home footer.
 - Uploaded profile packs are surfaced in the store's **جوایز (Rewards)** tab as free items.
+
+## Pass 3 (this pass)
+
+- `ui/components/LevelProgress.kt`: animated gradient XP bar driven by `LevelRules`,
+  shown under every member's header with the remaining XP to the next level.
+- Member and group cards use `Modifier.animateItem()`, so adds/removes/reorders animate.
+- `syncProfilePack()` now keeps name/description/type/art in sync with the file name and
+  `ProfilePack.NAMES`, while leaving price/currency/methods untouched (in-app price edits survive).
+- Version 1.6.0.
 
 ## Profile pack (uploaded assets)
 
@@ -40,8 +49,8 @@ end with a green `Android Build` run and a downloadable debug APK.
 
 ## Next steps
 
-1. **Level 2 remainder:** shimmer/skeleton for first paint, animate list item add/remove,
-   animated XP progress ring, pull-to-refresh.
+1. **Level 2 remainder:** animated ranking bars, attendance check-in animations,
+   empty-state illustrations, optional shimmer.
 2. **Level 3:** redesign Members/profile/sessions/store layouts, light + AMOLED themes,
    theme choice stored in `ak1_settings`.
 3. **Level 4:** shared-element transitions, predictive back, M3 Expressive components.

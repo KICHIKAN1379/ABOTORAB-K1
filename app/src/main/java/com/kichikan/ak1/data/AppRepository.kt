@@ -146,7 +146,17 @@ class AppRepository(context: Context) {
                     edit.putString("hash_$id", hash)
                 }
                 if (index >= 0) {
-                    if (shop[index].imagePath != file.absolutePath) shop[index] = shop[index].copy(imagePath = file.absolutePath)
+                    // Keep name/description/art in sync with the file name and ProfilePack.NAMES.
+                    // Price, currency and acquisition methods are deliberately left alone so a
+                    // price edited in the app survives future launches.
+                    val current = shop[index]
+                    val synced = current.copy(
+                        name = entry.displayName,
+                        description = entry.description,
+                        type = entry.type,
+                        imagePath = file.absolutePath
+                    )
+                    if (synced != current) shop[index] = synced
                     edit.putBoolean("registered_$id", true)
                 } else if (!registered) {
                     shop += ShopItem(

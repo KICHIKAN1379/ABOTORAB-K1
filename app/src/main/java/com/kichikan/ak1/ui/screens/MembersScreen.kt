@@ -23,6 +23,7 @@ import com.kichikan.ak1.ui.theme.Card
 import com.kichikan.ak1.ui.Exports
 import com.kichikan.ak1.ui.MemberAvatar
 import com.kichikan.ak1.ui.TreasureDialog
+import com.kichikan.ak1.ui.components.LevelProgress
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.calendar.JalaliCalendar
 
@@ -60,7 +61,7 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
                     val avatarPath = repo.shop.firstOrNull { it.id == m.avatarItemId }?.imagePath
                     val framePath = repo.shop.firstOrNull { it.id == m.frameItemId }?.imagePath
                     Card(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().animateItem(),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -82,6 +83,7 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
                                     }
                                 }
                             }
+                            LevelProgress(xp = m.economy.xp, level = m.economy.level)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                                 listOf(
                                     Triple("سطح", m.economy.level.toString(), MaterialTheme.colorScheme.primaryContainer),
@@ -114,7 +116,7 @@ internal fun MembersScreen(repo: AppRepository, padding: PaddingValues, changed:
             if (repo.groups.isEmpty()) Text("هنوز گروهی ساخته نشده است.")
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(repo.groups, key = { it.id }) { g ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth().animateItem()) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(g.name, style = MaterialTheme.typography.titleLarge)
                             Text("سرگروه: ${repo.members.firstOrNull { it.id == g.leaderMemberId }?.name ?: "تعیین نشده"}")
