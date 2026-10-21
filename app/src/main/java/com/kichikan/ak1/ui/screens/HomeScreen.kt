@@ -5,10 +5,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.kichikan.ak1.domain.model.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +30,7 @@ import com.kichikan.ak1.ui.theme.Neon
 import com.kichikan.ak1.ui.AvatarRender
 import com.kichikan.ak1.ui.theme.GlassIcon
 import com.kichikan.ak1.ui.theme.GlassKind
+import com.kichikan.ak1.ui.theme.Motion
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.calendar.JalaliCalendar
 import com.kichikan.ak1.ui.components.AnimatedCounter
@@ -151,6 +155,7 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
             }
         }
         SummaryCard(repo)
+        WeeklyActivityCard(repo)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("دسترسی سریع", style = MaterialTheme.typography.titleLarge)
             Text("${visibleShortcuts.size} میانبر", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -158,9 +163,8 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
         if (visibleShortcuts.isEmpty()) {
             Card(
                         Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        shape = RoundedCornerShape(22.dp),
+                        accent = Neon.Violet
                     ) {
                 Text("هنوز میانبری انتخاب نشده؛ از تنظیمات، میانبرهای خانه را فعال کن.", Modifier.padding(16.dp))
             }
@@ -172,10 +176,8 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                         Card(
                             onClick = { openShortcut(key) },
                             modifier = Modifier.weight(1f).heightIn(min = 118.dp),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            shape = RoundedCornerShape(22.dp),
+                            accent = shortcutAccent(key)
                         ) {
                             Column(
                                 Modifier.fillMaxSize().padding(12.dp),
@@ -202,7 +204,7 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                 }
             }
         }
-        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است • نسخهٔ ۱.۱۱", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("چیدمان میانبرها از بخش تنظیمات قابل تغییر است • نسخهٔ ۱.۱۲", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (action) EconomyDialog(repo, changed) { action = false }
     if (assistantOpen) MentorAssistantDialog(repo) { assistantOpen = false }
@@ -262,6 +264,91 @@ private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
         },
         confirmButton = { TextButton(close) { Text("بستن") } }
     )
+}
+
+@Composable
+private fun WeeklyActivityCard(repo: AppRepository) {
+    val zone = java.time.ZoneId.systemDefault()
+    val today = java.time.LocalDate.now(zone)
+    val days = remember(today) { (6 downTo 0).map { today.minusDays(it.toLong()) } }
+    val counts = days.map { day ->
+        repo.attendance.count {
+            it.sessionId == null &&
+                (it.status == AttendanceStatus.PRESENT || it.status == AttendanceStatus.LATE) &&
+                java.time.Instant.ofEpochMilli(it.dateEpochMillis).atZone(zone).toLocalDate() == day
+        }
+    }
+    val peak = (counts.maxOrNull() ?: 0).coerceAtLeast(1)
+    Card(Modifier.fillMaxWidth(), accent = Neon.Green) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("حضور هفت روز گذشته", style = MaterialTheme.typography.titleMedium)
+                Text("${counts.sum()} حاضر", style = MaterialTheme.typography.labelMedium, color = Neon.Green)
+            }
+            Row(
+                Modifier.fillMaxWidth().height(86.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                days.forEachIndexed { index, day ->
+                    val animated by animateFloatAsState(
+                        targetValue = counts[index].toFloat() / peak,
+                        animationSpec = tween(700, easing = Motion.Decelerate),
+                        label = "home-week-bar"
+                    )
+                    val isToday = day == today
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(
+                            Modifier.weight(1f).fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(animated.coerceAtLeast(0.04f))
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isToday) Brush.verticalGradient(listOf(Neon.Green, Neon.Cyan))
+                                        else Brush.verticalGradient(
+                                            listOf(Neon.Cyan.copy(alpha = 0.55f), Neon.Violet.copy(alpha = 0.35f))
+                                        )
+                                    )
+                            )
+                        }
+                        Text(
+                            listOf("ی", "د", "س", "چ", "پ", "ج", "ش")[day.dayOfWeek.value % 7],
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isToday) Neon.Green else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${counts[index]}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (counts[index] == 0) MaterialTheme.colorScheme.onSurfaceVariant else Neon.Cyan
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun shortcutAccent(key: String): Color = when (key) {
+    "home_workshop" -> Neon.Coral
+    "home_sessions" -> Neon.Cyan
+    "home_ranking" -> Neon.Gold
+    "home_store" -> Neon.Violet
+    "home_identity" -> Neon.Sky
+    "home_members" -> Neon.Green
+    "home_assistant" -> Neon.Violet
+    else -> Neon.Gold
 }
 
 @Composable

@@ -7,7 +7,7 @@ end with a green `Android Build` run and a downloadable debug APK.
 ## Current branch
 
 - `ui/polish` — branched from `main`, merged with `main` after the profile-pack upload.
-- Version: `versionName = "1.11.0"`, `versionCode = 12`.
+- Version: `versionName = "1.12.0"`, `versionCode = 13`.
 - Build: CI only (no local JDK/Android SDK on the current machine).
 
 ## Pass 1 (committed)
@@ -75,12 +75,20 @@ end with a green `Android Build` run and a downloadable debug APK.
 - Groups ranking reuses the same podium and bars with the group initial as avatar.
 - Version 1.10.0.
 
-## Pass 8 (this pass)
+## Pass 8 (committed)
 
 - Wheel: rim glow now brightens while spinning (`animateFloatAsState`).
 - After a successful spin a celebration dialog appears: falling confetti (deterministic Canvas
   particles driven by an `Animatable`), prize name, custom note, winner and a close button.
 - Version 1.11.0.
+
+## Pass 9 (this pass)
+
+- Home: "حضور هفت روز گذشته" card with seven animated bars (today highlighted), per-day counts
+  and a weekly total, fed from weekly attendance records.
+- Home shortcut tiles now use the shared glass Card with per-tile accent colours instead of
+  opaque surfaces.
+- Version 1.12.0.
 
 ## Profile pack (uploaded assets)
 
