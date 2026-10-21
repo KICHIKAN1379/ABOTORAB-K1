@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
@@ -79,7 +78,7 @@ private val NeonScheme = darkColorScheme(
 fun AK1Theme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NeonScheme,
-        typography = Typography(),
+        typography = AK1Typography,
         shapes = Shapes(
             small = RoundedCornerShape(12.dp),
             medium = RoundedCornerShape(18.dp),

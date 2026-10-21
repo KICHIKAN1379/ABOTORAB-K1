@@ -23,6 +23,8 @@ import com.kichikan.ak1.ui.theme.GlassIcon
 import com.kichikan.ak1.ui.theme.GlassKind
 import com.kichikan.ak1.data.AppRepository
 import com.kichikan.ak1.domain.calendar.JalaliCalendar
+import com.kichikan.ak1.ui.components.AnimatedCounter
+import com.kichikan.ak1.ui.components.StaggeredItem
 
 @Composable
 internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers: () -> Unit, changed: () -> Unit, open: (Tab) -> Unit) {
@@ -150,7 +152,8 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                 Text("هنوز میانبری انتخاب نشده؛ از تنظیمات، میانبرهای خانه را فعال کن.", Modifier.padding(16.dp))
             }
         } else {
-            visibleShortcuts.chunked(2).forEach { rowItems ->
+            visibleShortcuts.chunked(2).forEachIndexed { rowIndex, rowItems ->
+                StaggeredItem(index = rowIndex + 3) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     rowItems.forEach { (label, key, icon) ->
                         Card(
@@ -182,6 +185,7 @@ internal fun HomeScreen(repo: AppRepository, padding: PaddingValues, openMembers
                         }
                     }
                     if (rowItems.size == 1) Spacer(Modifier.weight(1f))
+                }
                 }
             }
         }
@@ -234,10 +238,10 @@ private fun MentorAssistantDialog(repo: AppRepository, close: () -> Unit) {
 @Composable
 private fun SummaryCard(repo: AppRepository) {
     val metrics = listOf(
-        Triple("اعضای حلقه", repo.members.size.toString(), "♙"),
-        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }.toString(), "↗"),
-        Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }.toString(), "✦"),
-        Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }.toString(), "◆")
+        Triple("اعضای حلقه", repo.members.size, "♙"),
+        Triple("XP اعضا", repo.members.sumOf { it.economy.xp }, "↗"),
+        Triple("امتیاز قابل خرج", repo.members.sumOf { it.economy.spendablePoints }, "✦"),
+        Triple("الماس اعضا", repo.members.sumOf { it.economy.diamonds }, "◆")
     )
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -261,7 +265,11 @@ private fun SummaryCard(repo: AppRepository) {
                                     )
                                     Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
+                                AnimatedCounter(
+                                    value = value,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
